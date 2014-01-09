@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project basedir="." default="jar" name="YajSync">
+
+    <property name="debuglevel" value="source,lines,vars"/>
+    <property name="target" value="1.7"/>
+    <property name="source" value="1.7"/>
+    <property name="build.dir" value="build"/>
+    <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="jar.dir" value="${build.dir}/jar"/>
+    <property name="src.dir" value="src"/>
+
+    <target depends="client-jar,server-jar" name="jar">
+    </target>
+
+    <target depends="build" name="client-jar">
+        <jar destfile="${jar.dir}/yajsync.jar" basedir="${classes.dir}">
+            <manifest>
+                <attribute name="Main-Class" value="com.github.perlundq.yajsync.ui.YajSyncClient"/>
+            </manifest>
+        </jar>
+    </target>
+
+    <target depends="build" name="server-jar">
+        <jar destfile="${jar.dir}/yajsyncd.jar" basedir="${classes.dir}">
+            <manifest>
+                <attribute name="Main-Class" value="com.github.perlundq.yajsync.ui.YajSyncServer"/>
+            </manifest>
+        </jar>
+    </target>
+
+    <target depends="init" name="build">
+        <echo message="${ant.project.name}: ${ant.file}"/>
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${classes.dir}" includeantruntime="false" source="${source}" target="${target}">
+            <src path="${src.dir}"/>
+        </javac>
+    </target>
+
+    <target name="init">
+        <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${jar.dir}"/>
+    </target>
+
+    <target name="clean">
+        <delete dir="${classes.dir}"/>
+        <delete dir="${jar.dir}"/>
+    </target>
+
+</project>
