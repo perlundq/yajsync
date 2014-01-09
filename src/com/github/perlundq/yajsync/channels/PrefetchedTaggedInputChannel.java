@@ -30,7 +30,6 @@ import com.github.perlundq.yajsync.util.Util;
 public class PrefetchedTaggedInputChannel extends TaggedInputChannel
 {
     private static final int DEFAULT_BUF_SIZE = 8 * 1024; // TODO: make buffer size configurable
-    private static final boolean PRINT_DEBUG = false;
     private final ByteBuffer _buf;
     private int _readIndex = 0;
 
@@ -51,7 +50,8 @@ public class PrefetchedTaggedInputChannel extends TaggedInputChannel
     @Override
     public String toString()
     {
-        return String.format("buf=%s, readIndex=%d prefetched=%d, contents:%n\t%s",
+        return String.format("buf=%s, readIndex=%d prefetched=%d, " +
+                             "contents:%n\t%s",
                              _buf, _readIndex, numBytesPrefetched(),
                              Text.byteBufferToString(_buf,
                                                      _readIndex,
@@ -62,24 +62,10 @@ public class PrefetchedTaggedInputChannel extends TaggedInputChannel
     public void get(ByteBuffer dst) throws ChannelException
     {
         assert dst.remaining() <= _buf.limit();
-
-        if (PRINT_DEBUG) {
-            System.out.format("get(%s) before:%n\t%s%n",
-                              Text.byteBufferToString(dst), toString());
-        }
-
         ByteBuffer prefetched = nextReadableSlice(Math.min(numBytesPrefetched(),
                                                            dst.remaining()));
         dst.put(prefetched);
         super.get(dst);
-
-        if (PRINT_DEBUG) {
-            System.out.format("get(%s):%n\t%s%n",
-                              Text.byteBufferToString(Util.slice(dst,
-                                                             0,
-                                                             dst.limit())),
-                              toString());
-        }
     }
 
     @Override
@@ -87,16 +73,8 @@ public class PrefetchedTaggedInputChannel extends TaggedInputChannel
     {
         assert numBytes >= 0;
         assert numBytes <= _buf.capacity();
-        if (PRINT_DEBUG) {
-            System.out.format("get(%d) before:%n\t%s%n", numBytes, toString());
-        }
         ensureMinimumPrefetched(numBytes);
         ByteBuffer slice = nextReadableSlice(numBytes);
-        if (PRINT_DEBUG) {
-            System.out.format("get(%d) = %s:%n\t%s%n",
-                              numBytes, Text.byteBufferToString(slice),
-                              toString());
-        }
         assert slice.remaining() == numBytes;
         return slice;
     }
@@ -104,46 +82,27 @@ public class PrefetchedTaggedInputChannel extends TaggedInputChannel
     @Override
     public byte getByte() throws ChannelException
     {
-        if (PRINT_DEBUG) {
-            System.out.format("getByte() before:%n\t%s%n", toString());
-        }
         ensureMinimumPrefetched(1);
         byte result = _buf.get(_readIndex);
         _readIndex += 1;
-        if (PRINT_DEBUG) {
-            System.out.format("getByte() = %d:%n\t%s%n", result, toString());
-        }
         return result;
     }
 
     @Override
     public char getChar() throws ChannelException
     {
-        if (PRINT_DEBUG) {
-            System.out.format("getChar() before:%n\t%s%n", toString());
-        }
         ensureMinimumPrefetched(2);
         char result = _buf.getChar(_readIndex);
         _readIndex += 2;
-        if (PRINT_DEBUG) {
-            System.out.format("getChar() = %d:%n\t%s%n",
-                              (int) result, toString());
-        }
         return result;
     }
 
     @Override
     public int getInt() throws ChannelException
     {
-        if (PRINT_DEBUG) {
-            System.out.format("getInt() before:%n\t%s%n", toString());
-        }
         ensureMinimumPrefetched(4);
         int result = _buf.getInt(_readIndex);
         _readIndex += 4;
-        if (PRINT_DEBUG) {
-            System.out.format("getInt() = %d:%n\t%s%n", result, toString());
-        }
         return result;
     }
 
@@ -168,10 +127,8 @@ public class PrefetchedTaggedInputChannel extends TaggedInputChannel
     {
         assert length >= 0;
         assert length <= numBytesPrefetched();
-
         ByteBuffer slice = Util.slice(_buf, _readIndex, _readIndex + length);
         _readIndex += length;
-
         assert _readIndex <= _buf.limit();
         assert _readIndex <= writeIndex();
         assert slice.remaining() == length;
@@ -187,7 +144,6 @@ public class PrefetchedTaggedInputChannel extends TaggedInputChannel
     {
         assert numBytes >= 0;
         assert numBytes <= _buf.limit();
-
         if (_readIndex + numBytes > _buf.limit()) {
             ByteBuffer prefetched = readableSlice();
             assert _readIndex == writeIndex();
@@ -200,23 +156,10 @@ public class PrefetchedTaggedInputChannel extends TaggedInputChannel
     private void ensureMinimumPrefetched(int numBytes) throws ChannelException
     {
         assert numBytes <= _buf.limit();
-
         ensureSpaceFor(numBytes);
         while (numBytesPrefetched() < numBytes) {
             readNextAvailable(_buf);
         }
-
-        if (PRINT_DEBUG) {
-            System.out.format("ensureMinimumPrefetched(%d):%n\t%s%n",
-                              numBytes, toString());
-        }
-
         assert numBytesPrefetched() >= numBytes;
     }
-
-//    public String peek(int numBytes)
-//    {
-//        int i = Math.min(numBytes, numBytesPrefetched());
-//        return Text.byteBufferToString(_buf, _readIndex, _readIndex + i);
-//    }
 }
