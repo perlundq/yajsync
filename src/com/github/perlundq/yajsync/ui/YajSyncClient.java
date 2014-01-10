@@ -246,6 +246,10 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
 
     public static void main(String[] args)
     {
+        System.err.println("Warning: this software is still unstable and " +
+                           "there might be data corruption bugs hiding. So " +
+                           "use it only carefully at your own risk.");
+
         YajSyncClient clientInstance = new YajSyncClient();
         clientInstance.parseArguments(args);
 

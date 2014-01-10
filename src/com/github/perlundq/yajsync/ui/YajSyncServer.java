@@ -280,8 +280,13 @@ public class YajSyncServer
             stats.totalRead());
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException
+    public static void main(String[] args)
+        throws IOException, InterruptedException
     {
+        System.err.println("Warning: this software is still unstable and " +
+                           "there might be data corruption bugs hiding. So " +
+                           "use it only carefully at your own risk.");
+
         final YajSyncServer server = new YajSyncServer();
         server.parseArgs(args);
         Level logLevel = Util.getLogLevelForNumber(Util.WARNING_LOG_LEVEL_NUM +
@@ -291,7 +296,7 @@ public class YajSyncServer
         try {
             server._configuration = Configuration.readFile(server._cfgFileName);
         } catch (IOException e) { // 
-            System.err.format("Warning: failed to read configuration file " +
+            System.err.format("Error: failed to read configuration file " +
                               "%s (%s)%n", server._cfgFileName, e);
             System.exit(1);
         }
