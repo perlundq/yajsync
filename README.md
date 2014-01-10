@@ -10,14 +10,14 @@ rsync safe file lists.
 Features
 --------
 
-- rsync API
+- rsync Java API
 
-- Platform independant rsync server
+- Platform independent rsync server
 
-- Platform independant rsync client with support for both local and
+- Platform independent rsync client with support for both local and
   remote file transfers
 
-please be aware though that the API currently is unstable, not
+Please be aware though that the API currently is unstable, not
 documented and will most probably change in the near future
 
 
@@ -32,7 +32,7 @@ Example
 -------
 
 Start a Server listening on localhost port 14415, with one implicitly
-readonly module called Downloads and one writable module called
+read-only module called Downloads and one writable module called
 Uploads:
 
 ```
