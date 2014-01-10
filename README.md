@@ -7,6 +7,7 @@ yajsync currently supports a minimal subset of rsync protocol version
 30.0, with the additional constraint that the peer must also support
 rsync safe file lists.
 
+
 Features
 --------
 
@@ -88,8 +89,8 @@ which makes the receiver avoid writing into a temporary file if the
 target file is unchanged.
 
 
-BUILDING
---------
+Build instructions
+------------------
 
 Requirements:
 
@@ -104,7 +105,7 @@ Procedure:
     ant
 
 
-USAGE
+Usage
 -----
 
 show client/server help (-h argument):
@@ -136,7 +137,7 @@ Turn on aggressive optimisations:
     -XX:+AggressiveOpts
 
 
-LICENSE
+License
 -------
 
 Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
