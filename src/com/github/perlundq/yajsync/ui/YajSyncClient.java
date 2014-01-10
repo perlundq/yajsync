@@ -369,7 +369,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     {
         Console console = System.console();
         if (console == null) {
-            return "bjarne".toCharArray();           // FIXME: REMOVEME hardcoded password
+            return "".toCharArray();
         }
         char[] password = console.readPassword("Password: ");
         return password;
