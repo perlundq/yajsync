@@ -68,8 +68,7 @@ public class Generator
         Logger.getLogger(Generator.class.getName());
     private static final int OUTPUT_CHANNEL_BUF_SIZE = 8 * 1024;
     private static final Checksum.Header ZERO_SUM;
-//    private static final int MIN_BLOCK_SIZE = 512;                              // TODO: make block size configurable
-    private static final int MIN_BLOCK_SIZE = 1024;                              // TODO: make block size configurable
+    private static final int MIN_BLOCK_SIZE = 512;                              // TODO: make block size configurable
     private final RsyncOutChannel _senderOutChannel;
     private final byte[] _checksumSeed;
 
