@@ -32,6 +32,8 @@ import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.github.perlundq.yajsync.util.Environment;
+
 public class Filelist
 {
     public static class SegmentBuilder
@@ -169,7 +171,7 @@ public class Filelist
                     append(e.getValue().path()).
                     append(", ").
                     append(e.getKey()).
-                    append("\n");                                               // FIXME: use current EOL separator instead of hardcoding a newline
+                    append(Environment.PATH_SEPARATOR);
                 }
             }
 
