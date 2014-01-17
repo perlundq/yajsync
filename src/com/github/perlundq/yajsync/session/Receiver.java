@@ -243,9 +243,13 @@ public class Receiver implements MessageHandler
             ByteBuffer payload = message.payload();
             String text = _characterDecoder.decode(payload);                    // throws TextConversionException
             MessageCode msgType = message.header().messageType();
-            if (_log.isLoggable(Level.FINE)) {
+            
+            if (msgType.isUrgent() && _log.isLoggable(Level.WARNING)) {
+                _log.warning(String.format("<SENDER> %s: %s",
+                                           msgType, Text.stripLast(text)));
+            } else if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("<SENDER> %s: %s",
-                    msgType, Text.stripLast(text)));
+                                        msgType, Text.stripLast(text)));
             }
             if (msgType.equals(MessageCode.ERROR_XFER)) {
                 _ioError |= IoError.TRANSFER;                        // this is not what native does though - it stores it in a separate variable called got_xfer_error

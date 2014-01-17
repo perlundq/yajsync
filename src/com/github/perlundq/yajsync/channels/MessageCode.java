@@ -74,4 +74,16 @@ public enum MessageCode
         }
         return message;
     }
+    
+    public boolean isUrgent()
+    {
+        switch(this) {
+        case WARNING:
+        case ERROR:
+        case ERROR_XFER:
+            return true;
+        default:
+            return false;
+        }
+    }
 }
