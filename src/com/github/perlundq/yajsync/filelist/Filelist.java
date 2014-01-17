@@ -410,7 +410,6 @@ public class Filelist
     // sender receiver generator
     public Segment deleteFirstSegment()
     {
-        assert _isRecursive;
         return _segments.remove(0);
     }
 
