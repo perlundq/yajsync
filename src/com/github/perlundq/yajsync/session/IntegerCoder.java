@@ -51,7 +51,6 @@ final class IntegerCoder
      */
     public static ByteBuffer encodeLong(long value, int minBytes)
     {
-        assert value >= 0 && value <= Integer.MAX_VALUE;
         assert minBytes >= 1 && minBytes <= 8;
 
         byte[] buf = new byte[9];
@@ -87,11 +86,10 @@ final class IntegerCoder
     {
         assert minBytes >= 1 && minBytes <= 8;
 
-        byte[] buf = new byte[9];
+        byte[] buf = new byte[10];
         src.get(buf, 0, minBytes);
         int ch = 0xFF & buf[0];
         int extra = _int_byte_extra[ch / 4];
-        assert extra < buf.length - minBytes;
 
         if (extra > 0) {
             src.get(buf, minBytes, extra);
