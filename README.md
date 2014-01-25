@@ -7,6 +7,16 @@ yajsync currently supports a minimal subset of rsync protocol version
 30.0, with the additional constraint that the peer must also support
 rsync safe file lists.
 
+Currently implemented rsync options:
+
+- Incremental recursion (-r, --recursive)
+
+- Preserve times (-t, --times)
+
+- Module file listings
+
+yajsync is compliant with at least rsync version 3.0.9.
+
 
 Features
 --------
@@ -19,7 +29,7 @@ Features
   remote file transfers
 
 Please be aware though that the API currently is unstable, not
-documented and will most probably change in the near future
+documented and will most probably change in the near future.
 
 
 Warning
@@ -27,6 +37,9 @@ Warning
 
 This software is still unstable and there might be data corruption
 bugs hiding. So use it only carefully at your own risk.
+     
+If you encounter any problems please create an issue with
+https://github.com/perlundq/yajsync/issues/new
 
 
 Example
