@@ -42,6 +42,13 @@ If you encounter any problems please create an issue with
 https://github.com/perlundq/yajsync/issues/new
 
 
+Contact
+-------
+
+If you have any questions or want to provide feedback of any type
+please join the [yajsync discussion group](http://groups.google.com/d/forum/yajsync)
+
+
 Example
 -------
 
