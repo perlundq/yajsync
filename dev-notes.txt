@@ -1,0 +1,4 @@
+http://stackoverflow.com/questions/20060200/des-encryption-given-final-block-not-properly-padded
+--> DES encryption Readable-/WritableByteChannel
+
+http://tomcat.apache.org/tomcat-7.0-doc/api/
