@@ -27,10 +27,12 @@ public enum SessionStatus
     AUTHREQ("@RSYNCD: AUTHREQD ");
 
     private final String _repr;
+    private String parameter;
 
     SessionStatus(String s)
     {
         _repr = s;
+        parameter = null;
     }
 
     boolean matches(String s)
@@ -38,9 +40,16 @@ public enum SessionStatus
         return s.startsWith(_repr);
     }
 
+    public void setParameter(String parameter) {
+    	this.parameter = parameter;
+    }
+
     @Override
     public String toString()
     {
+    	if (parameter!=null) {
+    		return _repr+parameter;
+    	}
         return _repr;
     }
 }

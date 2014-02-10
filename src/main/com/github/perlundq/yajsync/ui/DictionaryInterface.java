@@ -11,4 +11,5 @@ public interface DictionaryInterface {
 	public void register(String filename);
 	public String lookup(String module, String username);
 	public void unregister();
+
 }

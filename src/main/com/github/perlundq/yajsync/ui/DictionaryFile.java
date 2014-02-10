@@ -29,8 +29,11 @@ public class DictionaryFile implements DictionaryInterface {
 	private static String commentPrefix = "#";
 
 	private Map<String, String> dictionary = new HashMap<String, String>();
+	private String filename;
 
 	public void register(String filename) {
+		
+		this.filename = filename;
 
 		try (BufferedReader br = new BufferedReader(
 				new FileReader(new File(filename)))) {
@@ -81,5 +84,9 @@ public class DictionaryFile implements DictionaryInterface {
 
 	private String getHashKey(String module, String username) {
 		return module + ":" + username;
+	}
+	
+	public String toString() {
+		return "File::"+this.filename;
 	}
 }

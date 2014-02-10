@@ -30,7 +30,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -185,7 +184,7 @@ public class YajSyncServer
 
     private Callable<Boolean> createCallable(final ExecutorService executor,
                                              final SocketChannel sock,
-                                             final Map<String, Module> modules)
+                                             final Configuration globalConfiguration)
     {
         return new Callable<Boolean>() {
             @Override
@@ -195,7 +194,7 @@ public class YajSyncServer
                     RsyncServerSession session = new RsyncServerSession();
                     session.setCharset(_charset);
                     session.setIsDeferredWrite(_isDeferredWrite);
-                    isOK = session.startSession(executor, sock, modules);
+                    isOK = session.startSession(executor, sock, globalConfiguration);
 //                    showStatistics(session.statistics());
                 } catch (ChannelException e) {
                     if (_log.isLoggable(Level.SEVERE)) {
@@ -241,15 +240,8 @@ public class YajSyncServer
             // TODO: re-enable socket timeout if not debugging
             //_peerChannel.setSoTimeout(60);
             // TODO: set TCP keep alive
-            try {
-                _configuration = Configuration.readFile(_cfgFileName);
-            } catch (IOException e) {
-                System.err.format("Warning: Failed to re-read " +
-                    "configuration file %s: %s%n",
-                    _cfgFileName, e.getMessage());
-            }
-            Callable<Boolean> t = createCallable(executor, sock,
-                                                 _configuration.modules());
+
+            Callable<Boolean> t = createCallable(executor, sock, _configuration);
             executor.submit(t);  // NOTE: result discarded
         }
     }
@@ -318,6 +310,7 @@ public class YajSyncServer
                 System.err.format("some sessions are still running, waiting " +
                                   "for them to finish before exiting");
             }
+            DictionaryFactory.unregisterDictionaries();
         }
     }
 }

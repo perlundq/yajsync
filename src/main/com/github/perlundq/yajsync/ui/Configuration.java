@@ -34,15 +34,26 @@ import com.github.perlundq.yajsync.util.Environment;
 
 public class Configuration
 {
+    // private static final Logger _log = Logger.getLogger(Configuration.class.getName());
+
     // what is really a correct module name? let's be strict and only allow
     // word characters and whitespace:
     private static final Pattern keyValuePattern =
         Pattern.compile("^([\\w ]+) *= *(\\S.*)$");
     private static final Pattern modulePattern =
         Pattern.compile("^\\[\\s*([\\w ]+)\\s*\\]$");
+    private static final Pattern dictionaryPattern =
+    	Pattern.compile("^(.*)::(.*)$");
     private final Map<String, Module> _modules = new HashMap<>();
     private final Map<String, Module.Builder> _complete = new HashMap<>();
     private final Map<String, Module.Builder> _incomplete = new HashMap<>();
+
+    // config value names
+    public static final String cfgComment = "comment";
+    public static final String cfgPath = "path";
+    public static final String cfgReadOnly = "read only";
+    public static final String cfgAuthUsers = "auth users";
+    public static final String cfgSecretMD5 = "secret md5";
 
     private Configuration() {}
 
@@ -52,6 +63,8 @@ public class Configuration
         Module.Builder moduleBuilder =
             new Module.Builder(Module.GLOBAL_MODULE_NAME); // FIXME: not good - the global module is different, it does not have path for example
         boolean doRead = true;
+        
+        String moduleName = null;
 
         while (doRead) {
             String line = reader.readLine();
@@ -80,7 +93,7 @@ public class Configuration
             Matcher moduleMatcher = modulePattern.matcher(trimmedLine);
             if (moduleMatcher.matches()) {
                 saveModule(moduleBuilder);
-                String moduleName = moduleMatcher.group(1).trim();              // TODO: remove consecutive white space in module name
+                moduleName = moduleMatcher.group(1).trim();              // TODO: remove consecutive white space in module name
                 moduleBuilder = restoreOrCreateModule(moduleName);
                 continue;
             }
@@ -91,33 +104,34 @@ public class Configuration
             }
 
             String key = keyValueMatcher.group(1).trim();
-            String val = keyValueMatcher.group(2).trim();
+            String value = keyValueMatcher.group(2).trim();
+            ConfigurationValue val;
 
-            // FIXME: don't hardcode these:
-            if (key.equals("comment")) {             // NOTE: will happily overwrite any previous set value
+            Matcher dictionaryMatcher = dictionaryPattern.matcher(value);
+            if (dictionaryMatcher.matches()) {
+            	String dictionaryType = dictionaryMatcher.group(1).trim();
+            	String dictionaryFilename = dictionaryMatcher.group(2).trim();
+            	DictionaryInterface dictionary = DictionaryFactory.getDictionary(dictionaryType, dictionaryFilename);
+            	val = new ConfigurationDictionaryValue(dictionary);
+            } else {
+            	val = new ConfigurationValue(value);
+            }
+
+            if (key.equals(cfgComment)) {             // NOTE: will happily overwrite any previous set value
                 moduleBuilder.setComment(val);
-            } else if (key.equals("path")) {
-                try {
-                    moduleBuilder.setPath(Paths.get(val));
-                } catch (IOException e) {
-                    System.err.format("Error: failed to set module path to %s" +
-                                      " for module %s%n", val, moduleBuilder.name());
-                }
-            } else if (key.equals("read only")) {
-                String booleanString = toBooleanStringOrNull(val);
-                if (booleanString != null) {
-                    moduleBuilder.setIsReadOnly(Boolean.valueOf(val));
-                } else {
-                    System.err.format(
-                        "Error: illegal value for module parameter " +
-                        "'read only': %s (expected either of " +
-                        "true/false/yes/no/1/0)", val);
-                }
+            } else if (key.equals(cfgPath)) {
+               	moduleBuilder.setPath(val);
+            } else if (key.equals(cfgReadOnly)) {
+            	moduleBuilder.setIsReadOnly(val);
+            } else if (key.equals(cfgAuthUsers)) {
+            	moduleBuilder.setAuthUsers(val);
+            } else if (key.equals(cfgSecretMD5)) {
+            	moduleBuilder.setSecretMD5(val);
             }
         }
 
         saveModule(moduleBuilder);
-        buildAllModules();
+        // buildAllModules();
     }
 
     public static Configuration readFile(String fileName) throws IOException
@@ -142,32 +156,29 @@ public class Configuration
         return _modules;
     }
 
-    private void buildAllModules()
-    {
+    // generate user-specific configuration
+    public Map<String, Module> modules(String username) {
+    	
+    	Map<String, Module> userModules = new HashMap<>();
+    	
+        for (Map.Entry<String, Module.Builder> entry : _complete.entrySet()) {
+        	userModules.put(entry.getKey(), new Module(entry.getValue(), username));
+        }
+
+        return userModules;
+    }
+
+    /* private void buildAllModules() {
         for (Map.Entry<String, Module.Builder> entry : _complete.entrySet()) {
             _modules.put(entry.getKey(), new Module(entry.getValue()));
         }
         _complete.clear();
         _incomplete.clear();
-    }
+    } */
 
     private static boolean isCommentLine(String line)
     {
         return line.startsWith("#") || line.startsWith(";");
-    }
-
-    private static String toBooleanStringOrNull(String val)
-    {
-        if (val.equalsIgnoreCase("true") ||
-            val.equalsIgnoreCase("1") ||
-            val.equalsIgnoreCase("yes")) {
-            return "true";
-        } else if (val.equalsIgnoreCase("false") ||
-                   val.equalsIgnoreCase("0") ||
-                   val.equalsIgnoreCase("no")) {
-            return "false";
-        }
-        return null;
     }
 
     private Module.Builder restoreOrCreateModule(String moduleName)

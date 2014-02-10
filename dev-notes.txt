@@ -2,3 +2,13 @@ http://stackoverflow.com/questions/20060200/des-encryption-given-final-block-not
 --> DES encryption Readable-/WritableByteChannel
 
 http://tomcat.apache.org/tomcat-7.0-doc/api/
+
+---
+
+com.github.perlundq.yajsync.session.ClientSessionConfig.authenticate(String, char[], String)
+--> save challenge at the server besides MD5 hash ?
+
+---
+
+com.github.perlundq.yajsync.session.ServerSessionConfig.handshake(Charset, SocketChannel, Configuration)
+--> allow non-authenticated requests

@@ -24,7 +24,6 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
@@ -36,7 +35,7 @@ import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.channels.ChannelException;
 import com.github.perlundq.yajsync.text.Text;
-import com.github.perlundq.yajsync.ui.Module;
+import com.github.perlundq.yajsync.ui.Configuration;
 
 public class RsyncServerSession
 {
@@ -143,7 +142,7 @@ public class RsyncServerSession
     // FIXME: BUG _verbosity is not handled correctly
     public boolean startSession(ExecutorService executor,
                                 SocketChannel peerChannel,
-                                Map<String, Module> modules)
+                                Configuration globalConfiguration)
         throws ChannelException
     {
         List<Future<Boolean>> futures = new LinkedList<>();
@@ -154,7 +153,7 @@ public class RsyncServerSession
             }
             ServerSessionConfig cfg = ServerSessionConfig.handshake(_charset,       // throws IllegalArgumentException if _charset is not supported
                                                                     peerChannel,
-                                                                    modules);
+                                                                    globalConfiguration);
             if (cfg.status() != SessionStatus.OK) {
                 return false;
             }

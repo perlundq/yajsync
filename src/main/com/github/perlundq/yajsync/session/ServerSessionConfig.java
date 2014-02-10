@@ -35,6 +35,7 @@ import com.github.perlundq.yajsync.channels.ChannelEOFException;
 import com.github.perlundq.yajsync.channels.ChannelException;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.text.TextConversionException;
+import com.github.perlundq.yajsync.ui.Configuration;
 import com.github.perlundq.yajsync.ui.Module;
 import com.github.perlundq.yajsync.util.ArgumentParser;
 import com.github.perlundq.yajsync.util.ArgumentParsingError;
@@ -78,21 +79,36 @@ public class ServerSessionConfig extends SessionConfig
      */
     public static ServerSessionConfig handshake(Charset charset,
                                                 SocketChannel peerConnection,
-                                                Map<String, Module> modules)
+                                                Configuration globalConfiguration)
         throws ChannelException
     {
         assert peerConnection != null;
-        assert modules!= null;
 
-        ServerSessionConfig instance = new ServerSessionConfig(peerConnection,
-                                                               charset);
+        ServerSessionConfig instance = new ServerSessionConfig(peerConnection, charset);
         try {
             instance.exchangeProtocolVersion();
             String moduleName = instance.receiveModule();
+
+            // get authentication data
+            String challenge = Long.toHexString(Double.doubleToLongBits(Math.random()));
+            // FSTODO: thread safe ?
+            synchronized(SessionStatus.AUTHREQ) {
+	            SessionStatus.AUTHREQ.setParameter(challenge);
+	            instance.sendStatus(SessionStatus.AUTHREQ);
+	            instance._status = SessionStatus.AUTHREQ;
+            }
+            String line = instance.readLine();
+            String[] authData = line.split(" ");
+
+            // user-specific initialization of the module configuration
+            Map<String, Module> modules = globalConfiguration.modules(authData[0]);
+            assert modules!= null;
+
             if (moduleName.isEmpty()) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("sending module listing and exiting");
                 }
+                // FSTODO: suppress or reduce module listing in public server
                 instance.sendModuleListing(modules.values());
                 instance.sendStatus(SessionStatus.EXIT);
                 instance._status = SessionStatus.EXIT;
@@ -104,10 +120,19 @@ public class ServerSessionConfig extends SessionConfig
                     _log.warning(String.format("Module %s does not exist",
                                                moduleName));
                 }
-                instance._status = SessionStatus.EXIT;
+                instance.sendStatus(SessionStatus.ERROR);
+                instance._status = SessionStatus.ERROR;
                 return instance;
             }
-            instance.setModule(module);
+            if (!instance.setModule(module, authData)) {
+            	if (_log.isLoggable(Level.WARNING)) {
+                    _log.warning(String.format("Could not authenticate user %s to module %s",
+                                               authData[0], moduleName));
+                }
+            	instance.sendStatus(SessionStatus.ERROR);
+            	instance._status = SessionStatus.ERROR;
+                return instance;
+            }
             instance.sendStatus(SessionStatus.OK);
             instance._status = SessionStatus.OK;
 
@@ -161,11 +186,16 @@ public class ServerSessionConfig extends SessionConfig
         writeString(status.toString() + "\n");
     }
 
-    // TODO: authenticate module and possible execute
-    //       protocolContext.sendStatus(ReplyStatus.AUTHREQ);
-    private void setModule(Module module)
-    {
+    private boolean setModule(Module module, String[] authData) {
         _module = module;
+
+        // check userName inside module configuration: authUsers
+        if (!_module.isUserMatching()) return false;
+        
+        // no authentication by password required
+        if (_module.getSecretMD5()==null) return true;
+
+        return _module.getSecretMD5().equals(authData[1]);
     }
 
     /**

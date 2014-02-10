@@ -29,11 +29,15 @@ import com.github.perlundq.yajsync.util.PathOps;
 
 public class Module
 {
-    public static class Builder {
-        private String _name = "";
-        private String _comment = "";
-        private Path _path;
-        private boolean _isReadOnly = true;
+	public static class Builder {
+
+		private String _name = GLOBAL_MODULE_NAME;
+
+		private ConfigurationValue _comment = new ConfigurationValue(null);
+        private ConfigurationValue _path = new ConfigurationValue(null);
+        private ConfigurationValue _isReadOnly = new ConfigurationValue("false");
+        private ConfigurationValue _authUsers = new ConfigurationValue(null);
+        private ConfigurationValue _secretMD5 = new ConfigurationValue(null);
 
         /**
          * @throws IllegalArgumentException
@@ -45,127 +49,176 @@ public class Module
             _name = name;
         }
 
-        @Override
-        public String toString() {
-            return String.format("%s (name=%s comment=%s path=%s " +
-                                 "isReadOnly=%s)",
-                                 getClass().getSimpleName(), _name, _comment,
-                                 _path, _isReadOnly);
+        public boolean isGlobal() {
+        	return _name.equals(GLOBAL_MODULE_NAME);
         }
-
+        
         public String name() {
             return _name;
         }
 
-        public Builder setIsReadOnly(boolean value) {
-            _isReadOnly = value;
-            return this;
+        public void setIsReadOnly(ConfigurationValue isReadOnly) {
+            _isReadOnly = isReadOnly;
         }
 
         /**
          * @throws IllegalArgumentException
          */
-        public Builder setComment(String comment) {
+        public void setComment(ConfigurationValue comment) {
             if (comment == null) {
                 throw new IllegalArgumentException("comment is null");
             }
             _comment = comment;
-            return this;
         }
 
         /**
          * @throws IllegalArgumentException
          */
-        public Builder setPath(Path path) throws IOException {
+        public void setPath(ConfigurationValue path) throws IOException {
             if (path == null) {
                 throw new IllegalArgumentException("path is null");
             }
-            _path = path.toRealPath(LinkOption.NOFOLLOW_LINKS);
-            if (_path.getNameCount() == 0) {
-                throw new IllegalArgumentException("Error: module path may not be the root directory");
-            }
-            return this;
+            this._path = path;
         }
 
         public boolean hasPath() {
             return _path != null;
         }
 
-        public boolean isGlobal() {
-            return _name.equals("");
+        public void setAuthUsers(ConfigurationValue authUsers) {
+        	_authUsers = authUsers;
+        }
+        
+        public void setSecretMD5(ConfigurationValue secretMD5) {
+        	_secretMD5 = secretMD5; 
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%s (name=%s comment=%s path=%s " +
+                                 "isReadOnly=%s authUsers=%s secretMD5=%s)",
+                                 getClass().getSimpleName(), _name, _comment,
+                                 _path, _isReadOnly, _authUsers, _secretMD5);
         }
     }
 
-    public static final String GLOBAL_MODULE_NAME = "";
-    private final String _name;
-    private final String _comment;
-    private final Path _path;
-    private final boolean _isReadOnly;
+	public static final String GLOBAL_MODULE_NAME = "";
+    private final String modulename;
+    private final String username;
+    private final String comment;
+    private final Path path;
+    private final Boolean isReadOnly;
+    private final Boolean isUserMatching;
+    private final String secretMD5;
 
-    public Module(Builder builder)
+    public Module(Builder builder, String _username)
     {
-        _name = builder._name;
-        _comment = builder._comment;
-        _path = builder._path;
-        _isReadOnly = builder._isReadOnly;
+    	// user specific initialization
+    	this.modulename = builder._name;
+    	this.username = _username;
+    	this.comment = convertComment(builder._comment);
+        this.path = convertPath(builder._path);
+        this.isReadOnly = convertIsReadOnly(builder._isReadOnly);
+        this.isUserMatching = convertAuthUsers(builder._authUsers);
+        this.secretMD5 = convertSecretMD5(builder._secretMD5);
     }
 
-    @Override
-    public String toString()
-    {
-        // TODO: print only non-null values
-        return String.format("[%s]:%n\tcomment = %s\n\tpath = %s\n\tread only = %s%n",
-                             _name, _comment, _path, _isReadOnly);
-    }
-
-    @Override
-    public boolean equals(Object other)
-    {
-        if (other != null && getClass() == other.getClass()) {
-            Module otherModule = (Module) other;
-            return name().equals(otherModule.name());
-        }
-        return false;
+    public boolean isGlobal() {
+        return modulename.equals(GLOBAL_MODULE_NAME);
     }
     
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(_name);
+    public String name() {
+        return modulename;
+    }
+
+    public String comment() {
+        return comment;
     }
     
-    public boolean isGlobal()
-    {
-        return _name.equals(GLOBAL_MODULE_NAME);
+    public String convertComment(ConfigurationValue v) {
+    	return v.getValue(modulename, username);
+    }
+    
+    public Path convertPath(ConfigurationValue v) {
+    	
+    	String s = v.getValue(modulename, username);
+    	if (s==null && isGlobal()) return null;
+
+    	Path path = null;
+    	try {
+    		path = Paths.get(s).toRealPath(LinkOption.NOFOLLOW_LINKS);
+    		if (path.getNameCount() == 0) {
+    			// System.err.format("Error: module path may not be the root directory for module %s%n", this.modulename);
+    			// return null;
+    			throw new IllegalArgumentException(String.format("Error: module path may not be the root directory for module %s%n", this.modulename));
+	        }
+    	} catch (NullPointerException|IOException e) {
+    		// System.err.format("Error: failed to set module path to %s for module %s%n", s, this.modulename);
+    		// return null;
+    		throw new IllegalArgumentException(String.format("Error: failed to set module path to %s for module %s%n", s, this.modulename));
+    	}
+
+    	return path;
     }
 
-    public boolean isReadOnly()
-    {
-        return _isReadOnly;
+    public boolean isReadOnly() {
+    	return this.isReadOnly;
     }
 
-    public String name()
-    {
-        return _name;
+    public Boolean convertIsReadOnly(ConfigurationValue v) {
+    	String s = v.getValue(this.modulename, username);
+    	Boolean isReadOnly = toBooleanStringOrNull(s);
+    	if (isReadOnly == null) {
+            System.err.format(
+                "Error: illegal value for module parameter " +
+                "'%s': %s (expected either of " +
+                "true/false/yes/no/1/0)", Configuration.cfgReadOnly, s);
+            isReadOnly = true;
+    	}
+    	return isReadOnly;
     }
 
-    public String comment()
-    {
-        return _comment;
+    public boolean isUserMatching() {
+    	return this.isUserMatching;
     }
 
-    public Path resolveVirtual(Path other)
-    {
-        Path normalized = normalizeEmptyToDotDir(other);                        // e.g. MODULE/path/to/file
-        Path moduleNameAsPath = Paths.get(_name);
+    public Boolean convertAuthUsers(ConfigurationValue v) {
+
+    	// look for a matching of the current user in one or multiple comma separated usernames
+    	String authUsers = v.getValue(modulename, username);
+    	
+    	// public access if 'auth users' is not defined
+    	if (authUsers == null) return true;
+
+    	String[] splittedAuthUsers = authUsers.split(",");
+    	for (String u : splittedAuthUsers) {
+    		if (this.username.equals(u.trim())) {
+    			return true;
+    		}
+    	}
+    	return false;
+    }
+
+    public String getSecretMD5() {
+    	return this.secretMD5;
+    }
+
+    public String convertSecretMD5(ConfigurationValue v) {
+    	return v.getValue(modulename, username);
+    }
+
+    public Path resolveVirtual(Path other) {
+
+    	Path normalized = normalizeEmptyToDotDir(other);                        // e.g. MODULE/path/to/file
+        Path moduleNameAsPath = Paths.get(modulename);
         if (!normalized.startsWith(moduleNameAsPath)) {                         // NOTE: any absolute paths will throw here, as will MODULE/..
             throw new RsyncSecurityException(String.format(
-                "\"%s\" is outside module virtual top dir %s", other, _name));
+                "\"%s\" is outside module virtual top dir %s", other, modulename));
         }
 
         int moduleNameCount = moduleNameAsPath.getNameCount();
         if (normalized.getNameCount() == moduleNameCount) {
-            return _path;
+            return path;
         }
         Path strippedOfModulePrefix =
             normalized.subpath(moduleNameCount,
@@ -179,7 +232,7 @@ public class Module
         Path result = resolveOrNull(other);
         if (result == null) {
             throw new RsyncSecurityException(String.format(
-                "%s is outside module top dir %s", other, _path));
+                "%s is outside module top dir %s", other, path));
         }
         return result;
     }
@@ -189,9 +242,9 @@ public class Module
     {
         Path normalized = normalizeEmptyToDotDir(other);
         if (!normalized.isAbsolute()) {
-            normalized = _path.resolve(normalized);
+            normalized = path.resolve(normalized);
         }
-        if (normalized.startsWith(_path)) {
+        if (normalized.startsWith(path)) {
             return normalized;
         }
         return null;
@@ -206,4 +259,39 @@ public class Module
         }
         return normalized;
     }
+
+    private static Boolean toBooleanStringOrNull(String val)
+    {
+        if (val.equalsIgnoreCase("true") ||
+            val.equalsIgnoreCase("1") ||
+            val.equalsIgnoreCase("yes")) {
+            return true;
+        } else if (val.equalsIgnoreCase("false") ||
+                   val.equalsIgnoreCase("0") ||
+                   val.equalsIgnoreCase("no")) {
+        	return false;
+        }
+        return null;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (other != null && getClass() == other.getClass()) {
+            Module otherModule = (Module) other;
+            return name().equals(otherModule.name());
+        }
+        return false;
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(modulename);
+    }
+
+    @Override
+    public String toString() {
+        // TODO: print only non-null values
+        return String.format("[%s]:%n\tcomment = %s\n\tpath = %s\n\tread only = %s\n\tauth users = %s%n",
+                             modulename, comment, path, isReadOnly, isUserMatching ? username : "<no match>");
+    }    
 }

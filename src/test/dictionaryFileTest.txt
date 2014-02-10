@@ -1,0 +1,6 @@
+# Test file with config properties
+ 
+module1:user1:value1
+module1:user2:value2
+_default_:user1:value3
+

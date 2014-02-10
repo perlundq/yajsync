@@ -3,6 +3,8 @@ package com.github.perlundq.yajsync.ui;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -136,5 +138,12 @@ public class DictionarySQL implements DictionaryInterface {
 			return false;
 		}
 		return true;
+	}
+	
+	
+	public String toString() {
+		StringWriter writer = new StringWriter();
+		config.list(new PrintWriter(writer));
+		return "SQL::"+this.filename+"\n"+writer.getBuffer().toString();
 	}
 }
