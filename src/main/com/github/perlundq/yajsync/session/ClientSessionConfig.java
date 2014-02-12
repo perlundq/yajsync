@@ -193,7 +193,7 @@ public class ClientSessionConfig extends SessionConfig
             }
             if (challengeBytes == null) {
                 throw new RuntimeException(String.format(
-                    "Unable to encode characters in %s", challenge));
+                    "Unable to encode characters in challenge %s", challenge));
             }
             md.update(passwordBytes);
             md.update(challengeBytes);
