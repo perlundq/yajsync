@@ -89,33 +89,20 @@ public class ServerSessionConfig extends SessionConfig
             instance.exchangeProtocolVersion();
             String moduleName = instance.receiveModule();
 
-            // get authentication data
-            String challenge = Long.toHexString(Double.doubleToLongBits(Math.random()));
-            // FSTODO: thread safe ?
-            synchronized(SessionStatus.AUTHREQ) {
-	            SessionStatus.AUTHREQ.setParameter(challenge);
-	            instance.sendStatus(SessionStatus.AUTHREQ);
-	            instance._status = SessionStatus.AUTHREQ;
-            }
-            String line = instance.readLine();
-            String[] authData = line.split(" ");
-
-            // user-specific initialization of the module configuration
-            Map<String, Module> modules = globalConfiguration.modules(authData[0]);
-            assert modules!= null;
-
             if (moduleName.isEmpty()) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("sending module listing and exiting");
                 }
-                // FSTODO: suppress or reduce module listing in public server
-                instance.sendModuleListing(modules.values());
+                instance.sendModuleListing(globalConfiguration.getModulesForListing());
                 instance.sendStatus(SessionStatus.EXIT);
                 instance._status = SessionStatus.EXIT;
                 return instance;
             }
-            Module module = modules.get(moduleName);
-            if (module == null) {
+            
+            String[] authData;
+            String challenge = Long.toHexString(Double.doubleToLongBits(Math.random()));
+            Boolean isAuthenticationRequired = globalConfiguration.isAuthenticationRequired(moduleName);
+            if (isAuthenticationRequired == null) {
                 if (_log.isLoggable(Level.WARNING)) {
                     _log.warning(String.format("Module %s does not exist",
                                                moduleName));
@@ -123,8 +110,27 @@ public class ServerSessionConfig extends SessionConfig
                 instance.sendStatus(SessionStatus.ERROR);
                 instance._status = SessionStatus.ERROR;
                 return instance;
+            } else if (isAuthenticationRequired) {
+                // get authentication data
+                // FSTODO: thread safe ?
+                synchronized(SessionStatus.AUTHREQ) {
+    	            SessionStatus.AUTHREQ.setParameter(challenge);
+    	            instance.sendStatus(SessionStatus.AUTHREQ);
+    	            instance._status = SessionStatus.AUTHREQ;
+                }
+                String line = instance.readLine();
+                authData = line.split(" ");
+            } else {
+            	authData = new String[]{null, null};
             }
-            if (!instance.setModule(module, authData)) {
+
+            // user-specific initialization of the module configuration
+            Map<String, Module> modules = globalConfiguration.modules(authData[0]);
+            assert modules!= null;
+
+            Module module = modules.get(moduleName);
+            assert module!= null;
+            if (!instance.setModule(module, authData, challenge)) {
             	if (_log.isLoggable(Level.WARNING)) {
                     _log.warning(String.format("Could not authenticate user %s to module %s",
                                                authData[0], moduleName));
@@ -186,7 +192,7 @@ public class ServerSessionConfig extends SessionConfig
         writeString(status.toString() + "\n");
     }
 
-    private boolean setModule(Module module, String[] authData) {
+    private boolean setModule(Module module, String[] authData, String challenge) {
         _module = module;
 
         // check userName inside module configuration: authUsers
@@ -194,8 +200,11 @@ public class ServerSessionConfig extends SessionConfig
         
         // no authentication by password required
         if (_module.getSecretMD5()==null) return true;
+        
+        byte[] hashedBytes = Util.hash(_module.getSecretMD5().toCharArray(), challenge, this._characterEncoder);
+        String hashedBase64 = Util.base64encode(hashedBytes, false);
 
-        return _module.getSecretMD5().equals(authData[1]);
+        return hashedBase64.equals(authData[1]);
     }
 
     /**

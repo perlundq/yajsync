@@ -38,6 +38,8 @@ public class Module
         private ConfigurationValue _isReadOnly = new ConfigurationValue("false");
         private ConfigurationValue _authUsers = new ConfigurationValue(null);
         private ConfigurationValue _secretMD5 = new ConfigurationValue(null);
+        
+        private boolean isSetAuthUsers = false;
 
         /**
          * @throws IllegalArgumentException
@@ -86,11 +88,16 @@ public class Module
         }
 
         public void setAuthUsers(ConfigurationValue authUsers) {
-        	_authUsers = authUsers;
+        	this._authUsers = authUsers;
+        	this.isSetAuthUsers = true;
         }
         
         public void setSecretMD5(ConfigurationValue secretMD5) {
-        	_secretMD5 = secretMD5; 
+        	this._secretMD5 = secretMD5;
+        }
+
+        public boolean isAuthenticationRequired() {
+        	return this.isSetAuthUsers;
         }
 
         @Override
@@ -189,6 +196,9 @@ public class Module
     	
     	// public access if 'auth users' is not defined
     	if (authUsers == null) return true;
+    	
+    	// no access if username is null
+    	if (username == null) return false;
 
     	String[] splittedAuthUsers = authUsers.split(",");
     	for (String u : splittedAuthUsers) {

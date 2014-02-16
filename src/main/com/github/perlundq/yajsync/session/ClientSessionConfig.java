@@ -135,7 +135,7 @@ public class ClientSessionConfig extends SessionConfig
     private void authenticate(String user, char[] password, String challenge)
         throws ChannelException
     {
-        byte[] hashedBytes = hash(password, challenge);
+        byte[] hashedBytes = Util.hash(password, challenge, this._characterEncoder);
         String hashedBase64 = Util.base64encode(hashedBytes, false);
         String authResponse = String.format("%s %s\n", user, hashedBase64);
         writeString(authResponse);
@@ -177,31 +177,6 @@ public class ClientSessionConfig extends SessionConfig
         _checksumSeed = BitOps.toLittleEndianBuf(seedValue);
         if (_log.isLoggable(Level.FINER)) {
             _log.finer("< (checksum seed) " + seedValue);
-        }
-    }
-
-    private byte[] hash(char[] password, String challenge)
-    {
-        byte[] passwordBytes = null;
-        try {
-            MessageDigest md = MD5.newInstance();
-            passwordBytes = _characterEncoder.secureEncodeOrNull(password);
-            byte[] challengeBytes = _characterEncoder.encodeOrNull(challenge);
-            if (passwordBytes == null) {
-                throw new RuntimeException(String.format(
-                    "Unable to encode characters in password"));
-            }
-            if (challengeBytes == null) {
-                throw new RuntimeException(String.format(
-                    "Unable to encode characters in challenge %s", challenge));
-            }
-            md.update(passwordBytes);
-            md.update(challengeBytes);
-            return md.digest();
-        } finally {
-            if (passwordBytes != null) {
-                Arrays.fill(passwordBytes, (byte) 0);
-            }
         }
     }
 }

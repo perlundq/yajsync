@@ -21,6 +21,7 @@ public class ConfigurationDictionaryValue extends ConfigurationValue {
 	}
 
 	public String getValue(String modulename, String username) {
+		if (username == null) return "";
 		return this.dictionary.lookup(modulename, username);
 	}
 }

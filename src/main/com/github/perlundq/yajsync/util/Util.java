@@ -21,6 +21,7 @@ package com.github.perlundq.yajsync.util;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.logging.Handler;
@@ -220,5 +221,30 @@ public final class Util
         }
         
         return true;
+    }
+
+    public static byte[] hash(char[] password, String challenge, TextEncoder characterEncoder)
+    {
+        byte[] passwordBytes = null;
+        try {
+            MessageDigest md = MD5.newInstance();
+            passwordBytes = characterEncoder.secureEncodeOrNull(password);
+            byte[] challengeBytes = characterEncoder.encodeOrNull(challenge);
+            if (passwordBytes == null) {
+                throw new RuntimeException(String.format(
+                    "Unable to encode characters in password"));
+            }
+            if (challengeBytes == null) {
+                throw new RuntimeException(String.format(
+                    "Unable to encode characters in challenge %s", challenge));
+            }
+            md.update(passwordBytes);
+            md.update(challengeBytes);
+            return md.digest();
+        } finally {
+            if (passwordBytes != null) {
+                Arrays.fill(passwordBytes, (byte) 0);
+            }
+        }
     }
 }

@@ -24,7 +24,9 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -167,6 +169,25 @@ public class Configuration
 
         return userModules;
     }
+    
+    public Boolean isAuthenticationRequired(String module) {
+    	Module.Builder builder = _complete.get(module);
+    	if (builder == null) return null;
+    	return builder.isAuthenticationRequired();
+    }
+
+    public List<Module> getModulesForListing() {
+
+    	// FSTODO: suppress or reduce module listing in public server
+
+    	List<Module> modules = new ArrayList<Module>();
+
+    	for (Map.Entry<String, Module.Builder> entry : _complete.entrySet()) {
+    		modules.add(new Module(entry.getValue(), null));
+        }
+
+    	return modules;
+    }    
 
     /* private void buildAllModules() {
         for (Map.Entry<String, Module.Builder> entry : _complete.entrySet()) {
