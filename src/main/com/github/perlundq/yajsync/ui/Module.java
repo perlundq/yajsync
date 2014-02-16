@@ -37,7 +37,7 @@ public class Module
         private ConfigurationValue _path = new ConfigurationValue(null);
         private ConfigurationValue _isReadOnly = new ConfigurationValue("false");
         private ConfigurationValue _authUsers = new ConfigurationValue(null);
-        private ConfigurationValue _secretMD5 = new ConfigurationValue(null);
+        private ConfigurationValue _secrets = new ConfigurationValue(null);
         
         private boolean isSetAuthUsers = false;
 
@@ -92,8 +92,8 @@ public class Module
         	this.isSetAuthUsers = true;
         }
         
-        public void setSecretMD5(ConfigurationValue secretMD5) {
-        	this._secretMD5 = secretMD5;
+        public void setSecrets(ConfigurationValue secrets) {
+        	this._secrets = secrets;
         }
 
         public boolean isAuthenticationRequired() {
@@ -103,9 +103,9 @@ public class Module
         @Override
         public String toString() {
             return String.format("%s (name=%s comment=%s path=%s " +
-                                 "isReadOnly=%s authUsers=%s secretMD5=%s)",
+                                 "isReadOnly=%s authUsers=%s secrets=%s)",
                                  getClass().getSimpleName(), _name, _comment,
-                                 _path, _isReadOnly, _authUsers, _secretMD5);
+                                 _path, _isReadOnly, _authUsers, _secrets);
         }
     }
 
@@ -116,7 +116,7 @@ public class Module
     private final Path path;
     private final Boolean isReadOnly;
     private final Boolean isUserMatching;
-    private final String secretMD5;
+    private final String secrets;
 
     public Module(Builder builder, String _username)
     {
@@ -127,7 +127,7 @@ public class Module
         this.path = convertPath(builder._path);
         this.isReadOnly = convertIsReadOnly(builder._isReadOnly);
         this.isUserMatching = convertAuthUsers(builder._authUsers);
-        this.secretMD5 = convertSecretMD5(builder._secretMD5);
+        this.secrets = convertSecrets(builder._secrets);
     }
 
     public boolean isGlobal() {
@@ -209,11 +209,11 @@ public class Module
     	return false;
     }
 
-    public String getSecretMD5() {
-    	return this.secretMD5;
+    public String getSecrets() {
+    	return this.secrets;
     }
 
-    public String convertSecretMD5(ConfigurationValue v) {
+    public String convertSecrets(ConfigurationValue v) {
     	return v.getValue(modulename, username);
     }
 

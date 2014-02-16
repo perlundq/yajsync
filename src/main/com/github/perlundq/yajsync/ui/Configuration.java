@@ -55,7 +55,7 @@ public class Configuration
     public static final String cfgPath = "path";
     public static final String cfgReadOnly = "read only";
     public static final String cfgAuthUsers = "auth users";
-    public static final String cfgSecretMD5 = "secret md5";
+    public static final String cfgSecrets = "secrets";
 
     private Configuration() {}
 
@@ -127,8 +127,8 @@ public class Configuration
             	moduleBuilder.setIsReadOnly(val);
             } else if (key.equals(cfgAuthUsers)) {
             	moduleBuilder.setAuthUsers(val);
-            } else if (key.equals(cfgSecretMD5)) {
-            	moduleBuilder.setSecretMD5(val);
+            } else if (key.equals(cfgSecrets)) {
+            	moduleBuilder.setSecrets(val);
             }
         }
 

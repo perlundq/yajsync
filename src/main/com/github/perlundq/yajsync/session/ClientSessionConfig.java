@@ -21,7 +21,6 @@ package com.github.perlundq.yajsync.session;
 
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
-import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -29,7 +28,6 @@ import java.util.logging.Logger;
 import com.github.perlundq.yajsync.channels.ChannelException;
 import com.github.perlundq.yajsync.text.TextConversionException;
 import com.github.perlundq.yajsync.util.BitOps;
-import com.github.perlundq.yajsync.util.MD5;
 import com.github.perlundq.yajsync.util.Util;
                                         
 public class ClientSessionConfig extends SessionConfig

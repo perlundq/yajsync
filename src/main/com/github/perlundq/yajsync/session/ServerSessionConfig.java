@@ -199,9 +199,9 @@ public class ServerSessionConfig extends SessionConfig
         if (!_module.isUserMatching()) return false;
         
         // no authentication by password required
-        if (_module.getSecretMD5()==null) return true;
+        if (_module.getSecrets()==null) return true;
         
-        byte[] hashedBytes = Util.hash(_module.getSecretMD5().toCharArray(), challenge, this._characterEncoder);
+        byte[] hashedBytes = Util.hash(_module.getSecrets().toCharArray(), challenge, this._characterEncoder);
         String hashedBase64 = Util.base64encode(hashedBytes, false);
 
         return hashedBase64.equals(authData[1]);
