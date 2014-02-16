@@ -19,7 +19,8 @@
  */
 package com.github.perlundq.yajsync.session;
 
-import java.nio.channels.SocketChannel;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.LinkedList;
@@ -67,16 +68,18 @@ public class RsyncServerSession
         return _isDeferredWrite;
     }
 
-    private List<Callable<Boolean>> createSenderTasks(final SocketChannel sock, 
-                                                      final Charset charset,
-                                                      final byte[] checksumSeed,
-                                                      final List<Path> srcPaths,
-                                                      final boolean isRecursive)
+    private List<Callable<Boolean>>
+        createSenderTasks(final ReadableByteChannel in,
+                          final WritableByteChannel out,
+                          final Charset charset,
+                          final byte[] checksumSeed,
+                          final List<Path> srcPaths,
+                          final boolean isRecursive)
     {
         Callable<Boolean> callableSender = new Callable<Boolean>() {
             @Override
             public Boolean call() throws ChannelException {
-                Sender sender = new Sender(sock, sock, srcPaths, charset,
+                Sender sender = new Sender(in, out, srcPaths, charset,
                                            checksumSeed);
                 sender.setIsRecursive(isRecursive);
                 try {
@@ -93,17 +96,19 @@ public class RsyncServerSession
         return result;
     }
 
-    private List<Callable<Boolean>> createReceiverTasks(final SocketChannel sock,
-                                                        final Charset charset,
-                                                        final byte[] checksumSeed,
-                                                        final Path destinationPath,
-                                                        final boolean isRecursive,
-                                                        final boolean isPreserveTimes,
-                                                        final boolean isAlwaysItemize,
-                                                        final boolean isModuleListing,
-                                                        final boolean isDeferredWrite)
+    private List<Callable<Boolean>>
+    createReceiverTasks(final ReadableByteChannel in,
+                        final WritableByteChannel out,
+                        final Charset charset,
+                        final byte[] checksumSeed,
+                        final Path destinationPath,
+                        final boolean isRecursive,
+                        final boolean isPreserveTimes,
+                        final boolean isAlwaysItemize,
+                        final boolean isModuleListing,
+                        final boolean isDeferredWrite)    
     {
-        final Generator generator = new Generator(sock, charset, checksumSeed);
+        final Generator generator = new Generator(out, charset, checksumSeed);
         Callable<Boolean> callableGenerator = new Callable<Boolean>() {
             @Override
             public Boolean call() throws ChannelException {
@@ -117,7 +122,7 @@ public class RsyncServerSession
         Callable<Boolean> callableReceiver = new Callable<Boolean>() {
             @Override
             public Boolean call() throws ChannelException, InterruptedException {
-                Receiver receiver = new Receiver(generator, sock,
+                Receiver receiver = new Receiver(generator, in,
                                                  destinationPath, charset);
                 receiver.setIsRecursive(isRecursive);
                 receiver.setIsPreserveTimes(isPreserveTimes);
@@ -141,32 +146,34 @@ public class RsyncServerSession
 
     // FIXME: BUG _verbosity is not handled correctly
     public boolean startSession(ExecutorService executor,
-                                SocketChannel peerChannel,
+    							ReadableByteChannel in,
+    							WritableByteChannel out,
                                 Configuration globalConfiguration)
         throws ChannelException
     {
         List<Future<Boolean>> futures = new LinkedList<>();
         try {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("Got connection from " +
-                          peerChannel.socket().getRemoteSocketAddress());
-            }
             ServerSessionConfig cfg = ServerSessionConfig.handshake(_charset,       // throws IllegalArgumentException if _charset is not supported
-                                                                    peerChannel,
+                                                                    in,
+                                                                    out,                                                                    
                                                                     globalConfiguration);
-            if (cfg.status() != SessionStatus.OK) {
+            if (cfg.status() == SessionStatus.ERROR) {
                 return false;
+            } else if (cfg.status() == SessionStatus.EXIT) {
+                return true;
             }
 
             List<Callable<Boolean>> tasks;
             if (cfg.isSender()) {
-                tasks = createSenderTasks(peerChannel,
+                tasks = createSenderTasks(in,
+                						  out,
                                           cfg.charset(),
                                           cfg.checksumSeed(),
                                           cfg.sourceFiles(),
                                           cfg.isRecursive()); 
             } else {
-                tasks = createReceiverTasks(peerChannel,
+                tasks = createReceiverTasks(in,
+                							out,
                                             cfg.charset(),
                                             cfg.checksumSeed(),
                                             cfg.getReceiverDestination(),

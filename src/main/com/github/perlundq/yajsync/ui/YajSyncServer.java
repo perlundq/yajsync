@@ -191,10 +191,14 @@ public class YajSyncServer
             public Boolean call() {
                 boolean isOK;
                 try {
-                    RsyncServerSession session = new RsyncServerSession();
+                	if (_log.isLoggable(Level.FINE)) {
+                		_log.fine("connected to " + sock.getRemoteAddress());
+                	}
+
+                	RsyncServerSession session = new RsyncServerSession();
                     session.setCharset(_charset);
                     session.setIsDeferredWrite(_isDeferredWrite);
-                    isOK = session.startSession(executor, sock, globalConfiguration);
+                    isOK = session.startSession(executor, sock, sock, globalConfiguration);
 //                    showStatistics(session.statistics());
                 } catch (ChannelException e) {
                     if (_log.isLoggable(Level.SEVERE)) {

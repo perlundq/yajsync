@@ -200,6 +200,7 @@ public final class Util
      */
     public static boolean isValidCharset(Charset charset)
     {
+    	assert charset != null;
         TextEncoder encoder = TextEncoder.newFallback(charset);
         TextDecoder decoder = TextDecoder.newFallback(charset);
                                                                                                                               
