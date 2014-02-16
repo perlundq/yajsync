@@ -20,7 +20,8 @@
 package com.github.perlundq.yajsync.session;
 
 import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -62,9 +63,10 @@ public class ServerSessionConfig extends SessionConfig
     /**
      * @throws IllegalArgumentException if charset is not supported
      */
-    private ServerSessionConfig(SocketChannel peerConnection, Charset charset)
+    private ServerSessionConfig(ReadableByteChannel in, WritableByteChannel out,
+                                Charset charset)
     {
-        super(peerConnection, charset);
+        super(in, out, charset);
         int seedValue = (int) System.currentTimeMillis();
         _checksumSeed = BitOps.toLittleEndianBuf(seedValue);
     }
@@ -77,14 +79,17 @@ public class ServerSessionConfig extends SessionConfig
      *         correctly
      */
     public static ServerSessionConfig handshake(Charset charset,
-                                                SocketChannel peerConnection,
+                                                ReadableByteChannel in,
+                                                WritableByteChannel out,
                                                 Map<String, Module> modules)
         throws ChannelException
     {
-        assert peerConnection != null;
+        assert charset != null;
+        assert in != null;
+        assert out != null;
         assert modules!= null;
 
-        ServerSessionConfig instance = new ServerSessionConfig(peerConnection,
+        ServerSessionConfig instance = new ServerSessionConfig(in, out,
                                                                charset);
         try {
             instance.exchangeProtocolVersion();

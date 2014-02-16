@@ -20,7 +20,8 @@
 package com.github.perlundq.yajsync.session;
 
 import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -59,11 +60,12 @@ public abstract class SessionConfig
     /**
      * @throws IllegalArgumentException if charset is not supported
      */
-    protected SessionConfig(SocketChannel sock, Charset charset)
+    protected SessionConfig(ReadableByteChannel in, WritableByteChannel out,
+                            Charset charset)
     {
         _peerConnection =
-            new AutoFlushableDuplexChannel(new SimpleInputChannel(sock),
-                                           new BufferedOutputChannel(sock));
+            new AutoFlushableDuplexChannel(new SimpleInputChannel(in),
+                                           new BufferedOutputChannel(out));
         setCharset(charset);
     }
 
@@ -179,6 +181,7 @@ public abstract class SessionConfig
      */
     private void setCharset(Charset charset)
     {
+        assert charset != null;
         if (!Util.isValidCharset(charset)) {
             throw new IllegalArgumentException(String.format(
                 "character set %s is not supported - cannot encode SLASH (/)," +

@@ -267,7 +267,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("starting remote session");
             }
-            
+
             RsyncClientSession session = new RsyncClientSession();
             session.setCharset(clientInstance._charset);
             session.setIsDeferredWrite(clientInstance._isDeferredWrite);
@@ -279,7 +279,13 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                 new InetSocketAddress(clientInstance._address,
                                       clientInstance._remotePort);
             try (SocketChannel sock = SocketChannel.open(socketAddress)) {
+
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine("connected to " + sock.getRemoteAddress());
+                }
+
                 isOK = session.startSession(executor,
+                                            sock,
                                             sock,
                                             clientInstance._srcArgs,
                                             clientInstance._dstArg,

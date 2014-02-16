@@ -19,7 +19,8 @@
  */
 package com.github.perlundq.yajsync.session;
 
-import java.nio.channels.SocketChannel;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -53,15 +54,17 @@ public class RsyncClientSession
 
     public RsyncClientSession() {}
 
-    private List<Callable<Boolean>> createSenderTasks(final SocketChannel sock,
-                                                      final Charset charset,
-                                                      final byte[] checksumSeed,
-                                                      final List<Path> srcPaths)
+    private List<Callable<Boolean>>
+    createSenderTasks(final ReadableByteChannel in,
+                      final WritableByteChannel out,
+                      final Charset charset,
+                      final byte[] checksumSeed,
+                      final List<Path> srcPaths)
     {
         Callable<Boolean> callableSender = new Callable<Boolean>() {
             @Override
             public Boolean call() throws ChannelException {
-                Sender sender = new Sender(sock, sock, srcPaths, charset,
+                Sender sender = new Sender(in, out, srcPaths, charset,
                                            checksumSeed);
                 sender.setIsRecursive(_isRecursiveTransfer);
                 try {
@@ -80,13 +83,15 @@ public class RsyncClientSession
         return result;
     }
     
-    private List<Callable<Boolean>> createReceiverTasks(final SocketChannel sock,
-                                                        final Charset charset,
-                                                        final byte[] checksumSeed,
-                                                        final Path destinationPath)
-                                  
+    private List<Callable<Boolean>>
+    createReceiverTasks(final ReadableByteChannel in,
+                        final WritableByteChannel out,
+                        final Charset charset,
+                        final byte[] checksumSeed,
+                        final Path destinationPath)
+
     {
-        final Generator generator = new Generator(sock, charset, checksumSeed);
+        final Generator generator = new Generator(out, charset, checksumSeed);
 
         Callable<Boolean> callableGenerator = new Callable<Boolean>() {
             @Override
@@ -101,7 +106,7 @@ public class RsyncClientSession
         Callable<Boolean> callableReceiver = new Callable<Boolean>() {
             @Override
             public Boolean call() throws ChannelException, InterruptedException {
-                Receiver receiver = new Receiver(generator, sock,
+                Receiver receiver = new Receiver(generator, in,
                                                  destinationPath, charset);
                 receiver.setIsRecursive(_isRecursiveTransfer);
                 receiver.setIsPreserveTimes(_isPreserveTimes);
@@ -127,21 +132,20 @@ public class RsyncClientSession
     
     // TODO: rename?
     public boolean startSession(ExecutorService executor,
-                                SocketChannel sock,
+                                ReadableByteChannel in,
+                                WritableByteChannel out,
                                 List<String> srcArgs,
                                 String dstArg,
                                 AuthProvider authProvider,
                                 String moduleName)
         throws ChannelException
     {
-        if (_log.isLoggable(Level.FINE)) {
-            _log.fine("connecting to " + sock);
-        }
         List<Future<Boolean>> futures = new LinkedList<>();
         try {
             List<String> serverArgs = createServerArgs(srcArgs, dstArg);
             ClientSessionConfig cfg =                                           // throws IllegalArgumentException if _charset is not supported
-                ClientSessionConfig.handshake(sock,
+                ClientSessionConfig.handshake(in,
+                                              out,
                                               _charset,
                                               _isRecursiveTransfer,
                                               moduleName,
@@ -157,11 +161,11 @@ public class RsyncClientSession
             List<Callable<Boolean>> tasks;
             if (_isSender) {
                 List<Path> srcPaths = toListOfPaths(srcArgs);
-                tasks = createSenderTasks(sock, _charset, cfg.checksumSeed(),
+                tasks = createSenderTasks(in, out, _charset, cfg.checksumSeed(),
                                           srcPaths);
             } else {
                 Path destinationPath = Paths.get(dstArg);
-                tasks = createReceiverTasks(sock, _charset, cfg.checksumSeed(),
+                tasks = createReceiverTasks(in, out, _charset, cfg.checksumSeed(),
                                             destinationPath);
             }
 

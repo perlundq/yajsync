@@ -19,7 +19,8 @@
  */
 package com.github.perlundq.yajsync.session;
 
-import java.nio.channels.SocketChannel;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.util.Arrays;
@@ -46,10 +47,10 @@ public class ClientSessionConfig extends SessionConfig
     /**
      * @throws IllegalArgumentException if charset is not supported
      */
-    private ClientSessionConfig(SocketChannel peerConnection, Charset charset,
-                                boolean isRecursive)
+    private ClientSessionConfig(ReadableByteChannel in, WritableByteChannel out,
+                                Charset charset, boolean isRecursive)
     {
-        super(peerConnection, charset);
+        super(in, out, charset);
         _isRecursive = isRecursive;
     }
 
@@ -60,7 +61,8 @@ public class ClientSessionConfig extends SessionConfig
      * @throws RsyncProtocolException if failing to encode/decode characters
      *         correctly
      */
-    public static ClientSessionConfig handshake(SocketChannel sock,
+    public static ClientSessionConfig handshake(ReadableByteChannel in,
+                                                WritableByteChannel out,
                                                 Charset charset,
                                                 boolean isRecursive,
                                                 String moduleName,
@@ -69,9 +71,10 @@ public class ClientSessionConfig extends SessionConfig
         throws ChannelException
     {
         try {
-            ClientSessionConfig instance = new ClientSessionConfig(sock,
-                charset,
-                isRecursive);
+            ClientSessionConfig instance = new ClientSessionConfig(in,
+                                                                   out,
+                                                                   charset,
+                                                                   isRecursive);
 
             instance.exchangeProtocolVersion();
             instance.sendModule(moduleName);
