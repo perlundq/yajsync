@@ -104,7 +104,7 @@ public class ServerSessionConfig extends SessionConfig
                     _log.warning(String.format("Module %s does not exist",
                                                moduleName));
                 }
-                instance._status = SessionStatus.EXIT;
+                instance._status = SessionStatus.ERROR;
                 return instance;
             }
             instance.setModule(module);

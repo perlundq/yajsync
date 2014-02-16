@@ -155,8 +155,11 @@ public class RsyncServerSession
             ServerSessionConfig cfg = ServerSessionConfig.handshake(_charset,       // throws IllegalArgumentException if _charset is not supported
                                                                     peerChannel,
                                                                     modules);
-            if (cfg.status() != SessionStatus.OK) {
+            
+            if (cfg.status() == SessionStatus.ERROR) {
                 return false;
+            } else if (cfg.status() == SessionStatus.EXIT) {
+                return true;
             }
 
             List<Callable<Boolean>> tasks;
