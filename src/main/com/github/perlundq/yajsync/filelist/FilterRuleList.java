@@ -156,5 +156,21 @@ public class FilterRuleList {
 		public boolean isDirectoryOnly() {
 			return directoryOnly;
 		}
+
+		public String toString() {
+			StringBuilder buf = new StringBuilder();
+			buf.append(inclusion ? "+":"-").append(" ");
+			buf.append(negateMatching ? "!":"");
+			if (patternMatching) {
+				buf.append(pattern.toString());
+			} else {
+				buf.append(path);
+			}
+			if (directoryOnly) {
+				buf.append(" (directory only)");
+			}
+
+			return buf.toString();
+		}
 	}
 }
