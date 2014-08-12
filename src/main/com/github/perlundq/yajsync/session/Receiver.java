@@ -92,43 +92,43 @@ public class Receiver implements MessageHandler
     {
         _isRecursive = isRecursive;
     }
-    
+
     public boolean isRecursive()
     {
-        return _isRecursive; 
+        return _isRecursive;
     }
-    
+
     public void setIsListOnly(boolean isListOnly)
     {
         _isListOnly = isListOnly;
     }
-    
+
     public boolean isListOnly()
     {
-        return _isListOnly; 
+        return _isListOnly;
     }
 
     public void setIsPreserveTimes(boolean isPreserveTimes)
     {
         _isPreserveTimes = isPreserveTimes;
     }
-    
+
     public boolean isPreserveTimes()
     {
         return _isPreserveTimes;
     }
-    
+
     public void setIsDeferredWrite(boolean isDeferredWrite)
     {
         _isDeferredWrite = isDeferredWrite;
     }
-    
+
     public boolean isDeferredWrite()
     {
         return _isDeferredWrite;
     }
-    
-    
+
+
     public boolean receive(boolean sendFilterRules,
                            boolean receiveStatistics,
                            boolean exitEarlyIfEmptyList)
@@ -243,7 +243,7 @@ public class Receiver implements MessageHandler
             ByteBuffer payload = message.payload();
             String text = _characterDecoder.decode(payload);                    // throws TextConversionException
             MessageCode msgType = message.header().messageType();
-            
+
             if (msgType.isUrgent() && _log.isLoggable(Level.WARNING)) {
                 _log.warning(String.format("<SENDER> %s: %s",
                                            msgType, Text.stripLast(text)));
@@ -595,7 +595,7 @@ public class Receiver implements MessageHandler
         int ioError = 0;
         long numBytesRead = _senderInChannel.numBytesRead() -
                             _senderInChannel.numBytesPrefetched();
-                        
+
         while (true) {
             char flags = (char) _senderInChannel.getByte();
             if (flags == 0) {
@@ -615,18 +615,18 @@ public class Receiver implements MessageHandler
                 }
             }
 
-            FileInfo fileInfo = receiveFileMetaData(flags);                     // throws RsyncProtocolException if file is invalid in some way 
+            FileInfo fileInfo = receiveFileMetaData(flags);                     // throws RsyncProtocolException if file is invalid in some way
             // NOTE: fileInfo.path() is always null here - we resolve it fully
             // later
-            
-            String pathName = 
+
+            String pathName =
                 _characterDecoder.decodeOrNull(fileInfo.pathNameBytes());
-            
+
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("Receiving file information for %s: %s",
                           pathName, fileInfo));
             }
-            
+
             if (pathName == null) {
                 ioError |= IoError.GENERAL;
                 try {
@@ -707,7 +707,7 @@ public class Receiver implements MessageHandler
              * we'll have mismatching file list with sender */
             builder.add(fileInfo);
         }
-        
+
         long segmentSize = _senderInChannel.numBytesRead() -
                            _senderInChannel.numBytesPrefetched() - numBytesRead;
         _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
@@ -748,7 +748,7 @@ public class Receiver implements MessageHandler
         long fileSize = receiveAndDecodeLong(3);
         if (fileSize < 0) {
             throw new RsyncProtocolException(String.format(
-                "received negative file size %d", fileSize)); 
+                "received negative file size %d", fileSize));
         }
 
         long lastModified;
@@ -760,7 +760,7 @@ public class Receiver implements MessageHandler
         }
         if (lastModified < 0) {
             throw new RsyncProtocolException(String.format(
-                "received last modification time %d", lastModified)); 
+                "received last modification time %d", lastModified));
         }
 
         int mode;
@@ -892,7 +892,7 @@ public class Receiver implements MessageHandler
                 }
 
                 sizeMatch += sizeForChecksumBlock(blockIndex, checksumHeader);
-                                                                              
+
                 if (isIntact) {
                     if (blockIndex == expectedIndex) { // if not identical to previous index we could possible try to see if the checksum are identical as a fallback attempt
                         expectedIndex++;

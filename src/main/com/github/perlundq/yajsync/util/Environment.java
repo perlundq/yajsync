@@ -38,7 +38,7 @@ public final class Environment
     private static final String PROPERTY_SERVER_CONFIG = "rsync.cfg";
     private static final String WINDOWS_NAME = "Windows";
     private static final String PROPERTY_OS_NAME = "os.name";
-                                                                              
+
     public static final int UMASK = umask();
     public static final int DEFAULT_DIR_PERMS = 0777 & ~ UMASK;
     public static final int DEFAULT_FILE_PERMS = 0666 & ~ UMASK;
@@ -48,7 +48,7 @@ public final class Environment
     public static final boolean IS_RUNNING_WINDOWS = isRunningWindows();
 
     private Environment() {}
-   
+
     public static String getUserId()
     {
         return getNonNullProperty(PROPERTY_KEY_USER_UID);
@@ -94,7 +94,7 @@ public final class Environment
 
     public static Path getWorkingDirectory()
     {
-        return Paths.get(getNonNullProperty(PROPERTY_KEY_CWD));        
+        return Paths.get(getNonNullProperty(PROPERTY_KEY_CWD));
     }
 
     public static String getServerConfig(String defName)

@@ -34,7 +34,7 @@ public final class PathOps
     public static final int MAX_PATH_NAME_LENGTH = 255;
 
     private PathOps() {}
-        
+
     public static boolean isPathPreservable(Path path)
     {
         assert path != null;
@@ -43,7 +43,7 @@ public final class PathOps
         }
         return true;
     }
-    
+
     private static boolean isWindowsPathPreserved(Path path)
     {
         assert path != null;
@@ -80,7 +80,7 @@ public final class PathOps
         assert absolute.endsWith(subPath);
         return parentPath(absolute, subPath.getNameCount());
     }
-    
+
     public static boolean contains(Path path, Path searchPath)
     {
         for (Path subPath : path) {
@@ -90,7 +90,7 @@ public final class PathOps
         }
         return false;
     }
-    
+
 //    public static Path resolve(Path path, Path other)
 //    {
 //        if (other.isAbsolute()) {
@@ -116,7 +116,7 @@ public final class PathOps
 //        }
 //        return joinPaths(path, paths);
 //    }
-    
+
     public static Path normalizeStrict(Path path)
     {
         if (Environment.IS_RUNNING_WINDOWS) {
@@ -133,7 +133,7 @@ public final class PathOps
         }
         return result;
     }
-    
+
     /**
      * @throws InvalidPathException if trying to resolve a relative path
      *         prefixed with a .. directory
@@ -158,7 +158,7 @@ public final class PathOps
         }
         return joinPaths(path, paths);
     }
-  
+
     // we can't use Path.normalize because it resolves a/../.. -> .. for example
     private static Path normalizePathDefault(Path path)
     {

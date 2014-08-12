@@ -108,42 +108,42 @@ public class Generator
     {
         _isRecursive = isRecursive;
     }
-    
+
     public boolean isRecursive()
     {
-        return _isRecursive; 
+        return _isRecursive;
     }
-    
+
     public void setIsListOnly(boolean isListOnly)
     {
         _isListOnly = isListOnly;
     }
-    
+
     public boolean isListOnly()
     {
-        return _isListOnly; 
+        return _isListOnly;
     }
 
     public void setIsPreserveTimes(boolean isPreserveTimes)
     {
         _isPreserveTimes = isPreserveTimes;
     }
-    
+
     public boolean isPreserveTimes()
     {
         return _isPreserveTimes;
     }
-    
+
     public void setIsAlwaysItemize(boolean isAlwaysItemize)
     {
         _isAlwaysItemize = isAlwaysItemize;
     }
-    
+
     public boolean isAlwaysItemize()
     {
         return _isAlwaysItemize;
     }
-    
+
     /**
      * @throws IllegalStateException if fileList is already set
      */
@@ -301,7 +301,7 @@ public class Generator
     }
 
     /**
-     * @throws TextConversionException 
+     * @throws TextConversionException
      */
     public void sendMessage(final MessageCode code, final String text)
         throws InterruptedException
@@ -417,7 +417,7 @@ public class Generator
         if (attrs == null) {
             Files.createDirectories(dir.path());
             gotDirtyAttribute(dir);
-        } else if (attrs.lastModifiedTime() != dir.attrs().lastModifiedTime()) { // FIXME: generalize generator dirty attribute testing 
+        } else if (attrs.lastModifiedTime() != dir.attrs().lastModifiedTime()) { // FIXME: generalize generator dirty attribute testing
             gotDirtyAttribute(dir);
         }
     }
@@ -618,7 +618,7 @@ public class Generator
     {
         Connection.sendChecksumHeader(_senderOutChannel, header);
     }
-    
+
     private int getCompatibleBlockLengthFor(long fileSize)
     {
         final int BLOCK_SIZE = 700;
@@ -646,7 +646,7 @@ public class Generator
         } while (c >= 8);
         return Math.max(blength, BLOCK_SIZE);
     }
-    
+
     // could we possibly adaptively correlate block checksum size with checksum
     // match ratio? or inversely correlate channel speed or a combination
     private int getBlockLengthFor(long fileSize)
@@ -849,7 +849,7 @@ public class Generator
 
     // return the square root of num as the nearest lower number in base 2
     /**
-     * @throws IllegalArgumentException if num is negative or result would 
+     * @throws IllegalArgumentException if num is negative or result would
      *         overflow an integer
      */
     private static int pow2SquareRoot(long num)

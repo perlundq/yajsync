@@ -32,7 +32,7 @@ import com.github.perlundq.yajsync.text.TextConversionException;
 import com.github.perlundq.yajsync.util.BitOps;
 import com.github.perlundq.yajsync.util.MD5;
 import com.github.perlundq.yajsync.util.Util;
-                                        
+
 public class ClientSessionConfig extends SessionConfig
 {
     public interface AuthProvider {
@@ -43,7 +43,7 @@ public class ClientSessionConfig extends SessionConfig
     private static final Logger _log =
         Logger.getLogger(ClientSessionConfig.class.getName());
     private final boolean _isRecursive;
-    
+
     /**
      * @throws IllegalArgumentException if charset is not supported
      */
@@ -56,8 +56,8 @@ public class ClientSessionConfig extends SessionConfig
 
     /**
      * @throws IllegalArgumentException if charset is not supported
-     * @throws RsyncProtocolException if we or peer fails to adhere to the rsync 
-     *         handshake protocol 
+     * @throws RsyncProtocolException if we or peer fails to adhere to the rsync
+     *         handshake protocol
      * @throws RsyncProtocolException if failing to encode/decode characters
      *         correctly
      */
@@ -86,7 +86,7 @@ public class ClientSessionConfig extends SessionConfig
             assert !moduleName.isEmpty();
             instance.sendArguments(args);
             instance.receiveCompatibilities();
-            instance.receiveChecksumSeed();        
+            instance.receiveChecksumSeed();
             return instance;
         } catch (TextConversionException e) {
             throw new RsyncProtocolException(e);
@@ -100,7 +100,7 @@ public class ClientSessionConfig extends SessionConfig
     {
         writeString(moduleName + '\n');
     }
-    
+
     private void printLinesAndGetReplyStatus(AuthProvider authProvider)
         throws ChannelException
     {
@@ -131,7 +131,7 @@ public class ClientSessionConfig extends SessionConfig
             }
         }
     }
-    
+
     /**
      * @throws TextConversionException
      */
@@ -173,7 +173,7 @@ public class ClientSessionConfig extends SessionConfig
                                              "safe file lists");
         }
     }
-    
+
     private void receiveChecksumSeed() throws ChannelException
     {
         int seedValue = _peerConnection.getInt();

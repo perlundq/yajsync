@@ -63,7 +63,7 @@ public class YajSyncServer
     private Configuration _configuration;
     private int _numThreads = Runtime.getRuntime().availableProcessors() *
                               THREAD_FACTOR;
-    private InetAddress _address = InetAddress.getLoopbackAddress(); 
+    private InetAddress _address = InetAddress.getLoopbackAddress();
     private int _port = Consts.DEFAULT_LISTEN_PORT;
     private int _verbosity;
     private String _cfgFileName =
@@ -96,7 +96,7 @@ public class YajSyncServer
                     }
                     if (!Util.isValidCharset(_charset)) {
                         throw new ArgumentParsingError(String.format(
-                            "character set %s is not supported - cannot " + 
+                            "character set %s is not supported - cannot " +
                             "encode SLASH (/), DOT (.), NEWLINE (\n), " +
                             "CARRIAGE RETURN (\r) and NULL (\0) to their " +
                             "ASCII counterparts and vice versa", charsetName));
@@ -123,7 +123,7 @@ public class YajSyncServer
                 @Override public void handle(Option option) {
                     _verbosity++;
                 }}));
-        
+
         argsParser.add(
             Option.newStringOption(Option.Policy.OPTIONAL, "address", "",
                                    String.format("address to bind to" +
@@ -210,7 +210,7 @@ public class YajSyncServer
                 } catch (Throwable t) {
                     if (_log.isLoggable(Level.SEVERE)) {
                         _log.log(Level.SEVERE, "", t);
-                    }                    
+                    }
                     isOK = false;
                 } finally {
                     try {
@@ -269,7 +269,7 @@ public class YajSyncServer
             "File list size: %d%n" +
             "File list generation time: %.3f seconds%n" +
             "File list transfer time: %.3f seconds%n" +
-            "Total bytes sent: %d%n" + 
+            "Total bytes sent: %d%n" +
             "Total bytes received: %d%n",
             stats.numFiles(),
             stats.numTransferredFiles(),
@@ -299,7 +299,7 @@ public class YajSyncServer
 
         try {
             server._configuration = Configuration.readFile(server._cfgFileName);
-        } catch (IOException e) { // 
+        } catch (IOException e) { //
             System.err.format("Error: failed to read configuration file " +
                               "%s (%s)%n", server._cfgFileName, e);
             System.exit(1);

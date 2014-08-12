@@ -133,9 +133,9 @@ public abstract class SessionConfig
                 buf.put(lastByte);
             }
         }
-        
+
         if (_log.isLoggable(Level.FINER)) {
-            _log.finer("< " + result); 
+            _log.finer("< " + result);
         }
         return result;
     }
@@ -146,7 +146,7 @@ public abstract class SessionConfig
     protected void writeString(String text) throws ChannelException
     {
         if (_log.isLoggable(Level.FINER)) {
-            _log.finer("> " + text); 
+            _log.finer("> " + text);
         }
         byte[] textEncoded = _characterEncoder.encode(text);
         _peerConnection.put(textEncoded, 0, textEncoded.length);

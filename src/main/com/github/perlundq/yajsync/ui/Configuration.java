@@ -66,7 +66,7 @@ public class Configuration
             }
 
             if (!Environment.IS_PATH_SEPARATOR_BACK_SLASH &&
-                trimmedLine.endsWith(Text.BACK_SLASH)) 
+                trimmedLine.endsWith(Text.BACK_SLASH))
             {
                 previousLine = Text.stripLast(trimmedLine);
             } else {

@@ -37,7 +37,7 @@ public class FileInfo implements Comparable<FileInfo>
     private final Path _normalizedPath;                                         // normalized relative path to receiver destination directory
     private final byte[] _pathNameBytes;                                        // name of relative path to receiver destination (in bytes)
     private final RsyncFileAttributes _attrs;
-    
+
     // possibly remove and replace with external per thread bitmaps instead?
     private boolean _isPruned = false;          // used by generator only (and only for directories)
     private boolean _isTransferred = false;     // used by receiver (and sender)
@@ -55,7 +55,7 @@ public class FileInfo implements Comparable<FileInfo>
                 !PathOps.contains(path, PathOps.DOT_DOT_DIR)) : path;
         assert pathNameBytes != null && pathNameBytes.length > 0;
         assert attrs != null;
-        
+
         boolean isTrailingSlash =
             pathNameBytes[pathNameBytes.length - 1] == Text.ASCII_SLASH;
         if (isTrailingSlash && !attrs.isDirectory()) {
@@ -126,7 +126,7 @@ public class FileInfo implements Comparable<FileInfo>
     {
         return _attrs.isDirectory() && isDotDir(_pathNameBytes);
     }
-        
+
     // NOTE: may be null for receiver/generator, never null for sender
     public Path path()
     {
@@ -134,7 +134,7 @@ public class FileInfo implements Comparable<FileInfo>
     }
 
     /**
-     * WARNING: the result is undefined if the returned array is modified, it 
+     * WARNING: the result is undefined if the returned array is modified, it
      * should be considered immutable
      * @return
      */
@@ -171,7 +171,7 @@ public class FileInfo implements Comparable<FileInfo>
         return _path != null;
     }
 
-    
+
     private static byte[] addSlash(byte[] pathNameBytes)
     {
         byte[] result = new byte[pathNameBytes.length + 1];

@@ -108,8 +108,8 @@ public final class Text
     }
 
     /**
-     * @throws InvalidPathException if resolveDotDot is true and we try to 
-     *         resolve ".." at any stage of the normalization process 
+     * @throws InvalidPathException if resolveDotDot is true and we try to
+     *         resolve ".." at any stage of the normalization process
      */
     // FIXME: BUG: this slows down some common use cases by 50%
 
@@ -189,7 +189,7 @@ public final class Text
         }
         return join(result, dirSeparator);
     }
-    
+
     public static String deleteTrailingDots(String entry)
     {
         return deleteTrailingChars(entry, '.');

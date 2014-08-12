@@ -70,7 +70,7 @@ public class ArgumentParser
                 @Override public void handle(Option option)
                     throws ArgumentParsingError {
                     stream.println(toUsageString());
-                    System.exit(1);    // FIXME: can we make the caller do this instead  
+                    System.exit(1);    // FIXME: can we make the caller do this instead
         }}));
     }
 
@@ -146,13 +146,13 @@ public class ArgumentParser
                 addUnnamed(arg);
             }
         }
-        
+
         if (currentOption != null) {
             throw new ArgumentParsingError(String.format(
                 "%s expects an argument%nExample: %s",
                 currentOption.name(), currentOption.exampleUsageToString()));
         }
-        
+
         for (Option o : _required) {
             if (!o.isSet()) {
                 throw new ArgumentParsingError(String.format(
@@ -259,13 +259,13 @@ public class ArgumentParser
     {
         return _unnamedArguments;
     }
-     
+
     // make configurable?
     private boolean isEndOfOptionMarker(String arg)
     {
         return arg.equals("--") || arg.equals("-");
     }
-    
+
     private boolean isLongOption(String arg)
     {
         return arg.length() > 2 && arg.startsWith("--");
@@ -275,7 +275,7 @@ public class ArgumentParser
     {
         return arg.length() > 1 && arg.startsWith("-") && !isLongOption(arg);
     }
-    
+
     private String[] splitLongOption(String arg) throws ArgumentParsingError
     {
         String longName;
@@ -296,7 +296,7 @@ public class ArgumentParser
         String[] result = { longName, value };
         return result;
     }
-    
+
     private Option getOptionForName(String name) throws ArgumentParsingError
     {
         Option result;
@@ -316,7 +316,7 @@ public class ArgumentParser
         opt.setValue(value);
         _parsed.add(opt);
     }
-    
+
     private boolean isUnnamedArgsAllowed()
     {
         return _unnamedHelpText != null;

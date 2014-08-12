@@ -128,7 +128,7 @@ public class Filelist
             for (FileInfo f : files) {
                 if (f.equals(prev)) {
                     if (_log.isLoggable(Level.WARNING)) {
-                        @SuppressWarnings("null")       // files cannot contain null refs 
+                        @SuppressWarnings("null")       // files cannot contain null refs
                         Path prevPath = prev.path();
                         _log.warning(String.format("skipping \"%s\" - a " +
                                                    "duplicate of \"%s\" " +
@@ -164,7 +164,7 @@ public class Filelist
                 _endIndex,
                 active,
                 size));
-            
+
             if (_log.isLoggable(Level.FINEST)) {
                 for (Map.Entry<Integer, FileInfo> e : _files.entrySet()) {
                     sb.append("   ").
@@ -177,7 +177,7 @@ public class Filelist
 
             return sb.toString();
         }
-        
+
         // Collections.binarySearch
         @Override
         public int compareTo(Integer other)
@@ -259,7 +259,7 @@ public class Filelist
     public static final int OFFSET = -101;
     public static final Logger _log =
         Logger.getLogger(Filelist.class.getName());
-    
+
     protected final List<Segment> _segments;
     private final boolean _isRecursive;
     private final SortedMap<Integer, FileInfo> _stubDirectories;
@@ -418,12 +418,12 @@ public class Filelist
     {
         return _segments.isEmpty();
     }
-    
+
     public long totalFileSize()
     {
         return _totalFileSize;
     }
-    
+
     public int numFiles()
     {
         return _numFiles;

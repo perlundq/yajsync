@@ -50,7 +50,7 @@ public class Option
         assert shortHelp != null;
         assert handler != null ||
                (type == Void.class && policy == Policy.REQUIRED);
-        assert ! (longName.isEmpty() && shortName.isEmpty()); 
+        assert ! (longName.isEmpty() && shortName.isEmpty());
         assert longName.length() > 1 || shortName.length() == 1 :
             "An option must have either a long name (>=2 characters) and/or a" +
             " one character long short name associated with it";
@@ -194,7 +194,7 @@ public class Option
     {
         String shortName = usageShortToString();
         String longName = usageLongToString();
-        StringBuilder sb = new StringBuilder();        
+        StringBuilder sb = new StringBuilder();
         if (shortName.length() > 0 && longName.length() > 0) {
             return sb.append(shortName).
                       append(" or ").

@@ -26,7 +26,7 @@ public class Message
 {
     private final MessageHeader _header;
     private final ByteBuffer _payload;
-    
+
     /**
      * @throws IllegalArgumentException
      * @throws IllegalStateException
@@ -35,9 +35,9 @@ public class Message
     {
         this(new MessageHeader(code, payload.remaining()), payload);
     }
-    
+
     /**
-     * @throws IllegalArgumentException if type is IO_ERROR or NO_SEND and 
+     * @throws IllegalArgumentException if type is IO_ERROR or NO_SEND and
      *         length of message header is not 4 bytes
      * @throws IllegalStateException if header is of an unsupported message type
      */
@@ -67,7 +67,7 @@ public class Message
         _header = header;
         _payload = payload;
     }
-    
+
     @Override
     public String toString()
     {
@@ -75,7 +75,7 @@ public class Message
                              getClass().getSimpleName(), _header,
                              _payload.duplicate());
     }
-    
+
     public MessageHeader header()
     {
         return _header;

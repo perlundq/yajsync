@@ -101,10 +101,10 @@ public class Sender implements MessageHandler
     {
         _isRecursive = isRecursive;
     }
-    
+
     public boolean isRecursive()
     {
-        return _isRecursive; 
+        return _isRecursive;
     }
 
     public boolean send(boolean receiveFilterRules,
@@ -166,9 +166,9 @@ public class Sender implements MessageHandler
                 sendIntMessage(MessageCode.IO_ERROR, ioError);
             }
             _duplexChannel.encodeIndex(Filelist.DONE);
-            
-            // we do it later on again to guarantee that the statistics are 
-            // updated even if there's an error 
+
+            // we do it later on again to guarantee that the statistics are
+            // updated even if there's an error
             _stats.setTotalFileSize(fileList.totalFileSize());
             _stats.setTotalRead(_duplexChannel.numBytesRead());
             _stats.setTotalWritten(_duplexChannel.numBytesWritten());
@@ -176,7 +176,7 @@ public class Sender implements MessageHandler
             if (sendStatistics) {
                 sendStatistics(_stats);
             }
-                        
+
             int index = _duplexChannel.decodeIndex();
             if (index != Filelist.DONE) {
                 throw new RsyncProtocolException(
@@ -259,7 +259,7 @@ public class Sender implements MessageHandler
             }
 
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine("num bytes available to read: " + 
+                _log.fine("num bytes available to read: " +
                           _duplexChannel.numBytesAvailable());
             }
 
@@ -352,7 +352,7 @@ public class Sender implements MessageHandler
                             _log.fine("sending " + fileInfo);
                         }
                     }
-                    
+
                     Checksum.Header header = receiveChecksumHeader();
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine("received peer checksum " + header);
@@ -415,7 +415,7 @@ public class Sender implements MessageHandler
                     }
                     _duplexChannel.put(fileMD5sum, 0, fileMD5sum.length);
                     fileInfo.setIsTransferred();
-                    
+
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine(String.format("sent %s (%d bytes)",
                                                 fileInfo.path(), fileSize));
@@ -435,7 +435,7 @@ public class Sender implements MessageHandler
                                   index));
             }
         }
-        
+
         if (_log.isLoggable(Level.FINE)) {
             _log.fine("finished sending files");
         }
@@ -470,9 +470,9 @@ public class Sender implements MessageHandler
                     continue;
                 }
 
-                byte[] nameBytes = 
+                byte[] nameBytes =
                     _characterEncoder.encode(p.getFileName().toString());       // throws TextConversionException
-                
+
                 FileInfo fileInfo = new FileInfo(p, p.getFileName(), nameBytes, attrs);          // throws IllegalArgumentException but that cannot happen
                 if (builder.contains(fileInfo)) { // O(n) not a problem unless a really large initial list of files
                     if (_log.isLoggable(Level.WARNING)) {
@@ -566,7 +566,7 @@ public class Sender implements MessageHandler
                     _characterEncoder.encodeOrNull(relativePathName);
                 if (pathNameBytes != null) {
                     FileInfo fi = new FileInfo(entry, relativePath,
-                                               pathNameBytes, attrs);    // throws IllegalArgumentException but that cannot happen  
+                                               pathNameBytes, attrs);    // throws IllegalArgumentException but that cannot happen
                     builder.add(fi);
                 } else {
                     if (_log.isLoggable(Level.WARNING)) {
@@ -627,7 +627,7 @@ public class Sender implements MessageHandler
             if (!isExpandOK && _log.isLoggable(Level.WARNING)) {
                 _log.warning("initial file list expansion returned an error");
             }
-            
+
             Filelist.Segment segment = fileList.newSegment(builder);
 
             if (_log.isLoggable(Level.FINE)) {

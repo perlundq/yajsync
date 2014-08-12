@@ -127,13 +127,13 @@ public class Module
         }
         return false;
     }
-    
+
     @Override
     public int hashCode()
     {
         return Objects.hash(_name);
     }
-    
+
     public boolean isGlobal()
     {
         return _name.equals(GLOBAL_MODULE_NAME);
@@ -173,7 +173,7 @@ public class Module
         return resolve(strippedOfModulePrefix);
     }
 
-    // NOTE: may return SAFE/PATH/TO/MODULE_TOP_DIR/.. 
+    // NOTE: may return SAFE/PATH/TO/MODULE_TOP_DIR/..
     private Path resolve(Path other)
     {
         Path result = resolveOrNull(other);
@@ -184,7 +184,7 @@ public class Module
         return result;
     }
 
-    // NOTE: may return SAFE/PATH/TO/MODULE_TOP_DIR/.. 
+    // NOTE: may return SAFE/PATH/TO/MODULE_TOP_DIR/..
     private Path resolveOrNull(Path other)
     {
         Path normalized = normalizeEmptyToDotDir(other);
