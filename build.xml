@@ -81,7 +81,7 @@
     </target>
 
     <target name="test" depends="build_test">
-        <junit printsummary="yes" haltonfailure="yes" showoutput="yes" logfailedtests="yes">
+        <junit printsummary="yes" haltonfailure="yes" showoutput="yes" logfailedtests="yes" fork="true" forkmode="once">
             <classpath>
                 <pathelement location="${junit.jar}"/>
                 <pathelement path="${test.class.dir}"/>
