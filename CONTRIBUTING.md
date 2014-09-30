@@ -30,16 +30,17 @@ Try to mimic the current code style which strives for something like
 http://geosoft.no/development/javastyle.html, with the following
 exceptions:
 
-8  Fields must be prefixed with `_` and referenced without an explicit
-   this.
-61 Indentation must be `4` and must consist of only whitespace.
-65 `else` clause must be on same line as previous closing bracket.
-72 Single line statement `if-else`, `for` or `while` statements must
-    always use brackets.
-73 `case 100: // NOT case 100 :`
-74 Method names can _not_ be followed by a whitespace when it is
-   followed by another name.
+- #8.  Fields must be prefixed with `_` and referenced without an
+       explicit this.
+- #61. Indentation must be `4` and must consist of only whitespace.
+- #65. `else` clause must be on same line as previous closing bracket.
+- #72. Single line statement `if-else`, `for` or `while` statements
+       must always use brackets.
+- #73. `case 100: // NOT case 100 :`
+- #74. Method names can _not_ be followed by a whitespace when it is
+       followed by another name.
 
+Misc:
 - No tabs, no carriage returns, no trailing whitespace.
 - Lines should be at most 80 characters long.
 - Default to immutable fields and strive for possibly immutable
