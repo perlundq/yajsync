@@ -176,4 +176,15 @@ public final class PathOps
         }
         return joinPaths(path, paths);
     }
+
+    /**
+     * @throws InvalidPathException
+     */
+    public static Path get(String name)
+    {
+        if (name.endsWith(Text.SLASH)) {
+            return Paths.get(name + Text.DOT);
+        }
+        return Paths.get(name);
+    }
 }

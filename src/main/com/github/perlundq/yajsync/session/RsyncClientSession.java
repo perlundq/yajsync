@@ -88,7 +88,7 @@ public class RsyncClientSession
                         final WritableByteChannel out,
                         final Charset charset,
                         final byte[] checksumSeed,
-                        final Path destinationPath)
+                        final String destinationPathName)
 
     {
         final Generator generator = new Generator(out, charset, checksumSeed);
@@ -106,16 +106,16 @@ public class RsyncClientSession
         Callable<Boolean> callableReceiver = new Callable<Boolean>() {
             @Override
             public Boolean call() throws ChannelException, InterruptedException {
-                Receiver receiver = new Receiver(generator, in,
-                                                 destinationPath, charset);
+                Receiver receiver = new Receiver(generator, in, charset);
                 receiver.setIsRecursive(_isRecursiveTransfer);
                 receiver.setIsPreserveTimes(_isPreserveTimes);
                 receiver.setIsListOnly(_isModuleListing);
                 receiver.setIsDeferredWrite(_isDeferredWrite);
                 try {
-                    boolean isOK = receiver.receive(true,  // sendFilterRules,
-                                                     true,  // receiveStatistics,
-                                                     true); // exitEarlyIfEmptyList);
+                    boolean isOK = receiver.receive(destinationPathName,
+                                                    true,  // sendFilterRules,
+                                                    true,  // receiveStatistics,
+                                                    true); // exitEarlyIfEmptyList);
                     receiver.readAllMessagesUntilEOF();
                     return isOK;
                 } finally {
@@ -164,9 +164,8 @@ public class RsyncClientSession
                 tasks = createSenderTasks(in, out, _charset, cfg.checksumSeed(),
                                           srcPaths);
             } else {
-                Path destinationPath = Paths.get(dstArg);
-                tasks = createReceiverTasks(in, out, _charset, cfg.checksumSeed(),
-                                            destinationPath);
+                tasks = createReceiverTasks(in, out, _charset,
+                                            cfg.checksumSeed(), dstArg);
             }
 
             CompletionService<Boolean> ecs =

@@ -337,7 +337,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                 }
                 isOK = localTransfer.transfer(executor,
                                               srcPaths,
-                                              Paths.get(clientInstance._dstArg));
+                                              clientInstance._dstArg);
             } catch (ChannelException e) {
                 if (_log.isLoggable(Level.SEVERE)) {
                     _log.severe("Error: communication closed with peer: " +

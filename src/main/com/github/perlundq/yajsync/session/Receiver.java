@@ -36,6 +36,8 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -63,13 +65,52 @@ import com.github.perlundq.yajsync.util.Util;
 
 public class Receiver implements MessageHandler
 {
+    @SuppressWarnings("serial")
+    private class PathResolverException extends Exception {
+        public PathResolverException(String msg) {
+            super(msg);
+        }
+    }
+
+    private static class FileInfoStub {
+        private final String _pathName;
+        private final byte[] _pathNameBytes;
+        private final RsyncFileAttributes _attrs;
+
+        private FileInfoStub(String pathName, byte[] pathNameBytes,
+                             RsyncFileAttributes attrs) {
+            _pathName = pathName;
+            _pathNameBytes = pathNameBytes;
+            _attrs = attrs;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("%s %s", _pathName, _attrs);
+        }
+    }
+
+    private interface PathResolver
+    {
+        /**
+         * @throws InvalidPathException
+         * @throws RsyncSecurityException
+         */
+        Path relativePathOf(String pathName);
+
+        /**
+         * @throws RsyncSecurityException
+         */
+        Path fullPathOf(Path relativePath);
+    }
+
     private static final Logger _log =
         Logger.getLogger(Receiver.class.getName());
 
     private static final int INPUT_CHANNEL_BUF_SIZE = 8 * 1024;
     private final FileInfoCache _fileInfoCache = new FileInfoCache();
     private final Generator _generator;
-    private final Path _targetDir;
     private final RsyncInChannel _senderInChannel;
     private final Statistics _stats = new Statistics();
     private final TextDecoder _characterDecoder;
@@ -78,18 +119,16 @@ public class Receiver implements MessageHandler
     private boolean _isPreserveTimes;
     private boolean _isDeferredWrite;
     private int _ioError;
+    private PathResolver _pathResolver;
 
     public Receiver(Generator generator,
                     ReadableByteChannel in,
-                    Path targetDir,
                     Charset charset)
     {
-        assert targetDir.isAbsolute();
         _senderInChannel = new RsyncInChannel(in,
                                               this,
                                               INPUT_CHANNEL_BUF_SIZE);
         _characterDecoder = TextDecoder.newStrict(charset);
-        _targetDir = targetDir.normalize();
         _generator = generator;
     }
 
@@ -133,30 +172,45 @@ public class Receiver implements MessageHandler
         return _isDeferredWrite;
     }
 
-
-    public boolean receive(boolean sendFilterRules,
+    public boolean receive(String targetPathName,
+                           boolean sendFilterRules,
                            boolean receiveStatistics,
                            boolean exitEarlyIfEmptyList)
         throws ChannelException
     {
         try {
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine("Receiver.transfer:");
+                _log.fine(String.format("Receiver.receive(targetPathName=%s, " +
+                                        "isDeferredWrite=%s," +
+                                        " isListOnly=%s, isPreserveTimes=%s, " +
+                                        "isRecursive=%s, sendFilterRules=%s, " +
+                                        "receiveStatistics=%s, " +
+                                        "exitEarlyIfEmptyList=%s",
+                                        targetPathName, _isDeferredWrite,
+                                        _isListOnly, _isPreserveTimes,
+                                        _isRecursive, sendFilterRules,
+                                        receiveStatistics,
+                                        exitEarlyIfEmptyList));
             }
             if (sendFilterRules) {
                 sendEmptyFilterRules();
             }
 
-            Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
-            _ioError |= receiveFileMetaDataInto(builder);
-
-            if (builder.size() == 0 && exitEarlyIfEmptyList) {
+            List<FileInfoStub> stubs = new LinkedList<>();
+            _ioError |= receiveFileMetaDataInto(stubs);
+            if (stubs.size() == 0 && exitEarlyIfEmptyList) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("empty file list - exiting early");
                 }
                 // NOTE: we never _receive_ any statistics if initial file list is empty
                 return _ioError == 0;
             }
+
+            Path targetPath = PathOps.get(targetPathName);                      // throws InvalidPathException
+            _pathResolver = getPathResolver(targetPath, stubs);                 // throws PathResolverException
+            Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
+            _ioError |= extractFileMetadata(stubs, builder);
+
             Filelist fileList = new ConcurrentFilelist(_isRecursive);           // FIXME: move out
             _generator.setFileList(fileList);                                   // FIXME: move out
             Filelist.Segment segment = fileList.newSegment(builder);
@@ -185,6 +239,124 @@ public class Receiver implements MessageHandler
                 _log.fine("Receiver was interrupted");
             }
             return false;
+        } catch (InvalidPathException e) { // Paths.get
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.severe(String.format("illegal target path name %s: %s",
+                                          targetPathName, e));
+            }
+            return false;
+        } catch (PathResolverException e) { // getPathResolver
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.severe(e.getMessage());
+            }
+            return false;
+        }
+    }
+
+    /**
+     * file          -> non_existing      == non_existing
+     * file          -> existing_file     == existing_file
+     *    *          -> existing_dir      == existing_dir/*
+     *    *          -> non_existing      == non_existing/*
+     *    *          -> existing_not_dir/ == fail
+     *    *          -> existing_other    == fail
+     * file_a file_b -> existing_not_dir  == fail
+     * -r dir_a      -> existing_not_dir  == fail
+     *
+     * Note: one special side effect of rsync is that it treats empty dirs
+     * specially (due to giving importance to the total amount of files in the
+     * _two_ initial file lists), i.e.:
+     *    $ mkdir empty_dir
+     *    $ rsync -r empty_dir non_existing
+     *    $ ls non_existing
+     *    $ rsync -r empty_dir non_existing
+     *    $ ls non_existing
+     *    empty_dir
+     * yajsync does not try to mimic this
+     */
+    private PathResolver getPathResolver(final Path targetPath,
+                                         final List<FileInfoStub> stubs)
+        throws PathResolverException
+    {
+        assert stubs.size() > 0;
+        try {
+            RsyncFileAttributes attrs =
+                RsyncFileAttributes.statIfExists(targetPath);                   // throws IOException
+
+            boolean isTargetExisting = attrs != null;
+            boolean isTargetExistingDir =
+                isTargetExisting && attrs.isDirectory();
+            boolean isTargetExistingFile =
+                isTargetExisting && attrs.isRegularFile();
+            boolean isSourceSingleFile =
+                stubs.size() == 1 && stubs.get(0)._attrs.isRegularFile();
+            boolean isTargetNonExistingFile =
+                !isTargetExisting && !targetPath.endsWith(PathOps.DOT_DIR);
+
+            if (isSourceSingleFile && isTargetNonExistingFile ||
+                isSourceSingleFile && isTargetExistingFile)
+            {                                                                       // -> targetPath
+                return new PathResolver() {
+                    @Override public Path relativePathOf(String pathName) {
+                        return Paths.get(stubs.get(0)._pathName);
+                    }
+                    @Override public Path fullPathOf(Path relativePath) {
+                        return targetPath;
+                    }
+                };
+            }
+            if (isTargetExistingDir || !isTargetExisting) {                         // -> targetPath/*
+                if (!isTargetExisting) {
+                    Files.createDirectories(targetPath);
+                }
+                return new PathResolver() {
+                    @Override public Path relativePathOf(String pathName) {
+                        Path relativePath = Paths.get(pathName);                    // throws InvalidPathException
+                        if (relativePath.isAbsolute()) {
+                            throw new RsyncSecurityException(relativePath +
+                                " is absolute");
+                        }
+                        Path normalizedRelativePath =
+                            PathOps.normalizeStrict(relativePath);
+                        return normalizedRelativePath;
+                    }
+                    @Override public Path fullPathOf(Path relativePath) {
+                        Path fullPath =
+                            targetPath.resolve(relativePath).normalize();
+                        if (!fullPath.startsWith(targetPath.normalize())) {
+                            throw new RsyncSecurityException(String.format(
+                                "%s is outside of receiver destination dir %s",
+                                fullPath, targetPath));
+                        }
+                        return fullPath;
+                    }
+                };
+            }
+
+            if (isTargetExisting && !attrs.isDirectory() && !attrs.isRegularFile()) {
+                throw new PathResolverException(String.format(
+                    "refusing to overwrite existing target path %s which is " +
+                    "neither a file nor a directory (%s)", targetPath, attrs));
+            }
+            if (isTargetExistingFile && stubs.size() >= 2) {
+                throw new PathResolverException(String.format(
+                    "refusing to copy source files %s into file %s " +
+                    "(%s)", stubs, targetPath, attrs));
+            }
+            if (isTargetExistingFile && stubs.size() == 1 &&
+                stubs.get(0)._attrs.isDirectory()) {
+                throw new PathResolverException(String.format(
+                    "refusing to recursively copy directory %s into " +
+                    "non-directory %s (%s)", stubs.get(0), targetPath, attrs));
+            }
+
+            throw new AssertionError(String.format(
+                "BUG: stubs=%s targetPath=%s attrs=%s",
+                stubs, targetPath, attrs));
+
+        } catch (IOException e) {
+            throw new PathResolverException(String.format(
+                "unable to stat %s: %s", targetPath, e));
         }
     }
 
@@ -368,10 +540,13 @@ public class Receiver implements MessageHandler
                         "Receiving directory index %d is dir %s",
                         directoryIndex, directory.path()));
                 }
-                Filelist.SegmentBuilder segmentBuilder =
+
+                List<FileInfoStub> stubs = new LinkedList<>();
+                _ioError |= receiveFileMetaDataInto(stubs);
+                Filelist.SegmentBuilder builder =
                     new Filelist.SegmentBuilder(directory);
-                _ioError |= receiveFileMetaDataInto(segmentBuilder);
-                segment = fileList.newSegment(segmentBuilder);
+                _ioError |= extractFileMetadata(stubs, builder);
+                segment = fileList.newSegment(builder);
                 _generator.generateSegment(segment);
                 numSegmentsInProgress++;
             } else if (index >= 0) {
@@ -605,8 +780,8 @@ public class Receiver implements MessageHandler
     /**
      * @throws RsyncProtocolException if received file is invalid in some way
      */
-    private int receiveFileMetaDataInto(Filelist.SegmentBuilder builder)
-        throws ChannelException, InterruptedException
+    private int receiveFileMetaDataInto(List<FileInfoStub> builder)
+        throws ChannelException
     {
         int ioError = 0;
         long numBytesRead = _senderInChannel.numBytesRead() -
@@ -623,25 +798,45 @@ public class Receiver implements MessageHandler
                               TransmitFlags.IO_ERROR_ENDLIST)) {
                     ioError |= receiveAndDecodeInt();
                     if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning(String.format(
-                            "peer process returned an I/O error (%d)",
-                            ioError));
+                        _log.warning(String.format("peer process returned an " +
+                                                   "I/O error (%d)", ioError));
                     }
                     break;
                 }
             }
-
-            FileInfo fileInfo = receiveFileMetaData(flags);                     // throws RsyncProtocolException if file is invalid in some way
-            // NOTE: fileInfo.path() is always null here - we resolve it fully
-            // later
-
+            byte[] pathNameBytes = receivePathNameBytes(flags);
+            RsyncFileAttributes attrs = receiveRsyncFileAttributes(flags);
             String pathName =
-                _characterDecoder.decodeOrNull(fileInfo.pathNameBytes());
+                _characterDecoder.decodeOrNull(pathNameBytes);
 
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("Receiving file information for %s: %s",
-                          pathName, fileInfo));
+                                        pathName, attrs));
             }
+
+            FileInfoStub stub = new FileInfoStub(pathName, pathNameBytes,
+                                                 attrs);
+            builder.add(stub);
+        }
+
+        long segmentSize = _senderInChannel.numBytesRead() -
+                           _senderInChannel.numBytesPrefetched() - numBytesRead;
+        _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
+        return ioError;
+    }
+
+    private int extractFileMetadata(List<FileInfoStub> stubs,
+                                    Filelist.SegmentBuilder builder)
+        throws InterruptedException
+    {
+        int ioError = 0;
+
+        for (FileInfoStub stub : stubs) {
+
+            String pathName = stub._pathName;
+            byte[] pathNameBytes = stub._pathNameBytes;
+            RsyncFileAttributes attrs = stub._attrs;
+            FileInfo fileInfo = null;
 
             if (pathName == null) {
                 ioError |= IoError.GENERAL;
@@ -679,25 +874,14 @@ public class Receiver implements MessageHandler
                 }
             } else {
                 try {
-                    Path relativePath = Paths.get(pathName);                    // throws InvalidPathException
-                    if (relativePath.isAbsolute()) {
-                        throw new RsyncSecurityException(relativePath +
-                                                         " is absolute");
-                    }
-                    Path fullPath =
-                        _targetDir.resolve(relativePath).normalize();
-                    if (!fullPath.startsWith(_targetDir)) {
-                        throw new RsyncSecurityException(String.format(
-                            "%s is outside of receiver destination dir %s",
-                            fullPath, _targetDir));
-                    }
-                    Path normalizedRelativePath =
-                        PathOps.normalizeStrict(relativePath);
+                    Path relativePath = _pathResolver.relativePathOf(pathName);
+                    Path fullPath = _pathResolver.fullPathOf(relativePath);
+
                     if (PathOps.isPathPreservable(fullPath)) {
                         fileInfo = new FileInfo(fullPath,
-                                                normalizedRelativePath,
-                                                fileInfo.pathNameBytes(),
-                                                fileInfo.attrs());              // throws IllegalArgumentException but this is avoided due to previous checks
+                                                relativePath,
+                                                pathNameBytes,
+                                                attrs);              // throws IllegalArgumentException but this is avoided due to previous checks
 
                         if (_log.isLoggable(Level.FINE)) {
                             _log.fine("Finished receiving " + fileInfo);
@@ -721,19 +905,19 @@ public class Receiver implements MessageHandler
             }
             /* NOTE: we must keep the file regardless of any errors, or else
              * we'll have mismatching file list with sender */
+            if (fileInfo == null) {
+                fileInfo = new FileInfo(null, null, pathNameBytes, attrs);
+            }
             builder.add(fileInfo);
         }
-
-        long segmentSize = _senderInChannel.numBytesRead() -
-                           _senderInChannel.numBytesPrefetched() - numBytesRead;
-        _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
         return ioError;
     }
+
 
     /**
      * @throws RsyncProtocolException if received file is invalid in some way
      */
-    private FileInfo receiveFileMetaData(char xflags) throws ChannelException
+    private byte[] receivePathNameBytes(char xflags) throws ChannelException
     {
         int prefixNumBytes = 0;
         if ((xflags & TransmitFlags.SAME_NAME) != 0) {
@@ -760,7 +944,12 @@ public class Receiver implements MessageHandler
         Util.copyArrays(prevFileNameBytes, fileNameBytes, prefixNumBytes);
         _senderInChannel.get(fileNameBytes, prefixNumBytes, suffixNumBytes);
         _fileInfoCache.setPrevFileNameBytes(fileNameBytes);
+        return fileNameBytes;
+    }
 
+    private RsyncFileAttributes receiveRsyncFileAttributes(char xflags)
+        throws ChannelException
+    {
         long fileSize = receiveAndDecodeLong(3);
         if (fileSize < 0) {
             throw new RsyncProtocolException(String.format(
@@ -799,11 +988,7 @@ public class Receiver implements MessageHandler
         RsyncFileAttributes attrs = new RsyncFileAttributes(mode,
                                                             fileSize,
                                                             lastModified);      // throws IllegalArgumentException if fileSize or lastModified is negative, but we check for this earlier
-        try {
-            return new FileInfo(null, null, fileNameBytes, attrs);              // throws IllegalArgumentException
-        } catch (IllegalArgumentException e) {
-            throw new RsyncProtocolException(e);
-        }
+        return attrs;
     }
 
     // FIXME: remove me, replace with combineDataToFile

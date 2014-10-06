@@ -75,7 +75,7 @@ public class RsyncLocal
 
     public boolean transfer(ExecutorService executor,
                             Iterable<Path> srcPaths,
-                            Path dstPath)
+                            final String destinationPathName)
         throws ChannelException
     {
         List<Future<Boolean>> futures = new LinkedList<>();
@@ -99,7 +99,7 @@ public class RsyncLocal
             generator.setIsListOnly(false);
             final Receiver receiver = new Receiver(generator,
                                                    toReceiver.source(),
-                                                   dstPath, _charset);
+                                                   _charset);
             receiver.setIsRecursive(_isRecursiveTransfer);
             receiver.setIsPreserveTimes(_isPreserveTimes);
             receiver.setIsListOnly(false);
@@ -122,7 +122,8 @@ public class RsyncLocal
                 public Boolean call() throws ChannelException,
                                              InterruptedException {
                     try {
-                        return receiver.receive(transferFilterRules,
+                        return receiver.receive(destinationPathName,
+                                                transferFilterRules,
                                                 transferStatistics,
                                                 exitEarlyIfEmptyList);
                     } finally {

@@ -102,7 +102,7 @@ public class RsyncServerSession
                         final WritableByteChannel out,
                         final Charset charset,
                         final byte[] checksumSeed,
-                        final Path destinationPath,
+                        final String destinationPathName,
                         final boolean isRecursive,
                         final boolean isPreserveTimes,
                         final boolean isAlwaysItemize,
@@ -123,16 +123,16 @@ public class RsyncServerSession
         Callable<Boolean> callableReceiver = new Callable<Boolean>() {
             @Override
             public Boolean call() throws ChannelException, InterruptedException {
-                Receiver receiver = new Receiver(generator, in,
-                                                 destinationPath, charset);
+                Receiver receiver = new Receiver(generator, in, charset);
                 receiver.setIsRecursive(isRecursive);
                 receiver.setIsPreserveTimes(isPreserveTimes);
                 receiver.setIsListOnly(isModuleListing);
                 receiver.setIsDeferredWrite(isDeferredWrite);
                 try {
-                    return receiver.receive(false,  // sendFilterRules,
-                                             false,  // receiveStatistics,
-                                             false); // exitEarlyIfEmptyList);
+                    return receiver.receive(destinationPathName,
+                                            false,  // sendFilterRules,
+                                            false,  // receiveStatistics,
+                                            false); // exitEarlyIfEmptyList);
                 } finally {
                     generator.stop();
                     _statistics = receiver.statistics();
@@ -178,7 +178,7 @@ public class RsyncServerSession
                                             out,
                                             cfg.charset(),
                                             cfg.checksumSeed(),
-                                            cfg.getReceiverDestination(),
+                                            cfg.getReceiverDestination().toString(), // TODO: review this
                                             cfg.isRecursive(),
                                             cfg.isPreserveTimes(),
                                             cfg.verbosity() > 1, // isAlwaysItemize,
