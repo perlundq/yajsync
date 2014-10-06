@@ -24,7 +24,10 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.PosixFileAttributes;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.github.perlundq.yajsync.util.Environment;
@@ -62,12 +65,24 @@ public class RsyncFileAttributes
              attrs.lastModifiedTime().to(TimeUnit.SECONDS));
     }
 
+    private RsyncFileAttributes(PosixFileAttributes attrs)
+    {
+        this(RsyncFileAttributes.toMode(attrs),
+             attrs.size(),
+             attrs.lastModifiedTime().to(TimeUnit.SECONDS));
+    }
+
     public static RsyncFileAttributes stat(Path path) throws IOException
     {
-        // this seem to add significant overhead to the native stat system call
-        BasicFileAttributes attrs =
-            Files.readAttributes(path, BasicFileAttributes.class);
-        return new RsyncFileAttributes(attrs);
+        if (Environment.IS_POSIX_FS) {
+            PosixFileAttributes attrs =
+                Files.readAttributes(path, PosixFileAttributes.class);
+            return new RsyncFileAttributes(attrs);
+        } else {
+            BasicFileAttributes attrs =
+                Files.readAttributes(path, BasicFileAttributes.class);
+            return new RsyncFileAttributes(attrs);
+        }
     }
 
     public static RsyncFileAttributes statOrNull(Path path)
@@ -180,5 +195,52 @@ public class RsyncFileAttributes
             throw new IllegalStateException(String.format(
                 "%s is neither a dir, regular file or a symlink"));
         }
+    }
+
+    private static int toMode(PosixFileAttributes attrs)
+    {
+        int mode = 0;
+
+        if (attrs.isDirectory()) {
+            mode |= FileOps.S_IFDIR;
+        } else if (attrs.isRegularFile()) {
+            mode |= FileOps.S_IFREG;
+        } else if (attrs.isSymbolicLink()) {
+            mode |= FileOps.S_IFLNK;
+        } else {
+            mode |= FileOps.S_IFUNK;
+        }
+
+        Set<PosixFilePermission> perms = attrs.permissions();
+
+        if (perms.contains(PosixFilePermission.OWNER_READ)) {
+            mode |= FileOps.S_IRUSR;
+        }
+        if (perms.contains(PosixFilePermission.OWNER_WRITE)) {
+            mode |= FileOps.S_IWUSR;
+        }
+        if (perms.contains(PosixFilePermission.OWNER_EXECUTE)) {
+            mode |= FileOps.S_IXUSR;
+        }
+        if (perms.contains(PosixFilePermission.GROUP_READ)) {
+            mode |= FileOps.S_IRGRP;
+        }
+        if (perms.contains(PosixFilePermission.GROUP_WRITE)) {
+            mode |= FileOps.S_IWGRP;
+        }
+        if (perms.contains(PosixFilePermission.GROUP_EXECUTE)) {
+            mode |= FileOps.S_IXGRP;
+        }
+        if (perms.contains(PosixFilePermission.OTHERS_READ)) {
+            mode |= FileOps.S_IROTH;
+        }
+        if (perms.contains(PosixFilePermission.OTHERS_WRITE)) {
+            mode |= FileOps.S_IWOTH;
+        }
+        if (perms.contains(PosixFilePermission.OTHERS_EXECUTE)) {
+            mode |= FileOps.S_IXOTH;
+        }
+
+        return mode;
     }
 }

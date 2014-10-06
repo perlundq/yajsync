@@ -31,8 +31,13 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -502,28 +507,8 @@ public class Receiver implements MessageHandler
         return isIdentical;
     }
 
-    private void updateFileAttributes(Path path, RsyncFileAttributes attrs)
-    {
-        if (_isPreserveTimes) {
-            try {
-                FileOps.setFileAttributes(path, attrs);
-            } catch (IOException e) {
-                if (_log.isLoggable(Level.WARNING)) {
-                    _log.warning(String.format(
-                        "failed to set attributes on %s: %s",
-                        path, e.getMessage()));
-                }
-                _ioError |= IoError.GENERAL;
-            }
-        }
-    }
-
     private void moveTempfileToTarget(Path tempFile, Path target)
     {
-        if (_log.isLoggable(Level.FINE)) {
-            _log.fine(String.format("Setting correct attributes and moving " +
-                                    "%s -> %s", tempFile, target));
-        }
         boolean isOK = FileOps.atomicMove(tempFile, target);
         if (!isOK) {
             if (_log.isLoggable(Level.WARNING)) {
@@ -545,9 +530,40 @@ public class Receiver implements MessageHandler
                                                       checksumHeader,
                                                       md);
         if (isRemoteAndLocalFileIdentical(resultFile, md, fileInfo)) {
-            updateFileAttributes(resultFile, fileInfo.attrs());
-            if (!_isDeferredWrite || !resultFile.equals(fileInfo.path())) {
-                moveTempfileToTarget(resultFile, fileInfo.path());
+            try {
+                RsyncFileAttributes attrs = RsyncFileAttributes.stat(resultFile);
+                if (attrs.mode() != fileInfo.attrs().mode()) {
+                    if (_log.isLoggable(Level.FINE)) {
+                        _log.fine(String.format(
+                            "updating file permissions %o -> %o on %s",
+                            attrs.mode(), fileInfo.attrs().mode(), resultFile));
+                    }
+                    Set<PosixFilePermission> perms = PosixFilePermissions.fromString(Text.stripFirst(FileOps.modeToString(fileInfo.attrs().mode())));
+                    Files.setPosixFilePermissions(resultFile, perms);
+                }
+                if (_isPreserveTimes && attrs.lastModifiedTime() != fileInfo.attrs().lastModifiedTime()) {
+                    if (_log.isLoggable(Level.FINE)) {
+                        _log.fine(String.format(
+                            "updating mtime %d -> %d on %s",
+                            attrs.lastModifiedTime(),
+                            fileInfo.attrs().lastModifiedTime(), resultFile));
+                    }
+                    Files.setLastModifiedTime(resultFile,
+                                              FileTime.from(fileInfo.attrs().lastModifiedTime(),
+                                                            TimeUnit.SECONDS));
+                }
+                if (!_isDeferredWrite || !resultFile.equals(fileInfo.path())) {
+                    if (_log.isLoggable(Level.FINE)) {
+                        _log.fine(String.format("moving %s -> %s",
+                                                resultFile, fileInfo.path()));
+                    }
+                    moveTempfileToTarget(resultFile, fileInfo.path());
+                }
+            } catch (IOException e) {
+                _ioError |= IoError.GENERAL;
+                if (_log.isLoggable(Level.SEVERE)) {
+                    _log.log(Level.SEVERE, "", e);
+                }
             }
             _generator.purgeFile(segment, index);
         } else {

@@ -38,6 +38,10 @@ public class FileOps
     public static final int S_IFCHR  = 0020000; // character device
     public static final int S_IFIFO  = 0010000; // FIFO
 
+    // NOTE: unconventional - added to be able to represent files of type other
+    // (e.g. from PosixFileAttributes)
+    public static final int S_IFUNK  = 0150000;
+
     public static final int S_ISUID  = 0004000; // set UID bit
     public static final int S_ISGID  = 0002000; // set-group-ID bit
     public static final int S_ISVTX  = 0001000; // sticky bit
