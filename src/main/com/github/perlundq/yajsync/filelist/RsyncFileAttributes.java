@@ -21,6 +21,7 @@ package com.github.perlundq.yajsync.filelist;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -76,11 +77,13 @@ public class RsyncFileAttributes
     {
         if (Environment.IS_POSIX_FS) {
             PosixFileAttributes attrs =
-                Files.readAttributes(path, PosixFileAttributes.class);
+                Files.readAttributes(path, PosixFileAttributes.class,
+                                     LinkOption.NOFOLLOW_LINKS);
             return new RsyncFileAttributes(attrs);
         } else {
             BasicFileAttributes attrs =
-                Files.readAttributes(path, BasicFileAttributes.class);
+                Files.readAttributes(path, BasicFileAttributes.class,
+                                     LinkOption.NOFOLLOW_LINKS);
             return new RsyncFileAttributes(attrs);
         }
     }
