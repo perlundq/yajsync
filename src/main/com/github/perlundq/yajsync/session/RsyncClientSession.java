@@ -19,6 +19,7 @@
  */
 package com.github.perlundq.yajsync.session;
 
+import java.io.IOException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
@@ -69,12 +70,28 @@ public class RsyncClientSession
                 sender.setIsRecursive(_isRecursiveTransfer);
                 try {
                     boolean isOK = sender.send(false,  // receiveFilterRules,
-                                                   false,  // sendStatistics,
-                                                   false); // exitEarlyIfEmptyList);
+                                               false,  // sendStatistics,
+                                               false); // exitEarlyIfEmptyList);
                     sender.readAllMessagesUntilEOF();
                     return isOK;
                 } finally {
                     _statistics = sender.statistics();
+                    ChannelException ex = null;
+                    try {
+                        in.close();
+                    } catch (IOException e) {
+                        ex = new ChannelException(e);
+                    }
+                    try {
+                        out.close();
+                    } catch (IOException e) {
+                        if (ex == null) {
+                            ex = new ChannelException(e);
+                        }
+                    }
+                    if (ex != null) {
+                        throw ex;
+                    }
                 }
             }
         };
@@ -96,11 +113,19 @@ public class RsyncClientSession
         Callable<Boolean> callableGenerator = new Callable<Boolean>() {
             @Override
             public Boolean call() throws ChannelException {
-                generator.setIsRecursive(_isRecursiveTransfer);
-                generator.setIsPreserveTimes(_isPreserveTimes);
-                generator.setIsAlwaysItemize(_verbosity > 1);
-                generator.setIsListOnly(_isModuleListing);
-                return generator.generate();
+                try {
+                    generator.setIsRecursive(_isRecursiveTransfer);
+                    generator.setIsPreserveTimes(_isPreserveTimes);
+                    generator.setIsAlwaysItemize(_verbosity > 1);
+                    generator.setIsListOnly(_isModuleListing);
+                    return generator.generate();
+                } finally {
+                    try {
+                        out.close();
+                    } catch (IOException e) {
+                        throw new ChannelException(e);
+                    }
+                }
             }
         };
         Callable<Boolean> callableReceiver = new Callable<Boolean>() {
@@ -119,8 +144,16 @@ public class RsyncClientSession
                     receiver.readAllMessagesUntilEOF();
                     return isOK;
                 } finally {
-                    generator.stop();
-                    _statistics = receiver.statistics();
+                    try {
+                        generator.stop();
+                    } finally {
+                        _statistics = receiver.statistics();
+                        try {
+                            in.close();
+                        } catch (IOException e) {
+                            throw new ChannelException(e);
+                        }
+                    }
                 }
             }
         };

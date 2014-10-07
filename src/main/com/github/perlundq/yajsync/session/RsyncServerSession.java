@@ -19,6 +19,7 @@
  */
 package com.github.perlundq.yajsync.session;
 
+import java.io.IOException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
@@ -89,6 +90,22 @@ public class RsyncServerSession
                                        true); //exitEarlyIfEmptyList);
                 } finally {
                     _statistics = sender.statistics();
+                    ChannelException ex = null;
+                    try {
+                        in.close();
+                    } catch (IOException e) {
+                        ex = new ChannelException(e);
+                    }
+                    try {
+                        out.close();
+                    } catch (IOException e) {
+                        if (ex == null) {
+                            ex = new ChannelException(e);
+                        }
+                    }
+                    if (ex != null) {
+                        throw ex;
+                    }
                 }
             }
         };
@@ -113,11 +130,19 @@ public class RsyncServerSession
         Callable<Boolean> callableGenerator = new Callable<Boolean>() {
             @Override
             public Boolean call() throws ChannelException {
-                generator.setIsRecursive(isRecursive);
-                generator.setIsPreserveTimes(isPreserveTimes);
-                generator.setIsAlwaysItemize(isAlwaysItemize);
-                generator.setIsListOnly(isModuleListing);
-                return generator.generate();
+                try {
+                    generator.setIsRecursive(isRecursive);
+                    generator.setIsPreserveTimes(isPreserveTimes);
+                    generator.setIsAlwaysItemize(isAlwaysItemize);
+                    generator.setIsListOnly(isModuleListing);
+                    return generator.generate();
+                } finally {
+                    try {
+                        out.close();
+                    } catch (IOException e) {
+                        throw new ChannelException(e);
+                    }
+                }
             }
         };
         Callable<Boolean> callableReceiver = new Callable<Boolean>() {
@@ -134,8 +159,16 @@ public class RsyncServerSession
                                             false,  // receiveStatistics,
                                             false); // exitEarlyIfEmptyList);
                 } finally {
-                    generator.stop();
-                    _statistics = receiver.statistics();
+                    try {
+                        generator.stop();
+                    } finally {
+                        _statistics = receiver.statistics();
+                        try {
+                            in.close();
+                        } catch (IOException e) {
+                            throw new ChannelException(e);
+                        }
+                    }
                 }
             }
         };

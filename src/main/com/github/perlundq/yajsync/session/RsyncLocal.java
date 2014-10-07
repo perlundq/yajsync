@@ -18,6 +18,7 @@
  */
 package com.github.perlundq.yajsync.session;
 
+import java.io.IOException;
 import java.nio.channels.Pipe;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
@@ -83,8 +84,8 @@ public class RsyncLocal
             byte[] checksumSeed =
                 BitOps.toLittleEndianBuf((int) System.currentTimeMillis());
 
-            Pipe toSender = Pipe.open();           // throws IOException
-            Pipe toReceiver = Pipe.open();         // throws IOException
+            final Pipe toSender = Pipe.open();                                  // throws IOException
+            final Pipe toReceiver = Pipe.open();                                // throws IOException
             final Sender sender = new Sender(toSender.source(),
                                              toReceiver.sink(),
                                              srcPaths,
@@ -114,7 +115,15 @@ public class RsyncLocal
             futures.add(ecs.submit(new Callable<Boolean>() {
                 @Override
                 public Boolean call() throws ChannelException {
-                    return generator.generate();
+                    try {
+                        return generator.generate();
+                    } finally {
+                        try {
+                            toSender.sink().close();
+                        } catch (IOException e) {
+                            throw new ChannelException(e);
+                        }
+                    }
                 }
             }));
             futures.add(ecs.submit(new Callable<Boolean>() {
@@ -127,7 +136,15 @@ public class RsyncLocal
                                                 transferStatistics,
                                                 exitEarlyIfEmptyList);
                     } finally {
-                        generator.stop();
+                        try {
+                            generator.stop();
+                        } finally {
+                            try {
+                                toReceiver.source().close();
+                            } catch (IOException e) {
+                                throw new ChannelException(e);
+                            }
+                        }
                     }
                 }
             }));
@@ -141,6 +158,22 @@ public class RsyncLocal
                                            exitEarlyIfEmptyList);
                     } finally {
                         _statistics = sender.statistics();
+                        ChannelException ex = null;
+                        try {
+                            toSender.source().close();
+                        } catch (IOException e) {
+                            ex = new ChannelException(e);
+                        }
+                        try {
+                            toReceiver.sink().close();
+                        } catch (IOException e) {
+                            if (ex == null) {
+                                ex = new ChannelException(e);
+                            }
+                        }
+                        if (ex != null) {
+                            throw ex;
+                        }
                     }
                 }
             }));
