@@ -65,19 +65,34 @@ public final class PathOps
         return !unixPathName.contains(Environment.PATH_SEPARATOR);
     }
 
-    public static Path parentPath(Path path, int level)
+    // does not allow parent to be /
+    public static Path subtractPath(Path parent, Path sub)
     {
-        assert level >= 0;
-        assert level <= path.getNameCount();
-        assert path.isAbsolute();
-        int numComponents = path.getNameCount();
-        return path.getRoot().resolve(path.subpath(0, numComponents - level)); // NOTE: Path.getRoot may return null
-    }
+        if (parent.endsWith(sub)) {
+            // NOTE: name count of /home and home is 1
+            int endIndex = parent.getNameCount() - sub.getNameCount();
+            if (endIndex == 0 && parent.equals(sub)) {
+                throw new IllegalArgumentException(
+                    String.format("%s equals %s", parent, sub));
+            }
 
-    public static Path subtractPath(Path absolute, Path subPath)
-    {
-        assert absolute.endsWith(subPath);
-        return parentPath(absolute, subPath.getNameCount());
+            Path relativeParent;
+            if (endIndex == 0) {
+                relativeParent = PathOps.EMPTY;
+            } else {
+                relativeParent = parent.subpath(0, endIndex);
+            }
+
+            Path parentRoot = parent.getRoot();
+            boolean parentHasRoot = parentRoot != null;
+            if (parentHasRoot) {
+                return parentRoot.resolve(relativeParent);
+            } else {
+                return relativeParent;
+            }
+        }
+        throw new IllegalArgumentException(
+            String.format("%s is not a parent path of %s", parent, sub));
     }
 
     public static boolean contains(Path path, Path searchPath)
