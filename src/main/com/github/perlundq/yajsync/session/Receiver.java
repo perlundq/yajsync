@@ -930,15 +930,6 @@ public class Receiver implements MessageHandler
             suffixNumBytes = 0xFF & _senderInChannel.getByte();
         }
 
-        if (prefixNumBytes + suffixNumBytes > PathOps.MAX_PATH_NAME_LENGTH) {
-            throw new RsyncProtocolException(
-                String.format("Error: fileName Length is too large: " +
-                              "%d + %d = %d (limit is %d)",
-                              prefixNumBytes, suffixNumBytes,
-                              prefixNumBytes + suffixNumBytes,
-                              PathOps.MAX_PATH_NAME_LENGTH)); // we use the same limit as native, even if local filesystem could possibly support longer names
-        }
-
         byte[] prevFileNameBytes = _fileInfoCache.getPrevFileNameBytes();
         byte[] fileNameBytes = new byte[prefixNumBytes + suffixNumBytes];
         Util.copyArrays(prevFileNameBytes, fileNameBytes, prefixNumBytes);

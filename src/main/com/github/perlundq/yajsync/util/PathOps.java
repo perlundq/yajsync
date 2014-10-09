@@ -31,7 +31,6 @@ public final class PathOps
     public static final Path EMPTY = Paths.get(Text.EMPTY);
     public static final Path DOT_DIR = Paths.get(Text.DOT);
     public static final Path DOT_DOT_DIR = Paths.get(Text.DOT_DOT);
-    public static final int MAX_PATH_NAME_LENGTH = 255;
 
     private PathOps() {}
 
