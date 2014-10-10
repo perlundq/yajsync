@@ -63,7 +63,7 @@ public final class Text
 
     public static String nullToEmptyStr(String arg)
     {
-        return Util.notNull(arg, "");
+        return Util.defaultIfNull(arg, "");
     }
 
     public static String join(Iterable<String> strings, String separator)

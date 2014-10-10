@@ -171,7 +171,7 @@ public abstract class SessionConfig
                                        Integer.parseInt(m.group(2)));
         } else {
             throw new RsyncProtocolException(
-                    String.format("Received invalid protocol version: %s",
+                    String.format("Unsupported protocol version: %s",
                                   versionResponse));
         }
     }

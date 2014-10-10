@@ -42,7 +42,7 @@ public final class Util
     public final static int DEBUG4_LOG_LEVEL_NUM = 6;  
     private Util() {}
 
-    public static <T> T notNull(T arg, T defaultValue)
+    public static <T> T defaultIfNull(T arg, T defaultValue)
     {
         return arg != null ? arg : defaultValue;
     }

@@ -54,7 +54,7 @@ public class BufferedOutputChannel implements Bufferable
                 int count = _sinkChannel.write(buf);
                 if (count <= 0) {
                     throw new ChannelEOFException(String.format(
-                        "channel write unexpectadly returned %d (EOF)", count));
+                        "channel write unexpectedly returned %d (EOF)", count));
                 }
                 _numBytesWritten += count;
             }

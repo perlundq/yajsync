@@ -116,7 +116,7 @@ public final class Environment
 
     private static String getPropertyOrDefault(String key, String defaultValue)
     {
-        return Util.notNull(System.getProperty(key), defaultValue);
+        return Util.defaultIfNull(System.getProperty(key), defaultValue);
     }
 
     private static boolean isRunningWindows()
