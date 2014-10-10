@@ -25,4 +25,9 @@ public class ChannelEOFException extends ChannelException
     {
         super(message);
     }
+
+    public ChannelEOFException(Exception e)
+    {
+        super(e);
+    }
 }

@@ -18,6 +18,7 @@
  */
 package com.github.perlundq.yajsync.channels;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -114,6 +115,8 @@ public class SimpleInputChannel implements Readable
                 }
                 _numBytesRead += count;
             }
+        } catch (EOFException e) {
+            throw new ChannelEOFException(e);
         } catch (ClosedByInterruptException e) {
             throw new RuntimeInterruptException(e);
         } catch (IOException e) {
