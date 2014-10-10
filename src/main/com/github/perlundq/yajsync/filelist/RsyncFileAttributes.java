@@ -182,10 +182,6 @@ public class RsyncFileAttributes
         return FileOps.fileType(_mode);
     }
 
-    /**
-     * @throws IllegalStateException if attrs is not describing a file directory
-     *         or a symbolic link
-     */
     private static int toMode(BasicFileAttributes attrs)
     {
         if (attrs.isDirectory()) {
@@ -195,8 +191,7 @@ public class RsyncFileAttributes
         } else if (attrs.isSymbolicLink()) { // NOTE: we can't modify permissions on the symlink anyway
             return FileOps.S_IFLNK | Environment.DEFAULT_FILE_PERMS;
         } else {
-            throw new IllegalStateException(String.format(
-                "%s is neither a dir, regular file or a symlink"));
+            return FileOps.S_IFUNK;
         }
     }
 
