@@ -457,19 +457,6 @@ public class Sender implements MessageHandler
                 }
 
                 RsyncFileAttributes attrs = RsyncFileAttributes.stat(p);
-                boolean isEliglible = (_isRecursive && attrs.isDirectory()) ||
-                                      attrs.isRegularFile()                 ||
-                                      attrs.isSymbolicLink();
-                if (!isEliglible) {
-                    if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning(String.format(
-                            "Skipping ineligible %s %s",
-                            FileOps.fileTypeToString(attrs.mode()), p));
-                    }
-                    isOK = false;
-                    continue;
-                }
-
                 byte[] nameBytes =
                     _characterEncoder.encode(p.getFileName().toString());       // throws TextConversionException
 
@@ -537,19 +524,6 @@ public class Sender implements MessageHandler
                 RsyncFileAttributes attrs;
                 try {
                     attrs = RsyncFileAttributes.stat(entry);
-                    boolean isEliglible = attrs.isDirectory()   ||
-                                          attrs.isRegularFile() ||
-                                          attrs.isSymbolicLink();
-                    if (!isEliglible) {
-                        if (_log.isLoggable(Level.WARNING)) {
-                            _log.warning(String.format(
-                                "Skipping ineligible %s %s",
-                                FileOps.fileTypeToString(attrs.mode()),
-                                entry));
-                        }
-                        isOK = false;
-                        continue;
-                    }
                 } catch (IOException e) {
                     if (_log.isLoggable(Level.WARNING)) {
                         _log.warning(String.format("Failed to stat %s: %s",

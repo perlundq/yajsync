@@ -64,7 +64,6 @@ public class Filelist
         {
             assert _files != null && _directories != null;
             assert fileInfo != null;
-            assert !fileInfo.attrs().isOther();
 
             if (_directory != null && fileInfo.path() != null &&
                 !fileInfo.path().startsWith(_directory.path()))
