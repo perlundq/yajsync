@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 import com.github.perlundq.yajsync.channels.ChannelEOFException;
 import com.github.perlundq.yajsync.channels.ChannelException;
@@ -286,7 +287,13 @@ public class ServerSessionConfig extends SessionConfig
         }
 
         if (isSender()) {
+            Pattern wildcardsPattern = Pattern.compile(".*[\\[*?].*");          // matches literal [, * or ?
             for (String fileName : unnamed) {
+                if (wildcardsPattern.matcher(fileName).matches()) {
+                    throw new RsyncProtocolException(
+                        String.format("wildcards are not supported (%s)",
+                                      fileName));
+                }
                 Path safePath = _module.resolveVirtual(Paths.get(fileName));
                 if (Text.isNameDotDir(fileName)) {
                     safePath = safePath.resolve(PathOps.DOT_DIR);
