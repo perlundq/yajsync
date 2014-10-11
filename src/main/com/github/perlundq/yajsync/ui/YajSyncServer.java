@@ -30,6 +30,8 @@ import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -54,7 +56,7 @@ public class YajSyncServer
     private static final Logger _log =
         Logger.getLogger(YajSyncServer.class.getName());
 
-    private final static int THREAD_FACTOR = 4;
+    private static final int THREAD_FACTOR = 4;
     private final String _appName = getClass().getSimpleName();
     private final String _defaultConfigFile = _appName + ".conf";
 
@@ -71,17 +73,14 @@ public class YajSyncServer
 
     public YajSyncServer() {}
 
-    public void parseArgs(String[] args) {
-        ArgumentParser argsParser = ArgumentParser.newNoUnnamed(_appName);
-
-        argsParser.addHelpTextDestination(System.out);
-
-        argsParser.add(
-            Option.newStringOption(Option.Policy.OPTIONAL,
-                                   "charset", "",
-                                   String.format("which charset to use " +
-                                                 "(default %s)",
-                                                 _charset),
+    private Iterable<Option> options()
+    {
+        List<Option> options = new LinkedList<>();
+        options.add(Option.newStringOption(Option.Policy.OPTIONAL,
+                                           "charset", "",
+                                           String.format("which charset to " +
+                                                         "use (default %s)",
+                                                         _charset),
             new Option.Handler() {
                 @Override
                 public void handle(Option option) throws ArgumentParsingError {
@@ -103,32 +102,30 @@ public class YajSyncServer
                     }
                 }}));
 
-        argsParser.add(
-            Option.newStringOption(Option.Policy.OPTIONAL, "config", "",
-                                   String.format("path to config file " +
-                                                 "(default %s)",
-                                                 _cfgFileName),
+        options.add(Option.newStringOption(Option.Policy.OPTIONAL, "config", "",
+                                           String.format("path to config file" +
+                                                         " (default %s)",
+                                                         _cfgFileName),
             new Option.Handler() {
                 @Override public void handle(Option option) {
                     _cfgFileName = (String) option.getValue();
                 }}));
 
-        argsParser.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "verbose", "v",
-                                      String.format("output verbosity " +
-                                                    "(default %d)",
-                                                    _verbosity),
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                              "verbose", "v",
+                                              String.format("output verbosity" +
+                                                            " (default %d)",
+                                                            _verbosity),
             new Option.Handler() {
                 @Override public void handle(Option option) {
                     _verbosity++;
                 }}));
 
-        argsParser.add(
-            Option.newStringOption(Option.Policy.OPTIONAL, "address", "",
-                                   String.format("address to bind to" +
-                                                 "(default %s)",
-                                                 _address),
+        options.add(Option.newStringOption(Option.Policy.OPTIONAL,
+                                           "address", "",
+                                           String.format("address to bind to" +
+                                                         "(default %s)",
+                                                         _address),
             new Option.Handler() {
                 @Override public void handle(Option option) throws ArgumentParsingError {
                     try {
@@ -138,22 +135,21 @@ public class YajSyncServer
                     }
                 }}));
 
-        argsParser.add(
-            Option.newIntegerOption(Option.Policy.OPTIONAL,
-                                    "port", "",
-                                    String.format("port number to listen on " +
-                                                  "(default %d)", _port),
+        options.add(Option.newIntegerOption(Option.Policy.OPTIONAL,
+                                            "port", "",
+                                            String.format("port number to " +
+                                                          "listen on (default" +
+                                                          " %d)", _port),
             new Option.Handler() {
                 @Override public void handle(Option option) {
                     _port = (int) option.getValue();
                 }}));
 
-        argsParser.add(
-            Option.newIntegerOption(Option.Policy.OPTIONAL,
-                                    "threads", "",
-                                    String.format("size of thread pool " +
-                                                  "(default %d)",
-                                                  _numThreads),
+        options.add(Option.newIntegerOption(Option.Policy.OPTIONAL,
+                                            "threads", "",
+                                            String.format("size of thread " +
+                                                          "pool (default %d)",
+                                                          _numThreads),
             new Option.Handler() {
                 @Override public void handle(Option option) {
                     _numThreads = (int) option.getValue();
@@ -165,22 +161,14 @@ public class YajSyncServer
             "file being modified by a process already having it opened " +
             "(default %s)",
             _isDeferredWrite);
-        argsParser.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "defer-write", "",
-                                      deferredWriteHelp,
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                              "defer-write", "",
+                                              deferredWriteHelp,
             new Option.Handler() {
                 @Override public void handle(Option option) {
                     _isDeferredWrite = true;
                 }}));
-
-        try {
-            argsParser.parse(Arrays.asList(args));
-        } catch (ArgumentParsingError e) {
-            System.err.println(e.getMessage());
-            System.err.println(argsParser.toUsageString());
-            System.exit(1);
-        }
+        return options;
     }
 
     private Callable<Boolean> createCallable(final ExecutorService executor,
@@ -199,7 +187,10 @@ public class YajSyncServer
                     RsyncServerSession session = new RsyncServerSession();
                     session.setCharset(_charset);
                     session.setIsDeferredWrite(_isDeferredWrite);
-                    isOK = session.startSession(executor, sock, sock, modules);
+                    isOK = session.startSession(executor,
+                                                sock,    // in
+                                                sock,    // out
+                                                modules);
 //                    showStatistics(session.statistics());
                 } catch (ChannelException e) {
                     if (_log.isLoggable(Level.SEVERE)) {
@@ -233,31 +224,6 @@ public class YajSyncServer
         };
     }
 
-    private void sessionCreatorLoop(ExecutorService executor,
-                                    ServerSocketChannel listenSock)
-        throws IOException
-    {
-        assert _configuration != null;
-        while (true) {
-            @SuppressWarnings("resource") // closed from within returned t
-            final SocketChannel sock = listenSock.accept();
-            // FIXME: do reverse name lookup before continuing
-            // TODO: re-enable socket timeout if not debugging
-            //_peerChannel.setSoTimeout(60);
-            // TODO: set TCP keep alive
-            try {
-                _configuration = Configuration.readFile(_cfgFileName);
-            } catch (IOException e) {
-                System.err.format("Warning: Failed to re-read " +
-                    "configuration file %s: %s%n",
-                    _cfgFileName, e.getMessage());
-            }
-            Callable<Boolean> t = createCallable(executor, sock,
-                                                 _configuration.modules());
-            executor.submit(t);  // NOTE: result discarded
-        }
-    }
-
     private static void showStatistics(Statistics stats)
     {
         System.out.format("Number of files: %d%n" +
@@ -284,6 +250,67 @@ public class YajSyncServer
             stats.totalRead());
     }
 
+    public void start(String[] args) throws IOException, InterruptedException
+    {
+        ArgumentParser argsParser = ArgumentParser.newNoUnnamed(_appName);
+        try {
+            argsParser.addHelpTextDestination(System.out);
+            for (Option o : options()) {
+                argsParser.add(o);
+            }
+            argsParser.parse(Arrays.asList(args));                              // throws ArgumentParsingError
+        } catch (ArgumentParsingError e) {
+            System.err.println(e.getMessage());
+            System.err.println(argsParser.toUsageString());
+            System.exit(1);
+        }
+
+        Level logLevel = Util.getLogLevelForNumber(Util.WARNING_LOG_LEVEL_NUM +
+                                                   _verbosity);
+        Util.setRootLogLevel(logLevel);
+
+        ExecutorService executor =
+            Executors.newFixedThreadPool(_numThreads);
+
+        try (ServerSocketChannel listenSock = ServerSocketChannel.open()) {     // throws IOException
+
+            listenSock.setOption(StandardSocketOptions.SO_REUSEADDR, true);     // throws IOException
+            listenSock.bind(new InetSocketAddress(_address, _port));            // bind throws IOException
+
+            while (true) {
+                final SocketChannel sock = listenSock.accept();                 // throws IOException
+                // FIXME: do reverse name lookup before continuing
+                // TODO: re-enable socket timeout if not debugging
+                //_peerChannel.setSoTimeout(60);
+                // TODO: set TCP keep alive
+                try {
+                    _configuration = Configuration.readFile(_cfgFileName);
+                } catch (IOException e) { //
+                    if (_configuration == null) {
+                        System.err.format("Error: failed to read " +
+                                          "configuration file %s (%s)%n",
+                                          _cfgFileName, e);
+                        System.exit(1);
+                    }
+                    System.err.format("Warning: failed to re-read " +
+                                      "configuration file %s (%s)%n",
+                                      _cfgFileName, e);
+                }
+                Callable<Boolean> c = createCallable(executor,
+                                                     sock,
+                                                     _configuration.modules());
+                executor.submit(c);  // NOTE: result discarded
+            }
+        } finally {
+            System.err.println("shutting down");
+            executor.shutdown();
+            while (!executor.awaitTermination(5, TimeUnit.MINUTES)) {
+                System.err.println("some sessions are still running, waiting " +
+                                   "for them to finish before exiting");
+            }
+        }
+    }
+
     public static void main(String[] args)
         throws IOException, InterruptedException
     {
@@ -291,37 +318,6 @@ public class YajSyncServer
                            "there might be data corruption bugs hiding. So " +
                            "use it only carefully at your own risk.");
 
-        final YajSyncServer server = new YajSyncServer();
-        server.parseArgs(args);
-        Level logLevel = Util.getLogLevelForNumber(Util.WARNING_LOG_LEVEL_NUM +
-                                                   server._verbosity);
-        Util.setRootLogLevel(logLevel);
-
-        try {
-            server._configuration = Configuration.readFile(server._cfgFileName);
-        } catch (IOException e) { //
-            System.err.format("Error: failed to read configuration file " +
-                              "%s (%s)%n", server._cfgFileName, e);
-            System.exit(1);
-        }
-
-        ExecutorService executor =
-            Executors.newFixedThreadPool(server._numThreads);
-
-        try (ServerSocketChannel listenSock = ServerSocketChannel.open()) {
-            listenSock.setOption(StandardSocketOptions.SO_REUSEADDR, true);
-
-            InetSocketAddress socketAddress =
-                new InetSocketAddress(server._address, server._port);
-            listenSock.bind(socketAddress);
-            server.sessionCreatorLoop(executor, listenSock);
-        } finally {
-            System.err.format("shutting down%n");
-            executor.shutdown();
-            while (!executor.awaitTermination(5, TimeUnit.MINUTES)) {
-                System.err.format("some sessions are still running, waiting " +
-                                  "for them to finish before exiting");
-            }
-        }
+        new YajSyncServer().start(args);
     }
 }

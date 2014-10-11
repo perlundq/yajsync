@@ -238,130 +238,12 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     private int _remotePort = Consts.DEFAULT_LISTEN_PORT;
     private int _verbosity = 0;
     private List<String> _srcArgs = new LinkedList<>();
+    private Statistics _statistics;
     private String _address;
     private Charset _charset = Charset.forName(Text.UTF8_NAME);
     private String _dstArg;
     private String _moduleName;
     private String _userName;
-
-    public static void main(String[] args)
-    {
-        System.err.println("Warning: this software is still unstable and " +
-                           "there might be data corruption bugs hiding. So " +
-                           "use it only carefully at your own risk.");
-
-        YajSyncClient clientInstance = new YajSyncClient();
-        clientInstance.parseArguments(args);
-
-        Level logLevel = Util.getLogLevelForNumber(Util.WARNING_LOG_LEVEL_NUM +
-                                                   clientInstance._verbosity);
-        Util.setRootLogLevel(logLevel);
-
-        boolean isOK = false;
-        Statistics stats;
-        // TODO: print warning for any unused options
-
-        ExecutorService executor = Executors.newCachedThreadPool();
-
-        if (clientInstance._isRemote ) {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("starting remote session");
-            }
-
-            RsyncClientSession session = new RsyncClientSession();
-            session.setCharset(clientInstance._charset);
-            session.setIsDeferredWrite(clientInstance._isDeferredWrite);
-            session.setIsModuleListing(clientInstance._isModuleListing);
-            session.setIsPreserveTimes(clientInstance._isPreserveTimes);
-            session.setIsRecursiveTransfer(clientInstance._isRecursiveTransfer);
-            session.setIsSender(clientInstance._isSender);
-            InetSocketAddress socketAddress =
-                new InetSocketAddress(clientInstance._address,
-                                      clientInstance._remotePort);
-            try (SocketChannel sock = SocketChannel.open(socketAddress)) {
-
-                if (_log.isLoggable(Level.FINE)) {
-                    _log.fine("connected to " + sock.getRemoteAddress());
-                }
-
-                isOK = session.startSession(executor,
-                                            sock,
-                                            sock,
-                                            clientInstance._srcArgs,
-                                            clientInstance._dstArg,
-                                            clientInstance,            // as a ClientSessionConfig.AuthProvider
-                                            clientInstance._moduleName);
-
-            } catch (IOException e) { // SocketChannel.{open,close}()
-                if (_log.isLoggable(Level.SEVERE)) {
-                    _log.severe("Error: socket open/close error: " +
-                                e.getMessage());
-                }
-                isOK = false;
-            } catch (UnresolvedAddressException e) { // SocketChannel.{open,close}()
-                if (_log.isLoggable(Level.SEVERE)) {
-                    _log.severe(String.format("Error: failed to resolve " +
-                                              "%s (%s)",
-                                              socketAddress, e.getMessage()));
-                }
-                isOK = false;
-            } catch (ChannelException e) {              // startSession
-                if (_log.isLoggable(Level.SEVERE)) {
-                    _log.log(Level.SEVERE,
-                             "Error: communication closed with peer: ", e);
-                }
-                isOK = false;
-            } finally {
-                executor.shutdown();
-                stats = session.statistics();
-            }
-
-        } else {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("starting local transfer (using rsync's delta " +
-                          "transfer algorithm - i.e. will not run with a " +
-                          "--whole-file option, so performance is most " +
-                          "probably lower than rsync)");
-            }
-
-            RsyncLocal localTransfer = new RsyncLocal();
-            localTransfer.setCharset(clientInstance._charset);
-            localTransfer.setVerbosity(clientInstance._verbosity);
-            localTransfer.setIsRecursiveTransfer(clientInstance._isRecursiveTransfer);
-            localTransfer.setIsPreserveTimes(clientInstance._isPreserveTimes);
-            localTransfer.setIsDeferredWrite(clientInstance._isDeferredWrite);
-            try {
-                List<Path> srcPaths = new LinkedList<>();
-                for (String pathName : clientInstance._srcArgs) {
-                    srcPaths.add(Paths.get(pathName));
-                }
-                isOK = localTransfer.transfer(executor,
-                                              srcPaths,
-                                              clientInstance._dstArg);
-            } catch (ChannelException e) {
-                if (_log.isLoggable(Level.SEVERE)) {
-                    _log.severe("Error: communication closed with peer: " +
-                                e.getMessage());
-                }
-                isOK = false;
-            } finally {
-                executor.shutdown();
-                stats = localTransfer.statistics();
-            }
-        }
-
-        if (clientInstance._isShowStatistics) {
-            clientInstance.showStatistics(stats);
-        }
-
-        if (_log.isLoggable(Level.INFO)) {
-            _log.info("exit status: " + (isOK ? "OK" : "ERROR"));
-        }
-
-        if (!isOK) {
-            System.exit(1);
-        }
-    }
 
     @Override
     public String getUser()
@@ -381,14 +263,10 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         return password;
     }
 
-    private void parseArguments(String[] args)
+    private Iterable<Option> options()
     {
-        ArgumentParser argsParser =
-            ArgumentParser.newWithUnnamed(getClass().getSimpleName(),
-                                          "files...");
-        argsParser.addHelpTextDestination(System.out);
-
-        argsParser.add(
+        List<Option> options = new LinkedList<>();
+        options.add(
             Option.newStringOption(Option.Policy.OPTIONAL,
                                    "charset", "",
                                    String.format("which charset to use " +
@@ -414,7 +292,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                     }
                 }}));
 
-        argsParser.add(
+        options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "recursive", "r",
                                       String.format("recurse into directories" +
@@ -425,7 +303,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                     _isRecursiveTransfer  = true;
                 }}));
 
-        argsParser.add(
+        options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "verbose", "v",
                                       String.format("output verbosity " +
@@ -436,7 +314,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                     _verbosity++;
                 }}));
 
-        argsParser.add(
+        options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "times", "t",
                                       String.format("preserve last " +
@@ -448,7 +326,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                     _isPreserveTimes  = true;
                 }}));
 
-        argsParser.add(
+        options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "stats", "",
                                       "show file transfer statistics",
@@ -457,10 +335,10 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                     _isShowStatistics = true;
                 }}));
 
-        argsParser.add(
+        options.add(
             Option.newIntegerOption(Option.Policy.OPTIONAL,
                                     "port", "",
-                                    String.format("port number to listen on " +
+                                    String.format("server port number " +
                                                   "(default %d)", _remotePort),
             new Option.Handler() {
                 @Override public void handle(Option option) {
@@ -474,7 +352,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             "modified by a process already having it opened (default %s)",
             _isDeferredWrite);
 
-        argsParser.add(
+        options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "defer-write", "", deferredWriteHelp,
             new Option.Handler() {
@@ -482,14 +360,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                     _isDeferredWrite = true;
                 }}));
 
-        try {
-            argsParser.parse(Arrays.asList(args));
-            parseUnnamedArgs(argsParser.getUnnamedArguments());
-        } catch (ArgumentParsingError e) {
-            System.err.println(e.getMessage());
-            System.err.println(argsParser.toUsageString());
-            System.exit(1);
-        }
+        return options;
     }
 
     private void parseUnnamedArgs(List<String> unnamed)
@@ -587,5 +458,144 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             stats.fileListTransferTime() / 1000.0,
             stats.totalWritten(),
             stats.totalRead());
+    }
+
+    public void start(String[] args)
+    {
+        ArgumentParser argsParser =
+            ArgumentParser.newWithUnnamed(getClass().getSimpleName(),
+                                          "files...");
+        argsParser.addHelpTextDestination(System.out);
+        try {
+            for (Option o : options()) {
+                argsParser.add(o);
+            }
+            argsParser.parse(Arrays.asList(args));                              // TODO: print warning for any not applicable option (e.g. defer-write for sender)
+            parseUnnamedArgs(argsParser.getUnnamedArguments());
+        } catch (ArgumentParsingError e) {
+            System.err.println(e.getMessage());
+            System.err.println(argsParser.toUsageString());
+            System.exit(1);
+        }
+
+        Level logLevel = Util.getLogLevelForNumber(Util.WARNING_LOG_LEVEL_NUM +
+                                                   _verbosity);
+        Util.setRootLogLevel(logLevel);
+        ExecutorService executor = Executors.newCachedThreadPool();
+
+        try {
+            boolean isOK;
+            if (_isRemote ) {
+                isOK = startRemoteSession(executor);
+            } else {
+                isOK = startLocalSession(executor);
+            }
+            if (_isShowStatistics) {
+                showStatistics(_statistics);
+            }
+            if (_log.isLoggable(Level.INFO)) {
+                _log.info("exit status: " + (isOK ? "OK" : "ERROR"));
+            }
+            if (!isOK) {
+                System.exit(1);
+            }
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    private boolean startRemoteSession(ExecutorService executor)
+    {
+        if (_log.isLoggable(Level.FINE)) {
+            _log.fine("starting remote session");
+        }
+
+        RsyncClientSession session = new RsyncClientSession();
+        session.setCharset(_charset);
+        session.setIsDeferredWrite(_isDeferredWrite);
+        session.setIsModuleListing(_isModuleListing);
+        session.setIsPreserveTimes(_isPreserveTimes);
+        session.setIsRecursiveTransfer(_isRecursiveTransfer);
+        session.setIsSender(_isSender);
+
+        InetSocketAddress socketAddress = new InetSocketAddress(_address,
+                                                                _remotePort);
+        try (SocketChannel sock = SocketChannel.open(socketAddress)) {
+
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine("connected to " + sock.getRemoteAddress());
+            }
+
+            return session.startSession(executor,
+                                        sock,           // in
+                                        sock,           // out
+                                        _srcArgs,
+                                        _dstArg,
+                                        this,           // ClientSessionConfig.AuthProvider
+                                        _moduleName);
+
+        } catch (IOException e) { // SocketChannel.{open,close}()
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.severe("Error: socket open/close error: " +
+                    e.getMessage());
+            }
+        } catch (UnresolvedAddressException e) { // SocketChannel.{open,close}()
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.severe(String.format("Error: failed to resolve " +
+                    "%s (%s)",
+                    socketAddress, e.getMessage()));
+            }
+        } catch (ChannelException e) {              // startSession
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.log(Level.SEVERE,
+                    "Error: communication closed with peer: ", e);
+            }
+        } finally {
+            _statistics = session.statistics();
+        }
+
+        return false;
+    }
+
+    private boolean startLocalSession(ExecutorService executor)
+    {
+        if (_log.isLoggable(Level.FINE)) {
+            _log.fine("starting local transfer (using rsync's delta " +
+                      "transfer algorithm - i.e. will not run with a " +
+                      "--whole-file option, so performance is most " +
+                      "probably lower than rsync)");
+        }
+
+        RsyncLocal localTransfer = new RsyncLocal();
+        localTransfer.setCharset(_charset);
+        localTransfer.setVerbosity(_verbosity);
+        localTransfer.setIsRecursiveTransfer(_isRecursiveTransfer);
+        localTransfer.setIsPreserveTimes(_isPreserveTimes);
+        localTransfer.setIsDeferredWrite(_isDeferredWrite);
+        List<Path> srcPaths = new LinkedList<>();
+        for (String pathName : _srcArgs) {
+            srcPaths.add(Paths.get(pathName));                                  // throws InvalidPathException
+        }
+
+        try {
+            return localTransfer.transfer(executor, srcPaths, _dstArg);
+        } catch (ChannelException e) {
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.severe("Error: communication closed with peer: " +
+                            e.getMessage());
+            }
+        } finally {
+            _statistics = localTransfer.statistics();
+        }
+        return false;
+    }
+
+    public static void main(String[] args)
+    {
+        System.err.println("Warning: this software is still unstable and " +
+                           "there might be data corruption bugs hiding. So " +
+                           "use it only carefully at your own risk.");
+
+        new YajSyncClient().start(args);
     }
 }
