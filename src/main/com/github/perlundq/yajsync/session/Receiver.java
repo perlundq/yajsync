@@ -846,9 +846,9 @@ public class Receiver implements MessageHandler
                                       "of %s using character set %s. " +
                                       "Result with illegal characters " +
                                       "replaced: %s\n",
-                                      Text.bytesToString(fileInfo.pathNameBytes()),
+                                      Text.bytesToString(pathNameBytes),
                                       _characterDecoder.charset(),
-                                      new String(fileInfo.pathNameBytes(),
+                                      new String(pathNameBytes,
                                                  _characterDecoder.charset())));
                 } catch (TextConversionException e) {
                     if (_log.isLoggable(Level.SEVERE)) {
