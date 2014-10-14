@@ -53,17 +53,41 @@ Example
 -------
 
 Start a Server listening on localhost port 14415, with one implicitly
-read-only module called Downloads and one writable module called
-Uploads:
+read-only module called Downloads and one readable and writable module
+called Uploads:
 
 ```
 $ cat yajsyncd.conf
+
+# This line and all text after a # is a comment. Text within square
+# brackets define the name of a new module. A module definition may be
+# followed by any number of predefined parameter value statements on
+# the form key = value. The current available module parameters are:
+
+#
+# path        an existing path to the module (mandatory)
+# comment text that will be used by the client in module listings
+              (optional)
+# is_readable a boolean (true or false) indicating whether files may
+#             be read below this module (optional, default is true)
+# is_writable a boolean (true or false) indicating whether files may
+#             be written below this module (optional, default is false)
+
+
+# Downloads: path is the only mandatory module parameter, this one
+# also provides a comment. All modules are implicitly readable and not
+# writable:
 [Downloads]
 path = /path/to/Downloads/
+comment = this text will be printed on module listings, it is optional
+# is_readable = true
+# is_writable = false
 
+# Uploads is both readable and writable; it does not provide a
+# comment:
 [Uploads]
 path = /path/to/Uploads/
-read only = false
+is_writable = true
 
 $ java -Dumask=$(umask) -jar build/jar/yajsyncd.jar --port=14415 --config=yajsyncd.conf
 ```
@@ -88,17 +112,19 @@ rsync --port=14415 -r example localhost::Uploads
 Note
 ----
 
-- recursive transfers always implies incremental recursion
+- Recursive transfers always implies incremental recursion.
 
-- use ```--charset``` for setting common character set (defaults to
-  UTF-8). Note that ```--iconv``` is _not_ supported
+- Use ```--charset``` for setting common character set (defaults to
+  UTF-8). Note that ```--iconv``` is _not_ supported.
 
-- client local file transfers always uses rsync:s delta transfer
-  algorithm, i.e. it does not have an option ```--whole-file```
+- Client local file transfers always uses rsync:s delta transfer
+  algorithm, i.e. it does not have an option ```--whole-file```.
 
-- checksum block lengths are not computed in the same way as the
-  original rsync - they are always a power of 2 and a minimum 512 of
-  bytes
+- Checksum block size is not computed in the exact same way as
+  rsync. It is computed dynamically based on the file size and is
+  always an even multiple of 2 and at least 512 bytes long.
+
+- Wild cards are not supported.
 
 
 Extra feature
@@ -128,7 +154,7 @@ Procedure:
 Usage
 -----
 
-show client/server help (-h argument):
+Show client/server help (-h argument):
 
 (Windows):
 

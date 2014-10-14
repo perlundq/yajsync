@@ -29,10 +29,10 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
+import java.security.Principal;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,13 +41,16 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.channels.ChannelException;
+import com.github.perlundq.yajsync.security.AddressPrincipal;
+import com.github.perlundq.yajsync.session.ModuleException;
+import com.github.perlundq.yajsync.session.ModuleProvider;
+import com.github.perlundq.yajsync.session.Modules;
 import com.github.perlundq.yajsync.session.RsyncServerSession;
 import com.github.perlundq.yajsync.session.Statistics;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.util.ArgumentParser;
 import com.github.perlundq.yajsync.util.ArgumentParsingError;
 import com.github.perlundq.yajsync.util.Consts;
-import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.Option;
 import com.github.perlundq.yajsync.util.Util;
 
@@ -55,21 +58,15 @@ public class YajSyncServer
 {
     private static final Logger _log =
         Logger.getLogger(YajSyncServer.class.getName());
-
     private static final int THREAD_FACTOR = 4;
-    private final String _appName = getClass().getSimpleName();
-    private final String _defaultConfigFile = _appName + ".conf";
 
     private boolean _isDeferredWrite;
     private Charset _charset = Charset.forName(Text.UTF8_NAME);
-    private Configuration _configuration;
     private int _numThreads = Runtime.getRuntime().availableProcessors() *
                               THREAD_FACTOR;
-    private InetAddress _address = InetAddress.getLoopbackAddress();
     private int _port = Consts.DEFAULT_LISTEN_PORT;
     private int _verbosity;
-    private String _cfgFileName =
-        Environment.getServerConfig(_defaultConfigFile);
+    private InetAddress _address = InetAddress.getLoopbackAddress();
 
     public YajSyncServer() {}
 
@@ -100,15 +97,6 @@ public class YajSyncServer
                             "CARRIAGE RETURN (\r) and NULL (\0) to their " +
                             "ASCII counterparts and vice versa", charsetName));
                     }
-                }}));
-
-        options.add(Option.newStringOption(Option.Policy.OPTIONAL, "config", "",
-                                           String.format("path to config file" +
-                                                         " (default %s)",
-                                                         _cfgFileName),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
-                    _cfgFileName = (String) option.getValue();
                 }}));
 
         options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
@@ -173,7 +161,7 @@ public class YajSyncServer
 
     private Callable<Boolean> createCallable(final ExecutorService executor,
                                              final SocketChannel sock,
-                                             final Map<String, Module> modules)
+                                             final Modules modules)
     {
         return new Callable<Boolean>() {
             @Override
@@ -252,10 +240,15 @@ public class YajSyncServer
 
     public void start(String[] args) throws IOException, InterruptedException
     {
-        ArgumentParser argsParser = ArgumentParser.newNoUnnamed(_appName);
+        ArgumentParser argsParser =
+            ArgumentParser.newNoUnnamed(getClass().getSimpleName());
+        ModuleProvider moduleProvider = ModuleProvider.getDefault();
         try {
             argsParser.addHelpTextDestination(System.out);
             for (Option o : options()) {
+                argsParser.add(o);
+            }
+            for (Option o : moduleProvider.options()) {
                 argsParser.add(o);
             }
             argsParser.parse(Arrays.asList(args));                              // throws ArgumentParsingError
@@ -278,32 +271,28 @@ public class YajSyncServer
             listenSock.bind(new InetSocketAddress(_address, _port));            // bind throws IOException
 
             while (true) {
-                final SocketChannel sock = listenSock.accept();                 // throws IOException
-                // FIXME: do reverse name lookup before continuing
-                // TODO: re-enable socket timeout if not debugging
-                //_peerChannel.setSoTimeout(60);
-                // TODO: set TCP keep alive
                 try {
-                    _configuration = Configuration.readFile(_cfgFileName);
-                } catch (IOException e) { //
-                    if (_configuration == null) {
-                        System.err.format("Error: failed to read " +
-                                          "configuration file %s (%s)%n",
-                                          _cfgFileName, e);
-                        System.exit(1);
-                    }
-                    System.err.format("Warning: failed to re-read " +
-                                      "configuration file %s (%s)%n",
-                                      _cfgFileName, e);
+                    final SocketChannel sock = listenSock.accept();             // throws IOException
+                    // FIXME: do reverse name lookup before continuing
+                    // TODO: re-enable socket timeout if not debugging
+                    //_peerChannel.setSoTimeout(60);
+                    // TODO: set TCP keep alive
+                    InetAddress address = ((InetSocketAddress) sock.getRemoteAddress()).getAddress(); // getRemoteAddress and getAddress may both be null
+                    Principal principal = new AddressPrincipal(address);        // throws IllegalArgumentException if address == null
+                    Modules modules = moduleProvider.newInstance(principal);
+                    Callable<Boolean> c = createCallable(executor, sock,
+                                                         modules);
+                    executor.submit(c);                                         // NOTE: result discarded
+                } catch (ModuleException e) {
+                    System.err.format("Error: failed to initialise modules " +
+                                      "for principal %s using ModuleProvider " +
+                                      "%s: %s%n", moduleProvider, e);
                 }
-                Callable<Boolean> c = createCallable(executor,
-                                                     sock,
-                                                     _configuration.modules());
-                executor.submit(c);  // NOTE: result discarded
             }
         } finally {
             System.err.println("shutting down");
             executor.shutdown();
+            moduleProvider.close();
             while (!executor.awaitTermination(5, TimeUnit.MINUTES)) {
                 System.err.println("some sessions are still running, waiting " +
                                    "for them to finish before exiting");

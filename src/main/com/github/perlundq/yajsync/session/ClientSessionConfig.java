@@ -22,16 +22,14 @@ package com.github.perlundq.yajsync.session;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
-import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.channels.ChannelException;
+import com.github.perlundq.yajsync.security.RsyncAuthContext;
 import com.github.perlundq.yajsync.text.TextConversionException;
 import com.github.perlundq.yajsync.util.BitOps;
-import com.github.perlundq.yajsync.util.MD5;
-import com.github.perlundq.yajsync.util.Util;
 
 public class ClientSessionConfig extends SessionConfig
 {
@@ -119,13 +117,7 @@ public class ClientSessionConfig extends SessionConfig
             } else if (line.startsWith(SessionStatus.AUTHREQ.toString())) {
                 String challenge =
                     line.substring(SessionStatus.AUTHREQ.toString().length());
-                String user = authProvider.getUser();
-                char[] password = authProvider.getPassword();
-                try {
-                    authenticate(user, password, challenge);
-                } finally {
-                    Arrays.fill(password, (char) 0);
-                }
+                sendAuthResponse(authProvider, challenge);
             } else {
                 System.out.println(line); // FIXME: don't hardcode System.out
             }
@@ -135,13 +127,19 @@ public class ClientSessionConfig extends SessionConfig
     /**
      * @throws TextConversionException
      */
-    private void authenticate(String user, char[] password, String challenge)
+    private void sendAuthResponse(AuthProvider authProvider, String challenge)
         throws ChannelException
     {
-        byte[] hashedBytes = hash(password, challenge);
-        String hashedBase64 = Util.base64encode(hashedBytes, false);
-        String authResponse = String.format("%s %s\n", user, hashedBase64);
-        writeString(authResponse);
+        String user = authProvider.getUser();
+        char[] password = authProvider.getPassword();
+        try {
+            RsyncAuthContext authContext =
+                RsyncAuthContext.fromChallenge(_characterEncoder, challenge);
+            String response = authContext.response(password);
+            writeString(String.format("%s %s\n", user, response));
+        } finally {
+            Arrays.fill(password, (char) 0);
+        }
     }
 
     /**
@@ -180,31 +178,6 @@ public class ClientSessionConfig extends SessionConfig
         _checksumSeed = BitOps.toLittleEndianBuf(seedValue);
         if (_log.isLoggable(Level.FINER)) {
             _log.finer("< (checksum seed) " + seedValue);
-        }
-    }
-
-    private byte[] hash(char[] password, String challenge)
-    {
-        byte[] passwordBytes = null;
-        try {
-            MessageDigest md = MD5.newInstance();
-            passwordBytes = _characterEncoder.secureEncodeOrNull(password);
-            byte[] challengeBytes = _characterEncoder.encodeOrNull(challenge);
-            if (passwordBytes == null) {
-                throw new RuntimeException(String.format(
-                    "Unable to encode characters in password"));
-            }
-            if (challengeBytes == null) {
-                throw new RuntimeException(String.format(
-                    "Unable to encode characters in %s", challenge));
-            }
-            md.update(passwordBytes);
-            md.update(challengeBytes);
-            return md.digest();
-        } finally {
-            if (passwordBytes != null) {
-                Arrays.fill(passwordBytes, (byte) 0);
-            }
         }
     }
 }

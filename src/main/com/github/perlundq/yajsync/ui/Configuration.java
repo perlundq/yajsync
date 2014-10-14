@@ -23,169 +23,280 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Paths;
-import java.util.HashMap;
+import java.security.Principal;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.github.perlundq.yajsync.session.Module;
+import com.github.perlundq.yajsync.session.ModuleException;
+import com.github.perlundq.yajsync.session.ModuleNotFoundException;
+import com.github.perlundq.yajsync.session.ModuleProvider;
+import com.github.perlundq.yajsync.session.Modules;
+import com.github.perlundq.yajsync.session.RestrictedPath;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.util.Environment;
+import com.github.perlundq.yajsync.util.Option;
 
-public class Configuration
+public class Configuration implements Modules
 {
-    // what is really a correct module name? let's be strict and only allow
-    // word characters and whitespace:
-    private static final Pattern keyValuePattern =
-        Pattern.compile("^([\\w ]+) *= *(\\S.*)$");
-    private static final Pattern modulePattern =
-        Pattern.compile("^\\[\\s*([\\w ]+)\\s*\\]$");
-    private final Map<String, Module> _modules = new HashMap<>();
-    private final Map<String, Module.Builder> _complete = new HashMap<>();
-    private final Map<String, Module.Builder> _incomplete = new HashMap<>();
+    @SuppressWarnings("serial")
+    private static class IllegalValueException extends Exception {}
 
-    private Configuration() {}
+    public static class Reader extends ModuleProvider {
 
-    private void parseContents(BufferedReader reader) throws IOException
-    {
-        String previousLine = "";
-        Module.Builder moduleBuilder =
-            new Module.Builder(Module.GLOBAL_MODULE_NAME); // FIXME: not good - the global module is different, it does not have path for example
-        boolean doRead = true;
+        private static final Logger _log =
+            Logger.getLogger(Reader.class.getName());
+        private static final Pattern keyValuePattern =
+            Pattern.compile("^([\\w ]+) *= *(\\S.*)$");
+        private static final Pattern modulePattern =
+            Pattern.compile("^\\[\\s*([\\w ]+)\\s*\\]$");
+        private static final String DEFAULT_CONFIGURATION_FILE_NAME =
+            "yajsyncd.conf";
+        private static final String MODULE_KEY_COMMENT = "comment";
+        private static final String MODULE_KEY_PATH = "path";
+        private static final String MODULE_KEY_IS_READABLE = "is_readable";
+        private static final String MODULE_KEY_IS_WRITABLE = "is_writable";
 
-        while (doRead) {
-            String line = reader.readLine();
-            if (line == null) {
-                line = "";
-                doRead = false;
+        private String _cfgFileName =
+            Environment.getServerConfig(DEFAULT_CONFIGURATION_FILE_NAME);
+
+        public Reader() {}
+
+        @Override
+        public Configuration newInstance(Principal principal) throws ModuleException
+        {
+            Map<String, Module> modules = getModules(_cfgFileName);
+            Configuration cfg = new Configuration(modules);
+            return cfg;
+        }
+
+        @Override
+        public Collection<Option> options()
+        {
+            Option.Handler handler = new Option.Handler() {
+                @Override public void handle(Option option) {
+                    _cfgFileName = (String) option.getValue();
+                }
+            };
+            Option o = Option.newStringOption(Option.Policy.OPTIONAL,
+                                              "config", "",
+                                              String.format("path to " +
+                                                            "configuration " +
+                                                            "file (default %s)",
+                                                            _cfgFileName),
+                                              handler);
+            List<Option> options = new LinkedList<>();
+            options.add(o);
+            return options;
+        }
+
+        @Override
+        public void close()
+        {
+            // NOP
+        }
+
+        private static Map<String, Module> getModules(String fileName)
+            throws ModuleException
+        {
+            Map<String, Map<String, String>> modules;
+            try (BufferedReader reader = Files.newBufferedReader(
+                                                   Paths.get(fileName),
+                                                   Charset.defaultCharset())) {
+                modules = parse(reader);
+            } catch (IOException e) {
+                throw new ModuleException(e);
             }
 
-            String trimmedLine = line.trim();
-            if (!previousLine.isEmpty()) {
-                trimmedLine = previousLine + trimmedLine;
-            }
+            Map<String, Module> result = new TreeMap<>();
 
-            if (!Environment.IS_PATH_SEPARATOR_BACK_SLASH &&
-                trimmedLine.endsWith(Text.BACK_SLASH))
-            {
-                previousLine = Text.stripLast(trimmedLine);
-            } else {
-                previousLine = "";
-            }
+            for (Map.Entry<String, Map<String, String>> keyVal : modules.entrySet()) {
 
-            if (trimmedLine.isEmpty() || isCommentLine(trimmedLine)) {
-                continue;
-            }
+                String moduleName = keyVal.getKey();
+                Map<String, String> moduleContent = keyVal.getValue();
 
-            Matcher moduleMatcher = modulePattern.matcher(trimmedLine);
-            if (moduleMatcher.matches()) {
-                saveModule(moduleBuilder);
-                String moduleName = moduleMatcher.group(1).trim();              // TODO: remove consecutive white space in module name
-                moduleBuilder = restoreOrCreateModule(moduleName);
-                continue;
-            }
+                boolean isGlobalModule = moduleName.isEmpty();
+                if (isGlobalModule) {
+                    continue;                                                   // Not currently used
+                }
 
-            Matcher keyValueMatcher = keyValuePattern.matcher(trimmedLine);
-            if (!keyValueMatcher.matches()) {
-                continue;
-            }
+                String pathValue = moduleContent.get(MODULE_KEY_PATH);
+                boolean isValidModule = pathValue != null;
+                if (!isValidModule) {
+                    if (_log.isLoggable(Level.WARNING)) {
+                        _log.warning(String.format("skipping incomplete " +
+                                                   "module %s - lacking path",
+                                                   moduleName));
+                    }
+                    continue;
+                }
 
-            String key = keyValueMatcher.group(1).trim();
-            String val = keyValueMatcher.group(2).trim();
-
-            // FIXME: don't hardcode these:
-            if (key.equals("comment")) {             // NOTE: will happily overwrite any previous set value
-                moduleBuilder.setComment(val);
-            } else if (key.equals("path")) {
                 try {
-                    moduleBuilder.setPath(Paths.get(val));
-                } catch (IOException e) {
-                    System.err.format("Error: failed to set module path to %s" +
-                                      " for module %s%n", val, moduleBuilder.name());
-                }
-            } else if (key.equals("read only")) {
-                String booleanString = toBooleanStringOrNull(val);
-                if (booleanString != null) {
-                    moduleBuilder.setIsReadOnly(Boolean.valueOf(val));
-                } else {
-                    System.err.format(
-                        "Error: illegal value for module parameter " +
-                        "'read only': %s (expected either of " +
-                        "true/false/yes/no/1/0)", val);
+                    RestrictedPath vp =
+                        new RestrictedPath(Paths.get(moduleName),
+                                           Paths.get(pathValue));
+                    SimpleModule m = new SimpleModule(moduleName, vp);
+                    String comment = Text.nullToEmptyStr(moduleContent.get(MODULE_KEY_COMMENT));
+                    m._comment = comment;
+                    if (moduleContent.containsKey(MODULE_KEY_IS_READABLE)) {
+                        boolean isReadable = toBoolean(moduleContent.get(MODULE_KEY_IS_READABLE));
+                        m._isReadable = isReadable;
+                    }
+                    if (moduleContent.containsKey(MODULE_KEY_IS_WRITABLE)) {
+                        boolean isWritable = toBoolean(moduleContent.get(MODULE_KEY_IS_WRITABLE));
+                        m._isWritable = isWritable;
+                    }
+                    result.put(moduleName, m);
+                } catch (InvalidPathException | IllegalValueException e) {
+                    if (_log.isLoggable(Level.WARNING)) {
+                        _log.warning(String.format("skipping module %s: %s",
+                                                   moduleName, e.getMessage()));
+                    }
                 }
             }
+            return result;
         }
 
-        saveModule(moduleBuilder);
-        buildAllModules();
-    }
+        private static Map<String, Map<String, String>> parse(BufferedReader reader)
+            throws IOException
+        {
+            String prevLine = "";
+            Map<String, Map<String, String>> modules = new TreeMap<>();         // { 'moduleName1' : { 'key1' : 'val1', ..., 'keyN' : 'valN'}, ... }
+            Map<String, String> currentModule = new TreeMap<>();                // { 'key1' : 'val1', ..., 'keyN' : 'valN'}
+            modules.put("", currentModule);                                     // { 'key1' : 'val1', ..., 'keyN' : 'valN'}
+            boolean isEOF = false;
 
-    public static Configuration readFile(String fileName) throws IOException
-    {
-        try (BufferedReader reader =
-                Files.newBufferedReader(Paths.get(fileName),
-                                        Charset.defaultCharset())) {
+            while (!isEOF) {
+                String line = reader.readLine();
+                isEOF = line == null;
+                if (line == null) {
+                    line = "";
+                }
 
-            Configuration instance = new Configuration();
-            instance.parseContents(reader);
-            return instance;
+                String trimmedLine = prevLine + line.trim();                    // prevLine is non-empty only if previous line ended with a backslash
+                if (trimmedLine.isEmpty() || isCommentLine(trimmedLine)) {
+                    continue;
+                }
+
+                if (!Environment.IS_PATH_SEPARATOR_BACK_SLASH &&
+                    trimmedLine.endsWith(Text.BACK_SLASH))
+                {
+                    prevLine = Text.stripLast(trimmedLine);
+                } else {
+                    prevLine = "";
+                }
+
+                Matcher moduleMatcher = modulePattern.matcher(trimmedLine);
+                if (moduleMatcher.matches()) {
+                    String moduleName = moduleMatcher.group(1).trim();          // TODO: remove consecutive white space in module name
+                    currentModule = modules.get(moduleName);
+                    if (currentModule == null) {
+                        currentModule = new TreeMap<>();
+                        modules.put(moduleName, currentModule);
+                    }
+                } else {
+                    Matcher keyValueMatcher =
+                        keyValuePattern.matcher(trimmedLine);
+                    if (keyValueMatcher.matches()) {
+                        String key = keyValueMatcher.group(1).trim();
+                        String val = keyValueMatcher.group(2).trim();
+                        currentModule.put(key, val);
+                    }
+                }
+            }
+            return modules;
+        }
+
+        private static boolean isCommentLine(String line)
+        {
+            return line.startsWith("#") || line.startsWith(";");
+        }
+
+        private static boolean toBoolean(String val) throws IllegalValueException
+        {
+            if (val == null) {
+                throw new IllegalValueException();
+            } else if (val.equalsIgnoreCase("true") ||
+                       val.equalsIgnoreCase("yes")) {
+                return true;
+            } else if (val.equalsIgnoreCase("false") ||
+                       val.equalsIgnoreCase("no")) {
+                return false;
+            }
+            throw new IllegalValueException();
         }
     }
 
-    public Module getGlobalModule()
-    {
-        return _modules.get(Module.GLOBAL_MODULE_NAME);
-    }
+    private static class SimpleModule implements Module {
+        private final String _name;
+        private final RestrictedPath _restrictedPath;
+        private boolean _isReadable = true;
+        private boolean _isWritable = false;
+        private String _comment = "";
 
-    public Map<String, Module> modules()
-    {
-        return _modules;
-    }
-
-    private void buildAllModules()
-    {
-        for (Map.Entry<String, Module.Builder> entry : _complete.entrySet()) {
-            _modules.put(entry.getKey(), new Module(entry.getValue()));
+        public SimpleModule(String name, RestrictedPath restrictedPath) {
+            assert name != null;
+            assert restrictedPath != null;
+            _name = name;
+            _restrictedPath = restrictedPath;
         }
-        _complete.clear();
-        _incomplete.clear();
-    }
 
-    private static boolean isCommentLine(String line)
-    {
-        return line.startsWith("#") || line.startsWith(";");
-    }
-
-    private static String toBooleanStringOrNull(String val)
-    {
-        if (val.equalsIgnoreCase("true") ||
-            val.equalsIgnoreCase("1") ||
-            val.equalsIgnoreCase("yes")) {
-            return "true";
-        } else if (val.equalsIgnoreCase("false") ||
-                   val.equalsIgnoreCase("0") ||
-                   val.equalsIgnoreCase("no")) {
-            return "false";
+        @Override
+        public String name() {
+            return _name;
         }
-        return null;
-    }
 
-    private Module.Builder restoreOrCreateModule(String moduleName)
-    {
-        if (_modules.containsKey(moduleName)) {
-            return _complete.remove(moduleName);
-        } else if (_incomplete.containsKey(moduleName)){
-            return _incomplete.remove(moduleName);
-        } else {
-            return new Module.Builder(moduleName);
+        @Override
+        public RestrictedPath restrictedPath() {
+            return _restrictedPath;
+        }
+
+        @Override
+        public String comment() {
+            return _comment;
+        }
+
+        @Override
+        public boolean isReadable() {
+            return _isReadable;
+        }
+
+        @Override
+        public boolean isWritable() {
+            return _isWritable;
         }
     }
 
-    private void saveModule(Module.Builder builder) {
-        if (builder.isGlobal() || builder.hasPath()) {
-            _complete.put(builder.name(), builder);
-        } else {
-            _incomplete.put(builder.name(), builder);
+    private final Map<String, Module> _modules;
+
+    public Configuration(Map<String, Module> modules)
+    {
+        _modules = modules;
+    }
+
+    @Override
+    public Module get(String moduleName) throws ModuleException
+    {
+        Module m = _modules.get(moduleName);
+        if (m == null) {
+            throw new ModuleNotFoundException(
+                String.format("module %s does not exist", moduleName));
         }
+        return m;
+    }
+
+    @Override
+    public Iterable<Module> all()
+    {
+        return _modules.values();
     }
 }

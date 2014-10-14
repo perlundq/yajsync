@@ -28,16 +28,15 @@ import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 import com.github.perlundq.yajsync.channels.ChannelEOFException;
 import com.github.perlundq.yajsync.channels.ChannelException;
+import com.github.perlundq.yajsync.security.RsyncAuthContext;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.text.TextConversionException;
-import com.github.perlundq.yajsync.ui.Module;
 import com.github.perlundq.yajsync.util.ArgumentParser;
 import com.github.perlundq.yajsync.util.ArgumentParsingError;
 import com.github.perlundq.yajsync.util.BitOps;
@@ -82,36 +81,34 @@ public class ServerSessionConfig extends SessionConfig
     public static ServerSessionConfig handshake(Charset charset,
                                                 ReadableByteChannel in,
                                                 WritableByteChannel out,
-                                                Map<String, Module> modules)
+                                                Modules modules)
         throws ChannelException
     {
         assert charset != null;
         assert in != null;
         assert out != null;
-        assert modules!= null;
+        assert modules != null;
 
         ServerSessionConfig instance = new ServerSessionConfig(in, out,
                                                                charset);
         try {
             instance.exchangeProtocolVersion();
             String moduleName = instance.receiveModule();
+
             if (moduleName.isEmpty()) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("sending module listing and exiting");
                 }
-                instance.sendModuleListing(modules.values());
+                instance.sendModuleListing(modules.all());
                 instance.sendStatus(SessionStatus.EXIT);
-                instance._status = SessionStatus.EXIT;
+                instance._status = SessionStatus.EXIT;                          // FIXME: create separate status type instead
                 return instance;
             }
-            Module module = modules.get(moduleName);
-            if (module == null) {
-                if (_log.isLoggable(Level.WARNING)) {
-                    _log.warning(String.format("Module %s does not exist",
-                                               moduleName));
-                }
-                instance._status = SessionStatus.ERROR;
-                return instance;
+
+            Module module = modules.get(moduleName);                            // throws ModuleException
+            if (module instanceof RestrictedModule) {
+                RestrictedModule restrictedModule = (RestrictedModule) module;
+                module = instance.unlockModule(restrictedModule);               // throws ModuleSecurityException
             }
             instance.setModule(module);
             instance.sendStatus(SessionStatus.OK);
@@ -127,8 +124,40 @@ public class ServerSessionConfig extends SessionConfig
             return instance;
         } catch (ArgumentParsingError | TextConversionException e) {
             throw new RsyncProtocolException(e);
+        } catch (ModuleException e) {
+            if (_log.isLoggable(Level.WARNING)) {
+                _log.warning(e.getMessage());
+            }
+            instance.writeString(String.format("Error: %s%n", e.getMessage()));
+            instance._status = SessionStatus.ERROR;
+            return instance;
         } finally {
             instance.flush();
+        }
+    }
+
+    private Module unlockModule(RestrictedModule restrictedModule)
+        throws ModuleSecurityException, ChannelException
+    {
+        RsyncAuthContext authContext = new RsyncAuthContext(_characterEncoder);
+        writeString(SessionStatus.AUTHREQ + authContext.challenge() + '\n');
+
+        String userResponse = readLine();
+        String[] userResponseTuple = userResponse.split(" ", 2);
+        if (userResponseTuple.length != 2) {
+            throw new RsyncProtocolException("invalid challenge " +
+                "response " + userResponse);
+        }
+
+        String userName = userResponseTuple[0];
+        String correctResponse = restrictedModule.authenticate(authContext,
+                                                               userName);
+        String response = userResponseTuple[1];
+        if (response.equals(correctResponse)) {
+            return restrictedModule.toModule();
+        } else {
+            throw new ModuleSecurityException("failed to authenticate " +
+                                              userName);
         }
     }
 
@@ -148,16 +177,13 @@ public class ServerSessionConfig extends SessionConfig
     private void sendModuleListing(Iterable<Module> modules)
         throws ChannelException
     {
-        for (Module module: modules) {
-            if (module.isGlobal()) {
-                continue;
-            }
+        for (Module module : modules) {
+            assert !module.name().isEmpty();
             if (module.comment().isEmpty()) {
                 writeString(String.format("%-15s\n", module.name()));
             } else {
                 writeString(String.format("%-15s\t%s\n",
-                                          module.name(),
-                                          module.comment()));
+                                          module.name(), module.comment()));
             }
         }
     }
@@ -167,8 +193,6 @@ public class ServerSessionConfig extends SessionConfig
         writeString(status.toString() + "\n");
     }
 
-    // TODO: authenticate module and possible execute
-    //       protocolContext.sendStatus(ReplyStatus.AUTHREQ);
     private void setModule(Module module)
     {
         _module = module;
@@ -264,13 +288,17 @@ public class ServerSessionConfig extends SessionConfig
                     setIsPreserveTimes();
                 }}));
 
+
+        // FIXME: let ModuleProvider mutate this argsParser instance before
+        // calling parse (e.g. adding specific options or removing options)
+
         argsParser.parse(receivedArguments);
         assert !_isRecursiveTransfer || _isIncrementalRecurse :
                "We support only incremental recursive transfers for now";
 
-        if (!isSender() && _module.isReadOnly()) {
+        if (!isSender() && !_module.isWritable()) {
             throw new RsyncProtocolException(
-                String.format("Error: module %s is read only", _module));
+                String.format("Error: module %s is not writable", _module));
         }
 
         List<String> unnamed = argsParser.getUnnamedArguments();
@@ -294,7 +322,8 @@ public class ServerSessionConfig extends SessionConfig
                         String.format("wildcards are not supported (%s)",
                                       fileName));
                 }
-                Path safePath = _module.resolveVirtual(Paths.get(fileName));
+                Path safePath =
+                    _module.restrictedPath().resolve(Paths.get(fileName));
                 if (Text.isNameDotDir(fileName)) {
                     safePath = safePath.resolve(PathOps.DOT_DIR);
                 }
@@ -310,7 +339,7 @@ public class ServerSessionConfig extends SessionConfig
                     unnamed, unnamed.size()));
             }
             String fileName = unnamed.get(0);
-            Path safePath = _module.resolveVirtual(Paths.get(fileName));
+            Path safePath = _module.restrictedPath().resolve(Paths.get(fileName));
             _receiverDestination = safePath.normalize();
 
             if (_log.isLoggable(Level.FINE)) {

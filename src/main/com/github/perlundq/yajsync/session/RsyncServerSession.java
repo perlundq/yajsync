@@ -26,7 +26,6 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
@@ -38,7 +37,6 @@ import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.channels.ChannelException;
 import com.github.perlundq.yajsync.text.Text;
-import com.github.perlundq.yajsync.ui.Module;
 
 public class RsyncServerSession
 {
@@ -71,12 +69,12 @@ public class RsyncServerSession
     }
 
     private List<Callable<Boolean>>
-    createSenderTasks(final ReadableByteChannel in,
-                      final WritableByteChannel out,
-                      final Charset charset,
-                      final byte[] checksumSeed,
-                      final List<Path> srcPaths,
-                      final boolean isRecursive)
+        createSenderTasks(final ReadableByteChannel in,
+                          final WritableByteChannel out,
+                          final Charset charset,
+                          final byte[] checksumSeed,
+                          final List<Path> srcPaths,
+                          final boolean isRecursive)
     {
         Callable<Boolean> callableSender = new Callable<Boolean>() {
             @Override
@@ -182,7 +180,7 @@ public class RsyncServerSession
     public boolean startSession(ExecutorService executor,
                                 ReadableByteChannel in,
                                 WritableByteChannel out,
-                                Map<String, Module> modules)
+                                Modules modules)
         throws ChannelException
     {
         List<Future<Boolean>> futures = new LinkedList<>();
@@ -191,7 +189,7 @@ public class RsyncServerSession
                                                                     in,
                                                                     out,
                                                                     modules);
-            
+
             if (cfg.status() == SessionStatus.ERROR) {
                 return false;
             } else if (cfg.status() == SessionStatus.EXIT) {
