@@ -48,7 +48,7 @@ public class RsyncLocal
     private Statistics _statistics = new Statistics();
 
     public RsyncLocal() {}
-                          
+
     public void setVerbosity(int verbosity)
     {
         _verbosity = verbosity;
@@ -77,13 +77,12 @@ public class RsyncLocal
     public boolean transfer(ExecutorService executor,
                             Iterable<Path> srcPaths,
                             final String destinationPathName)
-        throws ChannelException
+        throws RsyncException
     {
         List<Future<Boolean>> futures = new LinkedList<>();
         try {
             byte[] checksumSeed =
                 BitOps.toLittleEndianBuf((int) System.currentTimeMillis());
-
             final Pipe toSender = Pipe.open();                                  // throws IOException
             final Pipe toReceiver = Pipe.open();                                // throws IOException
             final Sender sender = new Sender(toSender.source(),
@@ -109,42 +108,27 @@ public class RsyncLocal
             final boolean transferFilterRules = false;
             final boolean transferStatistics = false;
             final boolean exitEarlyIfEmptyList = true;
-            
+
             ExecutorCompletionService<Boolean> ecs =
                 new ExecutorCompletionService<>(executor);
             futures.add(ecs.submit(new Callable<Boolean>() {
                 @Override
                 public Boolean call() throws ChannelException {
-                    try {
-                        return generator.generate();
-                    } finally {
-                        try {
-                            toSender.sink().close();
-                        } catch (IOException e) {
-                            throw new ChannelException(e);
-                        }
-                    }
+                    return generator.generate();
                 }
             }));
             futures.add(ecs.submit(new Callable<Boolean>() {
                 @Override
                 public Boolean call() throws ChannelException,
-                                             InterruptedException {
+                                             InterruptedException,
+                                             RsyncException {
                     try {
                         return receiver.receive(destinationPathName,
                                                 transferFilterRules,
                                                 transferStatistics,
                                                 exitEarlyIfEmptyList);
                     } finally {
-                        try {
-                            generator.stop();
-                        } finally {
-                            try {
-                                toReceiver.source().close();
-                            } catch (IOException e) {
-                                throw new ChannelException(e);
-                            }
-                        }
+                        generator.stop();
                     }
                 }
             }));
@@ -158,22 +142,6 @@ public class RsyncLocal
                                            exitEarlyIfEmptyList);
                     } finally {
                         _statistics = sender.statistics();
-                        ChannelException ex = null;
-                        try {
-                            toSender.source().close();
-                        } catch (IOException e) {
-                            ex = new ChannelException(e);
-                        }
-                        try {
-                            toReceiver.sink().close();
-                        } catch (IOException e) {
-                            if (ex == null) {
-                                ex = new ChannelException(e);
-                            }
-                        }
-                        if (ex != null) {
-                            throw ex;
-                        }
                     }
                 }
             }));
@@ -215,6 +183,10 @@ public class RsyncLocal
                 return false;
             } else if (cause instanceof ChannelException) {
                 throw (ChannelException) cause;
+            } else if (cause instanceof RsyncException) {
+                throw (RsyncException) cause;
+            } else if (cause instanceof IOException) {
+                throw new RuntimeException(cause);                              // Pipe.open
             } else if (cause instanceof Error) {
                 throw (Error) cause;
             } else {
@@ -222,7 +194,7 @@ public class RsyncLocal
             }
         } finally {
             for (Future<Boolean> future : futures) {
-                future.cancel(true); 
+                future.cancel(true);
             }
         }
     }

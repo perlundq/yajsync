@@ -42,6 +42,7 @@ import java.util.regex.Pattern;
 import com.github.perlundq.yajsync.channels.ChannelException;
 import com.github.perlundq.yajsync.session.ClientSessionConfig;
 import com.github.perlundq.yajsync.session.RsyncClientSession;
+import com.github.perlundq.yajsync.session.RsyncException;
 import com.github.perlundq.yajsync.session.RsyncLocal;
 import com.github.perlundq.yajsync.session.Statistics;
 import com.github.perlundq.yajsync.text.Text;
@@ -533,7 +534,6 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                                         _dstArg,
                                         this,           // ClientSessionConfig.AuthProvider
                                         _moduleName);
-
         } catch (IOException e) { // SocketChannel.{open,close}()
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe("Error: socket open/close error: " +
@@ -549,6 +549,10 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.log(Level.SEVERE,
                     "Error: communication closed with peer: ", e);
+            }
+        } catch (RsyncException e) {
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.severe(e.getMessage());
             }
         } finally {
             _statistics = session.statistics();
@@ -583,6 +587,10 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe("Error: communication closed with peer: " +
                             e.getMessage());
+            }
+        } catch (RsyncException e) {
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.severe(e.getMessage());
             }
         } finally {
             _statistics = localTransfer.statistics();

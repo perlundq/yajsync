@@ -176,7 +176,7 @@ public class Receiver implements MessageHandler
                            boolean sendFilterRules,
                            boolean receiveStatistics,
                            boolean exitEarlyIfEmptyList)
-        throws ChannelException
+        throws RsyncException
     {
         try {
             if (_log.isLoggable(Level.FINE)) {
@@ -240,16 +240,10 @@ public class Receiver implements MessageHandler
             }
             return false;
         } catch (InvalidPathException e) { // Paths.get
-            if (_log.isLoggable(Level.SEVERE)) {
-                _log.severe(String.format("illegal target path name %s: %s",
-                                          targetPathName, e));
-            }
-            return false;
+            throw new RsyncException(String.format(
+                "illegal target path name %s: %s", targetPathName, e));
         } catch (PathResolverException e) { // getPathResolver
-            if (_log.isLoggable(Level.SEVERE)) {
-                _log.severe(e.getMessage());
-            }
-            return false;
+            throw new RsyncException(e);
         }
     }
 

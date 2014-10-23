@@ -19,7 +19,6 @@
  */
 package com.github.perlundq.yajsync.session;
 
-import java.io.IOException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
@@ -76,22 +75,6 @@ public class RsyncClientSession
                     return isOK;
                 } finally {
                     _statistics = sender.statistics();
-                    ChannelException ex = null;
-                    try {
-                        in.close();
-                    } catch (IOException e) {
-                        ex = new ChannelException(e);
-                    }
-                    try {
-                        out.close();
-                    } catch (IOException e) {
-                        if (ex == null) {
-                            ex = new ChannelException(e);
-                        }
-                    }
-                    if (ex != null) {
-                        throw ex;
-                    }
                 }
             }
         };
@@ -99,7 +82,7 @@ public class RsyncClientSession
         result.add(callableSender);
         return result;
     }
-    
+
     private List<Callable<Boolean>>
     createReceiverTasks(final ReadableByteChannel in,
                         final WritableByteChannel out,
@@ -113,24 +96,17 @@ public class RsyncClientSession
         Callable<Boolean> callableGenerator = new Callable<Boolean>() {
             @Override
             public Boolean call() throws ChannelException {
-                try {
-                    generator.setIsRecursive(_isRecursiveTransfer);
-                    generator.setIsPreserveTimes(_isPreserveTimes);
-                    generator.setIsAlwaysItemize(_verbosity > 1);
-                    generator.setIsListOnly(_isModuleListing);
-                    return generator.generate();
-                } finally {
-                    try {
-                        out.close();
-                    } catch (IOException e) {
-                        throw new ChannelException(e);
-                    }
-                }
+                generator.setIsRecursive(_isRecursiveTransfer);
+                generator.setIsPreserveTimes(_isPreserveTimes);
+                generator.setIsAlwaysItemize(_verbosity > 1);
+                generator.setIsListOnly(_isModuleListing);
+                return generator.generate();
             }
         };
         Callable<Boolean> callableReceiver = new Callable<Boolean>() {
             @Override
-            public Boolean call() throws ChannelException, InterruptedException {
+            public Boolean call() throws InterruptedException, RsyncException
+            {
                 Receiver receiver = new Receiver(generator, in, charset);
                 receiver.setIsRecursive(_isRecursiveTransfer);
                 receiver.setIsPreserveTimes(_isPreserveTimes);
@@ -144,16 +120,8 @@ public class RsyncClientSession
                     receiver.readAllMessagesUntilEOF();
                     return isOK;
                 } finally {
-                    try {
-                        generator.stop();
-                    } finally {
-                        _statistics = receiver.statistics();
-                        try {
-                            in.close();
-                        } catch (IOException e) {
-                            throw new ChannelException(e);
-                        }
-                    }
+                    _statistics = receiver.statistics();
+                    generator.stop();
                 }
             }
         };
@@ -162,7 +130,7 @@ public class RsyncClientSession
         result.add(callableReceiver);
         return result;
     }
-    
+
     // TODO: rename?
     public boolean startSession(ExecutorService executor,
                                 ReadableByteChannel in,
@@ -171,7 +139,7 @@ public class RsyncClientSession
                                 String dstArg,
                                 AuthProvider authProvider,
                                 String moduleName)
-        throws ChannelException
+        throws RsyncException
     {
         List<Future<Boolean>> futures = new LinkedList<>();
         try {
@@ -230,6 +198,8 @@ public class RsyncClientSession
                 return false;
             } else if (cause instanceof ChannelException) {
                 throw (ChannelException) cause;
+            } else if (cause instanceof RsyncException) {
+                throw (RsyncException) cause;
             } else if (cause instanceof Error) {
                 throw (Error) cause;
             } else {
@@ -237,7 +207,7 @@ public class RsyncClientSession
             }
         } finally {
             for (Future<Boolean> future : futures) {
-                future.cancel(true); 
+                future.cancel(true);
             }
         }
     }

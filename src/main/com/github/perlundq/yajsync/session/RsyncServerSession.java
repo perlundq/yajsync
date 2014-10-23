@@ -19,7 +19,6 @@
  */
 package com.github.perlundq.yajsync.session;
 
-import java.io.IOException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
@@ -88,22 +87,6 @@ public class RsyncServerSession
                                        true); //exitEarlyIfEmptyList);
                 } finally {
                     _statistics = sender.statistics();
-                    ChannelException ex = null;
-                    try {
-                        in.close();
-                    } catch (IOException e) {
-                        ex = new ChannelException(e);
-                    }
-                    try {
-                        out.close();
-                    } catch (IOException e) {
-                        if (ex == null) {
-                            ex = new ChannelException(e);
-                        }
-                    }
-                    if (ex != null) {
-                        throw ex;
-                    }
                 }
             }
         };
@@ -128,24 +111,18 @@ public class RsyncServerSession
         Callable<Boolean> callableGenerator = new Callable<Boolean>() {
             @Override
             public Boolean call() throws ChannelException {
-                try {
-                    generator.setIsRecursive(isRecursive);
-                    generator.setIsPreserveTimes(isPreserveTimes);
-                    generator.setIsAlwaysItemize(isAlwaysItemize);
-                    generator.setIsListOnly(isModuleListing);
-                    return generator.generate();
-                } finally {
-                    try {
-                        out.close();
-                    } catch (IOException e) {
-                        throw new ChannelException(e);
-                    }
-                }
+                generator.setIsRecursive(isRecursive);
+                generator.setIsPreserveTimes(isPreserveTimes);
+                generator.setIsAlwaysItemize(isAlwaysItemize);
+                generator.setIsListOnly(isModuleListing);
+                return generator.generate();
             }
         };
         Callable<Boolean> callableReceiver = new Callable<Boolean>() {
             @Override
-            public Boolean call() throws ChannelException, InterruptedException {
+            public Boolean call()
+                throws InterruptedException, RsyncException
+            {
                 Receiver receiver = new Receiver(generator, in, charset);
                 receiver.setIsRecursive(isRecursive);
                 receiver.setIsPreserveTimes(isPreserveTimes);
@@ -157,16 +134,8 @@ public class RsyncServerSession
                                             false,  // receiveStatistics,
                                             false); // exitEarlyIfEmptyList);
                 } finally {
-                    try {
-                        generator.stop();
-                    } finally {
-                        _statistics = receiver.statistics();
-                        try {
-                            in.close();
-                        } catch (IOException e) {
-                            throw new ChannelException(e);
-                        }
-                    }
+                    _statistics = receiver.statistics();
+                    generator.stop();
                 }
             }
         };
@@ -181,7 +150,7 @@ public class RsyncServerSession
                                 ReadableByteChannel in,
                                 WritableByteChannel out,
                                 Modules modules)
-        throws ChannelException
+        throws RsyncException
     {
         List<Future<Boolean>> futures = new LinkedList<>();
         try {
@@ -203,7 +172,7 @@ public class RsyncServerSession
                                           cfg.charset(),
                                           cfg.checksumSeed(),
                                           cfg.sourceFiles(),
-                                          cfg.isRecursive()); 
+                                          cfg.isRecursive());
             } else {
                 tasks = createReceiverTasks(in,
                                             out,
@@ -216,18 +185,18 @@ public class RsyncServerSession
                                             false,               // isListOnly
                                             _isDeferredWrite);
             }
-            
+
             CompletionService<Boolean> ecs =
                 new ExecutorCompletionService<>(executor);
             for (Callable<Boolean> task : tasks) {
                 futures.add(ecs.submit(task));
             }
-            
+
             boolean isOK = true;
             for (int i = 0; i < tasks.size(); i++) {
                 isOK = isOK && ecs.take().get();
             }
-            
+
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("exit " + (isOK ? "OK" : "ERROR"));
             }
@@ -246,6 +215,8 @@ public class RsyncServerSession
                 return false;
             } else if (cause instanceof ChannelException) {
                 throw (ChannelException) cause;
+            } else if (cause instanceof RsyncException) {
+                throw (RsyncException) cause;
             } else if (cause instanceof Error) {
                 throw (Error) cause;
             } else {
@@ -253,11 +224,11 @@ public class RsyncServerSession
             }
         } finally {
             for (Future<Boolean> future : futures) {
-                future.cancel(true); 
+                future.cancel(true);
             }
         }
     }
-    
+
     public Statistics statistics()
     {
         return _statistics;

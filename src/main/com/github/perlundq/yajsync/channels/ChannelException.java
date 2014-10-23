@@ -18,8 +18,10 @@
  */
 package com.github.perlundq.yajsync.channels;
 
+import com.github.perlundq.yajsync.session.RsyncException;
+
 @SuppressWarnings("serial")
-public class ChannelException extends Exception
+public class ChannelException extends RsyncException
 {
     public ChannelException(String message)
     {
