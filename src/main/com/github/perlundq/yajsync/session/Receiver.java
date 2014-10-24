@@ -1131,7 +1131,8 @@ public class Receiver implements MessageHandler
         // TODO: possibly skip writing out to file if replica is not OK
         int bytesReceived = 0;
         while (bytesReceived < length) {
-            int chunkSize = Math.min(1024, length - bytesReceived);
+            int chunkSize = Math.min(INPUT_CHANNEL_BUF_SIZE,
+                                     length - bytesReceived);
             ByteBuffer literalData = _senderInChannel.get(chunkSize);
             bytesReceived += chunkSize;
             if (outFile != null) {

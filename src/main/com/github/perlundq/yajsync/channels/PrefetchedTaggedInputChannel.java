@@ -67,7 +67,6 @@ public class PrefetchedTaggedInputChannel extends TaggedInputChannel
     @Override
     public void get(ByteBuffer dst) throws ChannelException
     {
-        assert dst.remaining() <= _buf.limit();
         ByteBuffer prefetched = nextReadableSlice(Math.min(numBytesPrefetched(),
                                                            dst.remaining()));
         dst.put(prefetched);
