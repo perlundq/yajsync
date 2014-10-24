@@ -36,7 +36,7 @@ public class BufferedOutputChannel implements Bufferable
     private final WritableByteChannel _sinkChannel;
     protected final ByteBuffer _buffer;
     private long _numBytesWritten;
- 
+
     public BufferedOutputChannel(WritableByteChannel sock)
     {
         this(sock, DEFAULT_BUF_SIZE);
@@ -52,7 +52,7 @@ public class BufferedOutputChannel implements Bufferable
         }
         _buffer.order(ByteOrder.LITTLE_ENDIAN);
     }
-    
+
     public void send(ByteBuffer buf) throws ChannelException
     {
         try {
@@ -70,11 +70,11 @@ public class BufferedOutputChannel implements Bufferable
             throw new ChannelException(e);
         }
     }
-    
+
     @Override
     public void flush() throws ChannelException
     {
-        if (_buffer.position() > 0) {
+        if (numBytesBuffered() > 0) {
             _buffer.flip();
             send(_buffer);
             _buffer.clear();
@@ -131,9 +131,15 @@ public class BufferedOutputChannel implements Bufferable
         }
         _buffer.putInt(i);
     }
-    
+
     public long numBytesWritten()
     {
-        return _numBytesWritten + _buffer.position();
+        return _numBytesWritten + numBytesBuffered();
+    }
+
+    @Override
+    public int numBytesBuffered()
+    {
+        return _buffer.position();
     }
 }

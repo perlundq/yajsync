@@ -219,6 +219,11 @@ public class Generator
             }
             jobList.clear();
             if (_jobs.isEmpty()) {
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine(String.format(
+                        "(Generator) flushing %d bytes",
+                        _senderOutChannel.numBytesBuffered()));
+                }
                 _senderOutChannel.flush();
             }
         }

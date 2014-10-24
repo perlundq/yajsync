@@ -80,7 +80,8 @@ public class TaggedOutputChannel extends BufferedOutputChannel
         }
     }
 
-    private int numBytesBuffered()
+    @Override
+    public int numBytesBuffered()
     {
         return _buffer.position() - TAG_SIZE;
     }

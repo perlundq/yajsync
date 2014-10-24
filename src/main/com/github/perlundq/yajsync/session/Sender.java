@@ -258,8 +258,10 @@ public class Sender implements MessageHandler
             }
 
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine("num bytes available to read: " +
-                          _duplexChannel.numBytesAvailable());
+                _log.fine(String.format(
+                    "num bytes buffered: %d, num bytes available to read: %d",
+                    _duplexChannel.numBytesBuffered(),
+                    _duplexChannel.numBytesAvailable()));
             }
 
             final int index = _duplexChannel.decodeIndex();

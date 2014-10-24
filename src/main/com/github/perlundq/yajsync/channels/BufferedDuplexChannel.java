@@ -109,4 +109,10 @@ public class BufferedDuplexChannel implements Readable, Bufferable
     {
         _inputChannel.skip(numBytes);
     }
+
+    @Override
+    public int numBytesBuffered()
+    {
+        return _outputChannel.numBytesBuffered();
+    }
 }
