@@ -28,6 +28,8 @@ Features
 - Platform independent rsync client with support for both local and
   remote file transfers
 
+- Native SSL/TLS tunneling
+
 Please be aware though that the API currently is unstable, not
 documented and will most probably change in the near future.
 
@@ -181,6 +183,23 @@ Use a more memory conservative garbage collector:
 Turn on aggressive optimisations:
 
     -XX:+AggressiveOpts
+
+SSL/TLS is configured externally (see JSSE documentation), but the
+following properties are used (options to the JVM):
+
+    -Djavax.net.ssl.keyStore=...
+    -Djavax.net.ssl.keyStoreAlias=...
+    -Djavax.net.ssl.keyStorePassword=...
+    -Djavax.net.ssl.trustStore=...
+    -Djavax.net.ssl.trustStorePassword=...
+
+javax.net.debug is useful for debugging SSL/TLS. To see available
+values to javax.net.debug:
+
+    -Djavax.net.debug=help
+
+Note: client side authorisation is not yet implemented - requires
+changes to server configuration.
 
 
 License

@@ -18,6 +18,7 @@
  */
 package com.github.perlundq.yajsync.session;
 
+import java.net.InetAddress;
 import java.security.Principal;
 import java.util.ServiceLoader;
 
@@ -36,6 +37,13 @@ public abstract class ModuleProvider implements Plugin
         return new Configuration.Reader();
     }
 
-    public abstract Modules newInstance(Principal principal)
+    // must be thread safe
+    public abstract Modules newAuthenticated(InetAddress address,
+                                             Principal principal)
         throws ModuleException;
+
+    // must be thread safe
+    public abstract Modules newAnonymous(InetAddress address)
+        throws ModuleException;
+
 }

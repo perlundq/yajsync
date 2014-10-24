@@ -19,6 +19,7 @@
 package com.github.perlundq.yajsync.util;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -29,6 +30,7 @@ import com.github.perlundq.yajsync.text.Text;
 
 public final class Environment
 {
+    private static final String PROPERTY_KEY_ALLOCATE_DIRECT = "allocate.direct";  // not present unless manually defined
     private static final String PROPERTY_KEY_USER_UID = "user.uid";     // not present unless manually defined
     private static final String PROPERTY_KEY_GROUP_UID = "user.gid";    // not present unless manually defined
     private static final String PROPERTY_KEY_USER_NAME = "user.name";
@@ -132,5 +134,24 @@ public final class Environment
             return Consts.DEFAULT_UMASK;
         }
         return Integer.parseInt(value, 8);
+    }
+
+    public static void setAllocateDirect(boolean isAllocateDirect)
+    {
+        System.setProperty(PROPERTY_KEY_ALLOCATE_DIRECT,
+                           Boolean.toString(isAllocateDirect));
+    }
+
+    public static boolean isAllocateDirect()
+    {
+        String value =
+            Util.defaultIfNull(System.getProperty(PROPERTY_KEY_ALLOCATE_DIRECT),
+                                                  "true");
+        return Boolean.valueOf(value);
+    }
+
+    public static boolean hasAllocateDirectArray()
+    {
+        return ByteBuffer.allocateDirect(1).hasArray();
     }
 }

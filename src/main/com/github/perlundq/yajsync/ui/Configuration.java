@@ -21,6 +21,7 @@ package com.github.perlundq.yajsync.ui;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -72,7 +73,16 @@ public class Configuration implements Modules
         public Reader() {}
 
         @Override
-        public Configuration newInstance(Principal principal) throws ModuleException
+        public Configuration newAuthenticated(InetAddress address,
+                                              Principal principal)
+            throws ModuleException
+        {
+            return newAnonymous(address);
+        }
+
+        @Override
+        public Configuration newAnonymous(InetAddress address)
+            throws ModuleException
         {
             Map<String, Module> modules = getModules(_cfgFileName);
             Configuration cfg = new Configuration(modules);

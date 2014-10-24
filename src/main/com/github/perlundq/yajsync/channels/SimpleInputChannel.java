@@ -25,25 +25,36 @@ import java.nio.ByteOrder;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.ReadableByteChannel;
 
+import com.github.perlundq.yajsync.util.Consts;
+import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.RuntimeInterruptException;
 
 public class SimpleInputChannel implements Readable
 {
     private static final int DEFAULT_BUF_SIZE = 1024;
     private final ReadableByteChannel _sourceChannel;
-    private final ByteBuffer _byteBuf = ByteBuffer.allocateDirect(1);
-    private final ByteBuffer _charBuf = ByteBuffer.allocateDirect(2).
-                                            order(ByteOrder.LITTLE_ENDIAN);
-    private final ByteBuffer _intBuf = ByteBuffer.allocateDirect(4).
-                                            order(ByteOrder.LITTLE_ENDIAN);
+    private final ByteBuffer _byteBuf;
+    private final ByteBuffer _charBuf;
+    private final ByteBuffer _intBuf;
     private long _numBytesRead;
 
     public SimpleInputChannel(ReadableByteChannel sock)
     {
         assert sock != null;
         _sourceChannel = sock;
+        if (Environment.isAllocateDirect()) {
+            _byteBuf = ByteBuffer.allocateDirect(Consts.SIZE_BYTE);
+            _charBuf = ByteBuffer.allocateDirect(Consts.SIZE_CHAR);
+            _intBuf = ByteBuffer.allocateDirect(Consts.SIZE_INT);
+        } else {
+            _byteBuf = ByteBuffer.allocate(Consts.SIZE_BYTE);
+            _charBuf = ByteBuffer.allocate(Consts.SIZE_CHAR);
+            _intBuf = ByteBuffer.allocate(Consts.SIZE_INT);
+        }
+        _charBuf.order(ByteOrder.LITTLE_ENDIAN);
+        _intBuf.order(ByteOrder.LITTLE_ENDIAN);
     }
-    
+
     @Override
     public byte getByte() throws ChannelException
     {
@@ -70,7 +81,7 @@ public class SimpleInputChannel implements Readable
         _intBuf.flip();
         return _intBuf.getInt();
     }
-     
+
     @Override
     public ByteBuffer get(int numBytes) throws ChannelException
     {
@@ -79,7 +90,7 @@ public class SimpleInputChannel implements Readable
         result.flip();
         return result;
     }
-    
+
     @Override
     public void get(byte[] dst, int offset, int length) throws ChannelException
     {

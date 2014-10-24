@@ -19,6 +19,7 @@
  */
 package com.github.perlundq.yajsync.session;
 
+import java.io.IOException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
@@ -138,7 +139,8 @@ public class RsyncClientSession
                                 List<String> srcArgs,
                                 String dstArg,
                                 AuthProvider authProvider,
-                                String moduleName)
+                                String moduleName,
+                                boolean isChannelsInterruptible)
         throws RsyncException
     {
         List<Future<Boolean>> futures = new LinkedList<>();
@@ -185,6 +187,18 @@ public class RsyncClientSession
             }
             return isOK;
         } catch (Throwable t) {
+            if (!isChannelsInterruptible) {
+                try {
+                    try {
+                        in.close();
+                    } finally {
+                        out.close();
+                    }
+                } catch (IOException e) {
+                    t.addSuppressed(e);
+                }
+            }
+
             Throwable cause;
             if (t instanceof ExecutionException) {
                 cause = t.getCause();

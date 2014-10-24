@@ -21,15 +21,10 @@ package com.github.perlundq.yajsync.ui;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.StandardSocketOptions;
 import java.net.UnknownHostException;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
-import java.security.Principal;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -41,7 +36,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.channels.ChannelException;
-import com.github.perlundq.yajsync.security.AddressPrincipal;
+import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
+import com.github.perlundq.yajsync.channels.net.SSLServerChannelFactory;
+import com.github.perlundq.yajsync.channels.net.ServerChannel;
+import com.github.perlundq.yajsync.channels.net.ServerChannelFactory;
+import com.github.perlundq.yajsync.channels.net.StandardServerChannelFactory;
 import com.github.perlundq.yajsync.session.ModuleException;
 import com.github.perlundq.yajsync.session.ModuleProvider;
 import com.github.perlundq.yajsync.session.Modules;
@@ -51,6 +50,7 @@ import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.util.ArgumentParser;
 import com.github.perlundq.yajsync.util.ArgumentParsingError;
 import com.github.perlundq.yajsync.util.Consts;
+import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.Option;
 import com.github.perlundq.yajsync.util.Util;
 
@@ -61,12 +61,15 @@ public class YajSyncServer
     private static final int THREAD_FACTOR = 4;
 
     private boolean _isDeferredWrite;
+    private boolean _isTLS;
     private Charset _charset = Charset.forName(Text.UTF8_NAME);
     private int _numThreads = Runtime.getRuntime().availableProcessors() *
                               THREAD_FACTOR;
     private int _port = Consts.DEFAULT_LISTEN_PORT;
     private int _verbosity;
     private InetAddress _address = InetAddress.getLoopbackAddress();
+    private ModuleProvider _moduleProvider = ModuleProvider.getDefault();
+    private ExecutorService _executor;
 
     public YajSyncServer() {}
 
@@ -156,41 +159,76 @@ public class YajSyncServer
                 @Override public void handle(Option option) {
                     _isDeferredWrite = true;
                 }}));
+
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                              "tls", "",
+                                              "tunnel all data over TLS/SSL",
+            new Option.Handler() {
+                @Override public void handle(Option option) {
+                    _isTLS = true;
+                    // SSLChannel.read and SSLChannel.write depends on
+                    // ByteBuffer.array and ByteBuffer.arrayOffset. Disable
+                    // direct allocation if the resulting ByteBuffer won't have
+                    // an array.
+                    if (!Environment.hasAllocateDirectArray()) {
+                        Environment.setAllocateDirect(false);
+                    }
+                }}));
+
         return options;
     }
 
-    private Callable<Boolean> createCallable(final ExecutorService executor,
-                                             final SocketChannel sock,
-                                             final Modules modules)
+    private Callable<Boolean> createCallable(final DuplexByteChannel sock,
+                                             final boolean isInterruptible)
     {
         return new Callable<Boolean>() {
             @Override
             public Boolean call() {
-                boolean isOK;
+                boolean isOK = false;
                 try {
-                    if (_log.isLoggable(Level.FINE)) {
-                        _log.fine("connected to " + sock.getRemoteAddress());
+                    Modules modules;
+                    if (sock.isPeerAuthenticated()) {
+                        if (_log.isLoggable(Level.FINE)) {
+                            _log.fine(String.format("%s connected from %s",
+                                                    sock.peerPrincipal(),
+                                                    sock.peerAddress()));
+                        }
+                        modules = _moduleProvider.newAuthenticated(
+                                                        sock.peerAddress(),
+                                                        sock.peerPrincipal());
+                    } else {
+                        if (_log.isLoggable(Level.FINE)) {
+                            _log.fine("got anonymous connection from " +
+                                      sock.peerAddress());
+                        }
+                        modules = _moduleProvider.newAnonymous(
+                                                        sock.peerAddress());
                     }
-
                     RsyncServerSession session = new RsyncServerSession();
                     session.setCharset(_charset);
                     session.setIsDeferredWrite(_isDeferredWrite);
-                    isOK = session.startSession(executor,
+                    isOK = session.startSession(_executor,
                                                 sock,    // in
                                                 sock,    // out
-                                                modules);
+                                                modules,
+                                                isInterruptible);
 //                    showStatistics(session.statistics());
+                } catch (ModuleException e) {
+                    if (_log.isLoggable(Level.SEVERE)) {
+                        _log.severe(String.format(
+                            "Error: failed to initialise modules for " +
+                            "principal %s using ModuleProvider %s: %s%n",
+                            _moduleProvider, e));
+                    }
                 } catch (ChannelException e) {
                     if (_log.isLoggable(Level.SEVERE)) {
                         _log.severe("Error: communication closed with peer: " +
                                     e.getMessage());
                     }
-                    isOK = false;
                 } catch (Throwable t) {
                     if (_log.isLoggable(Level.SEVERE)) {
                         _log.log(Level.SEVERE, "", t);
                     }
-                    isOK = false;
                 } finally {
                     try {
                         sock.close();
@@ -200,7 +238,6 @@ public class YajSyncServer
                                 "Got error during close of socket %s: %s",
                                 sock, e.getMessage()));
                         }
-                        isOK = false;
                     }
                 }
 
@@ -242,13 +279,12 @@ public class YajSyncServer
     {
         ArgumentParser argsParser =
             ArgumentParser.newNoUnnamed(getClass().getSimpleName());
-        ModuleProvider moduleProvider = ModuleProvider.getDefault();
         try {
             argsParser.addHelpTextDestination(System.out);
             for (Option o : options()) {
                 argsParser.add(o);
             }
-            for (Option o : moduleProvider.options()) {
+            for (Option o : _moduleProvider.options()) {
                 argsParser.add(o);
             }
             argsParser.parse(Arrays.asList(args));                              // throws ArgumentParsingError
@@ -262,38 +298,26 @@ public class YajSyncServer
                                                    _verbosity);
         Util.setRootLogLevel(logLevel);
 
-        ExecutorService executor =
-            Executors.newFixedThreadPool(_numThreads);
+        ServerChannelFactory socketFactory =
+            _isTLS ? new SSLServerChannelFactory().setWantClientAuth(true)
+                   : new StandardServerChannelFactory();
+        //socketFactory.setSocketTimeout(60);
+        socketFactory.setReuseAddress(true);
+        //socketFactory.setKeepAlive(true);
+        boolean isInterruptible = !_isTLS;
+        _executor = Executors.newFixedThreadPool(_numThreads);
 
-        try (ServerSocketChannel listenSock = ServerSocketChannel.open()) {     // throws IOException
-
-            listenSock.setOption(StandardSocketOptions.SO_REUSEADDR, true);     // throws IOException
-            listenSock.bind(new InetSocketAddress(_address, _port));            // bind throws IOException
-
+        try (ServerChannel listenSock = socketFactory.open(_address, _port)) {  // throws IOException
             while (true) {
-                try {
-                    final SocketChannel sock = listenSock.accept();             // throws IOException
-                    // FIXME: do reverse name lookup before continuing
-                    // TODO: re-enable socket timeout if not debugging
-                    //_peerChannel.setSoTimeout(60);
-                    // TODO: set TCP keep alive
-                    InetAddress address = ((InetSocketAddress) sock.getRemoteAddress()).getAddress(); // getRemoteAddress and getAddress may both be null
-                    Principal principal = new AddressPrincipal(address);        // throws IllegalArgumentException if address == null
-                    Modules modules = moduleProvider.newInstance(principal);
-                    Callable<Boolean> c = createCallable(executor, sock,
-                                                         modules);
-                    executor.submit(c);                                         // NOTE: result discarded
-                } catch (ModuleException e) {
-                    System.err.format("Error: failed to initialise modules " +
-                                      "for principal %s using ModuleProvider " +
-                                      "%s: %s%n", moduleProvider, e);
-                }
+                DuplexByteChannel sock = listenSock.accept();                   // throws IOException
+                Callable<Boolean> c = createCallable(sock, isInterruptible);
+                _executor.submit(c);                                            // NOTE: result discarded
             }
         } finally {
             System.err.println("shutting down");
-            executor.shutdown();
-            moduleProvider.close();
-            while (!executor.awaitTermination(5, TimeUnit.MINUTES)) {
+            _executor.shutdown();
+            _moduleProvider.close();
+            while (!_executor.awaitTermination(5, TimeUnit.MINUTES)) {
                 System.err.println("some sessions are still running, waiting " +
                                    "for them to finish before exiting");
             }

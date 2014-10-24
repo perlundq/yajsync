@@ -25,12 +25,13 @@ import java.nio.ByteOrder;
 import java.nio.channels.ReadableByteChannel;
 
 import com.github.perlundq.yajsync.text.Text;
+import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.Util;
 
 public class PrefetchedTaggedInputChannel extends TaggedInputChannel
 {
     private static final int DEFAULT_BUF_SIZE = 8 * 1024; // TODO: make buffer size configurable
-    private final ByteBuffer _buf;
+    private final ByteBuffer _buf;                                              // never flipped, never marked and its limit is never changed
     private int _readIndex = 0;
 
     public PrefetchedTaggedInputChannel(ReadableByteChannel sock,
@@ -44,7 +45,12 @@ public class PrefetchedTaggedInputChannel extends TaggedInputChannel
                                         int bufferSize)
     {
         super(sock, handler);
-        _buf = ByteBuffer.allocateDirect(bufferSize).order(ByteOrder.LITTLE_ENDIAN); // never flipped, never marked and its limit is never changed
+        if (Environment.isAllocateDirect()) {
+            _buf = ByteBuffer.allocateDirect(bufferSize);
+        } else {
+            _buf = ByteBuffer.allocate(bufferSize);
+        }
+        _buf.order(ByteOrder.LITTLE_ENDIAN);
     }
 
     @Override

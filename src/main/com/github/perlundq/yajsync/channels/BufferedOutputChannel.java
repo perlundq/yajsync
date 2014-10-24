@@ -26,6 +26,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.WritableByteChannel;
 
 import com.github.perlundq.yajsync.util.Consts;
+import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.RuntimeInterruptException;
 import com.github.perlundq.yajsync.util.Util;
 
@@ -44,7 +45,12 @@ public class BufferedOutputChannel implements Bufferable
     public BufferedOutputChannel(WritableByteChannel sock, int bufferSize)
     {
         _sinkChannel = sock;
-        _buffer = ByteBuffer.allocateDirect(bufferSize).order(ByteOrder.LITTLE_ENDIAN);
+        if (Environment.isAllocateDirect()) {
+            _buffer = ByteBuffer.allocateDirect(bufferSize);
+        } else {
+            _buffer = ByteBuffer.allocate(bufferSize);
+        }
+        _buffer.order(ByteOrder.LITTLE_ENDIAN);
     }
     
     public void send(ByteBuffer buf) throws ChannelException

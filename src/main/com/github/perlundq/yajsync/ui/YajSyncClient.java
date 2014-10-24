@@ -21,8 +21,7 @@ package com.github.perlundq.yajsync.ui;
 
 import java.io.Console;
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.channels.SocketChannel;
+import java.net.UnknownHostException;
 import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
@@ -40,6 +39,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.github.perlundq.yajsync.channels.ChannelException;
+import com.github.perlundq.yajsync.channels.net.ChannelFactory;
+import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
+import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
+import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
 import com.github.perlundq.yajsync.session.ClientSessionConfig;
 import com.github.perlundq.yajsync.session.RsyncClientSession;
 import com.github.perlundq.yajsync.session.RsyncException;
@@ -245,6 +248,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     private String _dstArg;
     private String _moduleName;
     private String _userName;
+    private boolean _isTLS;
 
     @Override
     public String getUser()
@@ -360,6 +364,21 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                 @Override public void handle(Option option) {
                     _isDeferredWrite = true;
                 }}));
+
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                              "tls", "",
+                                              "tunnel all data over TLS/SSL",
+            new Option.Handler() {
+            @Override public void handle(Option option) {
+                _isTLS = true;
+                // SSLChannel.read and SSLChannel.write depends on
+                // ByteBuffer.array and ByteBuffer.arrayOffset. Disable direct
+                // allocation if the resulting ByteBuffer won't have an array.
+                if (!Environment.hasAllocateDirectArray()) {
+                    Environment.setAllocateDirect(false);
+                }
+            }
+        }));
 
         return options;
     }
@@ -519,31 +538,32 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         session.setIsRecursiveTransfer(_isRecursiveTransfer);
         session.setIsSender(_isSender);
 
-        InetSocketAddress socketAddress = new InetSocketAddress(_address,
-                                                                _remotePort);
-        try (SocketChannel sock = SocketChannel.open(socketAddress)) {
+        ChannelFactory socketFactory = _isTLS ? new SSLChannelFactory()
+                                              : new StandardChannelFactory();
+        boolean isInterruptible = !_isTLS;
 
+        try (DuplexByteChannel sock = socketFactory.open(_address,
+                                                         _remotePort)) {
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine("connected to " + sock.getRemoteAddress());
+                _log.fine("connected to " + sock);
             }
-
             return session.startSession(executor,
                                         sock,           // in
                                         sock,           // out
                                         _srcArgs,
                                         _dstArg,
                                         this,           // ClientSessionConfig.AuthProvider
-                                        _moduleName);
+                                        _moduleName,
+                                        isInterruptible);
+        } catch (UnknownHostException | UnresolvedAddressException e) {
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.severe(String.format("Error: failed to resolve %s (%s)",
+                                          _address, e.getMessage()));
+            }
         } catch (IOException e) { // SocketChannel.{open,close}()
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe("Error: socket open/close error: " +
                     e.getMessage());
-            }
-        } catch (UnresolvedAddressException e) { // SocketChannel.{open,close}()
-            if (_log.isLoggable(Level.SEVERE)) {
-                _log.severe(String.format("Error: failed to resolve " +
-                    "%s (%s)",
-                    socketAddress, e.getMessage()));
             }
         } catch (ChannelException e) {              // startSession
             if (_log.isLoggable(Level.SEVERE)) {
