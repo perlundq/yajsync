@@ -85,6 +85,7 @@ public class Generator
     private boolean _isListOnly;
     private Filelist _fileList;  // effectively final
     private int _returnStatus ;
+    private boolean _isRunning = true;
 
     static {
         try {
@@ -197,7 +198,7 @@ public class Generator
     public void processJobQueueBatched() throws ChannelException, InterruptedException
     {
         List<Job> jobList = new LinkedList<>();
-        while (!Thread.currentThread().isInterrupted()) {
+        while (_isRunning) {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("(Generator) awaiting next jobs...");
             }
@@ -214,7 +215,6 @@ public class Generator
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("(Generator) processing " + job);
                 }
-
                 job.process();
             }
             jobList.clear();
@@ -229,18 +229,15 @@ public class Generator
         }
     }
 
-    public boolean generate() throws ChannelException
+    public boolean generate() throws ChannelException,InterruptedException
     {
         try {
             //processJobQueueImmediate();
             processJobQueueBatched();
-        } catch (InterruptedException | RuntimeInterruptException e) {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("(Generator) thread interrupted");
-            }
-            return false;
+            return _returnStatus == 0;
+        } catch (RuntimeInterruptException e) {
+            throw new InterruptedException();
         }
-        return _returnStatus == 0;
     }
 
     public void purgeFile(final Filelist.Segment segment, final int index)
@@ -275,15 +272,13 @@ public class Generator
         Job j = new Job() {
             @Override
             public void process() throws ChannelException {
-                _senderOutChannel.flush();
                 applyCorrectAttributes();
-                Thread.currentThread().interrupt();
+                _isRunning = false;
             }
             @Override
             public String toString() {
                 return "stop()";
             }
-
         };
         appendJob(j);
     }

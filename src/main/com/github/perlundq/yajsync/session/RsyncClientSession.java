@@ -64,7 +64,9 @@ public class RsyncClientSession
     {
         Callable<Boolean> callableSender = new Callable<Boolean>() {
             @Override
-            public Boolean call() throws ChannelException {
+            public Boolean call()
+                throws ChannelException, InterruptedException
+            {
                 Sender sender = new Sender(in, out, srcPaths, charset,
                                            checksumSeed);
                 sender.setIsRecursive(_isRecursiveTransfer);
@@ -96,7 +98,9 @@ public class RsyncClientSession
 
         Callable<Boolean> callableGenerator = new Callable<Boolean>() {
             @Override
-            public Boolean call() throws ChannelException {
+            public Boolean call()
+                throws ChannelException, InterruptedException
+            {
                 generator.setIsRecursive(_isRecursiveTransfer);
                 generator.setIsPreserveTimes(_isPreserveTimes);
                 generator.setIsAlwaysItemize(_verbosity > 1);

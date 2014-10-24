@@ -78,7 +78,8 @@ public class RsyncServerSession
     {
         Callable<Boolean> callableSender = new Callable<Boolean>() {
             @Override
-            public Boolean call() throws ChannelException {
+            public Boolean call() throws ChannelException, InterruptedException
+            {
                 Sender sender = new Sender(in, out, srcPaths, charset,
                                            checksumSeed);
                 sender.setIsRecursive(isRecursive);
@@ -111,7 +112,9 @@ public class RsyncServerSession
         final Generator generator = new Generator(out, charset, checksumSeed);
         Callable<Boolean> callableGenerator = new Callable<Boolean>() {
             @Override
-            public Boolean call() throws ChannelException {
+            public Boolean call()
+                throws ChannelException, InterruptedException
+            {
                 generator.setIsRecursive(isRecursive);
                 generator.setIsPreserveTimes(isPreserveTimes);
                 generator.setIsAlwaysItemize(isAlwaysItemize);
@@ -146,7 +149,6 @@ public class RsyncServerSession
         return result;
     }
 
-    // FIXME: BUG _verbosity is not handled correctly
     public boolean startSession(ExecutorService executor,
                                 ReadableByteChannel in,
                                 WritableByteChannel out,

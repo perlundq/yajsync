@@ -176,7 +176,7 @@ public class Receiver implements MessageHandler
                            boolean sendFilterRules,
                            boolean receiveStatistics,
                            boolean exitEarlyIfEmptyList)
-        throws RsyncException
+        throws RsyncException, InterruptedException
     {
         try {
             if (_log.isLoggable(Level.FINE)) {
@@ -234,11 +234,8 @@ public class Receiver implements MessageHandler
                                         _ioError));
             }
             return _ioError == 0;
-        } catch (InterruptedException | RuntimeInterruptException e) {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("Receiver was interrupted");
-            }
-            return false;
+        } catch (RuntimeInterruptException e) {
+            throw new InterruptedException();
         } catch (InvalidPathException e) { // Paths.get
             throw new RsyncException(String.format(
                 "illegal target path name %s: %s", targetPathName, e));

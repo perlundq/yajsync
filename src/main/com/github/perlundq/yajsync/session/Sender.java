@@ -109,7 +109,7 @@ public class Sender implements MessageHandler
     public boolean send(boolean receiveFilterRules,
                         boolean sendStatistics,
                         boolean exitEarlyIfEmptyList)
-        throws ChannelException
+        throws ChannelException, InterruptedException
     {
         Filelist fileList = new Filelist(_isRecursive);
         try {
@@ -182,14 +182,8 @@ public class Sender implements MessageHandler
                     String.format("Invalid packet at end of run (%d)", index));
             }
             return isInitialListOK && ioError == 0;
-        } catch (Throwable t) {
-            if (t instanceof RuntimeInterruptException) {
-                if (_log.isLoggable(Level.FINE)) {
-                    _log.fine("sender thread interrupted");
-                }
-                return false;
-            }
-            throw t;
+        } catch (RuntimeInterruptException e) {
+            throw new InterruptedException();
         } finally {
             _stats.setTotalFileSize(fileList.totalFileSize());
             _stats.setTotalRead(_duplexChannel.numBytesRead());

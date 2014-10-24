@@ -113,7 +113,9 @@ public class RsyncLocal
                 new ExecutorCompletionService<>(executor);
             futures.add(ecs.submit(new Callable<Boolean>() {
                 @Override
-                public Boolean call() throws ChannelException {
+                public Boolean call()
+                    throws ChannelException, InterruptedException
+                {
                     return generator.generate();
                 }
             }));
@@ -135,7 +137,9 @@ public class RsyncLocal
             // NOTE: also updates _statistics
             futures.add(ecs.submit(new Callable<Boolean>() {
                 @Override
-                public Boolean call() throws ChannelException {
+                public Boolean call()
+                    throws ChannelException, InterruptedException
+                {
                     try {
                         return sender.send(transferFilterRules,
                                            transferStatistics,
