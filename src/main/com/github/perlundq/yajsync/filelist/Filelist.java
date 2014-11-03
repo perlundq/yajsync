@@ -127,7 +127,6 @@ public class Filelist
             for (FileInfo f : files) {
                 if (f.equals(prev)) {
                     if (_log.isLoggable(Level.WARNING)) {
-                        @SuppressWarnings("null")       // files cannot contain null refs
                         Path prevPath = prev.path();
                         _log.warning(String.format("skipping \"%s\" - a " +
                                                    "duplicate of \"%s\" " +

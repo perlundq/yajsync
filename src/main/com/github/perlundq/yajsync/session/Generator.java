@@ -636,34 +636,6 @@ public class Generator implements RsyncTask
         Connection.sendChecksumHeader(_senderOutChannel, header);
     }
 
-    private int getCompatibleBlockLengthFor(long fileSize)
-    {
-        final int BLOCK_SIZE = 700;
-        final int MAX_BLOCK_SIZE = 1 << 17;
-
-        if (fileSize <= BLOCK_SIZE * BLOCK_SIZE) {
-            return BLOCK_SIZE;
-        }
-
-        int c = 1;
-        for (long l = fileSize; (l >>>= 2) != 0; c <<= 1) {
-            //
-        }
-
-        if (c < 0 || c >= MAX_BLOCK_SIZE) {
-            return MAX_BLOCK_SIZE;
-        }
-
-        int blength = 0;
-        do {
-            blength |= c;
-            if (fileSize < blength * blength)
-                blength &= ~c;
-            c >>= 1;
-        } while (c >= 8);
-        return Math.max(blength, BLOCK_SIZE);
-    }
-
     // could we possibly adaptively correlate block checksum size with checksum
     // match ratio? or inversely correlate channel speed or a combination
     private int getBlockLengthFor(long fileSize)

@@ -45,7 +45,6 @@ import com.github.perlundq.yajsync.session.ModuleException;
 import com.github.perlundq.yajsync.session.ModuleProvider;
 import com.github.perlundq.yajsync.session.Modules;
 import com.github.perlundq.yajsync.session.RsyncServerSession;
-import com.github.perlundq.yajsync.session.Statistics;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.util.ArgumentParser;
 import com.github.perlundq.yajsync.util.ArgumentParsingError;
@@ -247,32 +246,6 @@ public class YajSyncServer
                 return isOK;
             }
         };
-    }
-
-    private static void showStatistics(Statistics stats)
-    {
-        System.out.format("Number of files: %d%n" +
-            "Number of files transferred: %d%n" +
-            "Total file size: %d bytes%n" +
-            "Total transferred file size: %d bytes%n" +
-            "Literal data: %d bytes%n" +
-            "Matched data: %d bytes%n" +
-            "File list size: %d%n" +
-            "File list generation time: %.3f seconds%n" +
-            "File list transfer time: %.3f seconds%n" +
-            "Total bytes sent: %d%n" +
-            "Total bytes received: %d%n",
-            stats.numFiles(),
-            stats.numTransferredFiles(),
-            stats.totalFileSize(),
-            stats.totalTransferredSize(),
-            stats.totalLiteralSize(),
-            stats.totalMatchedSize(),
-            stats.totalFileListSize(),
-            stats.fileListBuildTime() / 1000.0,
-            stats.fileListTransferTime() / 1000.0,
-            stats.totalWritten(),
-            stats.totalRead());
     }
 
     public void start(String[] args) throws IOException, InterruptedException
