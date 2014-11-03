@@ -25,6 +25,7 @@ import java.nio.ByteOrder;
 import java.nio.channels.ReadableByteChannel;
 
 import com.github.perlundq.yajsync.text.Text;
+import com.github.perlundq.yajsync.util.Consts;
 import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.Util;
 
@@ -87,27 +88,27 @@ public class PrefetchedTaggedInputChannel extends TaggedInputChannel
     @Override
     public byte getByte() throws ChannelException
     {
-        ensureMinimumPrefetched(1);
+        ensureMinimumPrefetched(Consts.SIZE_BYTE);
         byte result = _buf.get(_readIndex);
-        _readIndex += 1;
+        _readIndex += Consts.SIZE_BYTE;
         return result;
     }
 
     @Override
     public char getChar() throws ChannelException
     {
-        ensureMinimumPrefetched(2);
+        ensureMinimumPrefetched(Consts.SIZE_CHAR);
         char result = _buf.getChar(_readIndex);
-        _readIndex += 2;
+        _readIndex += Consts.SIZE_CHAR;
         return result;
     }
 
     @Override
     public int getInt() throws ChannelException
     {
-        ensureMinimumPrefetched(4);
+        ensureMinimumPrefetched(Consts.SIZE_INT);
         int result = _buf.getInt(_readIndex);
-        _readIndex += 4;
+        _readIndex += Consts.SIZE_INT;
         return result;
     }
 
