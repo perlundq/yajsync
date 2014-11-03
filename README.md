@@ -90,12 +90,14 @@ comment = this text will be printed on module listings, it is optional
 [Uploads]
 path = /path/to/Uploads/
 is_writable = true
+```
 
+Start the server:
+```
 $ java -Dumask=$(umask) -jar build/jar/yajsyncd.jar --port=14415 --config=yajsyncd.conf
 ```
 
 Recursively upload the directory called example to Uploads:
-
 ```
 java -Dumask=$(umask) -jar build/jar/yajsync.jar --port=14415 -r example localhost::Uploads
 ```
