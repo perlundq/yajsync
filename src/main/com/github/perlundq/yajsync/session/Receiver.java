@@ -63,7 +63,7 @@ import com.github.perlundq.yajsync.util.PathOps;
 import com.github.perlundq.yajsync.util.RuntimeInterruptException;
 import com.github.perlundq.yajsync.util.Util;
 
-public class Receiver implements MessageHandler
+public class Receiver implements RsyncTask,MessageHandler
 {
     @SuppressWarnings("serial")
     private class PathResolverException extends Exception {
@@ -114,69 +114,124 @@ public class Receiver implements MessageHandler
     private final RsyncInChannel _senderInChannel;
     private final Statistics _stats = new Statistics();
     private final TextDecoder _characterDecoder;
+    private final String _targetPathName;
+    private boolean _isSendFilterRules;
+    private boolean _isReceiveStatistics;
+    private boolean _isExitEarlyIfEmptyList;
     private boolean _isRecursive;
     private boolean _isListOnly;
     private boolean _isPreserveTimes;
     private boolean _isDeferredWrite;
+    private boolean _isInterruptible = true;
+    private boolean _isExitAfterEOF;
     private int _ioError;
     private PathResolver _pathResolver;
 
     public Receiver(Generator generator,
                     ReadableByteChannel in,
-                    Charset charset)
+                    Charset charset,
+                    String targetPathName)
     {
         _senderInChannel = new RsyncInChannel(in,
                                               this,
                                               INPUT_CHANNEL_BUF_SIZE);
         _characterDecoder = TextDecoder.newStrict(charset);
         _generator = generator;
+        _targetPathName = targetPathName;
     }
 
-    public void setIsRecursive(boolean isRecursive)
+    public static Receiver newServerInstance(Generator generator,
+                                             ReadableByteChannel in,
+                                             Charset charset,
+                                             String targetPathName)
+    {
+        return new Receiver(generator, in, charset, targetPathName).
+            setIsSendFilterRules(false).
+            setIsReceiveStatistics(false).
+            setIsExitEarlyIfEmptyList(false).
+            setIsListOnly(false);
+    }
+
+    public static Receiver newClientInstance(Generator generator,
+                                             ReadableByteChannel in,
+                                             Charset charset,
+                                             String targetPathName)
+    {
+        return new Receiver(generator, in, charset, targetPathName).
+            setIsSendFilterRules(true).
+            setIsReceiveStatistics(true).
+            setIsExitEarlyIfEmptyList(true).
+            setIsExitAfterEOF(true);
+    }
+
+    public Receiver setIsRecursive(boolean isRecursive)
     {
         _isRecursive = isRecursive;
+        return this;
     }
 
-    public boolean isRecursive()
-    {
-        return _isRecursive;
-    }
-
-    public void setIsListOnly(boolean isListOnly)
+    public Receiver setIsListOnly(boolean isListOnly)
     {
         _isListOnly = isListOnly;
+        return this;
     }
 
-    public boolean isListOnly()
-    {
-        return _isListOnly;
-    }
-
-    public void setIsPreserveTimes(boolean isPreserveTimes)
+    public Receiver setIsPreserveTimes(boolean isPreserveTimes)
     {
         _isPreserveTimes = isPreserveTimes;
+        return this;
     }
 
-    public boolean isPreserveTimes()
-    {
-        return _isPreserveTimes;
-    }
-
-    public void setIsDeferredWrite(boolean isDeferredWrite)
+    public Receiver setIsDeferredWrite(boolean isDeferredWrite)
     {
         _isDeferredWrite = isDeferredWrite;
+        return this;
     }
 
-    public boolean isDeferredWrite()
+    public Receiver setIsExitAfterEOF(boolean isExitAfterEOF)
     {
-        return _isDeferredWrite;
+        _isExitAfterEOF = isExitAfterEOF;
+        return this;
     }
 
-    public boolean receive(String targetPathName,
-                           boolean sendFilterRules,
-                           boolean receiveStatistics,
-                           boolean exitEarlyIfEmptyList)
-        throws RsyncException, InterruptedException
+    public Receiver setIsInterruptible(boolean isInterruptible)
+    {
+        _isInterruptible = isInterruptible;
+        return this;
+    }
+
+    public Receiver setIsSendFilterRules(boolean isSendFilterRules)
+    {
+        _isSendFilterRules = isSendFilterRules;
+        return this;
+    }
+
+    public Receiver setIsReceiveStatistics(boolean isReceiveStatistics)
+    {
+        _isReceiveStatistics = isReceiveStatistics;
+        return this;
+    }
+
+    public Receiver setIsExitEarlyIfEmptyList(boolean isExitEarlyIfEmptyList)
+    {
+        _isExitEarlyIfEmptyList = isExitEarlyIfEmptyList;
+        return this;
+    }
+
+    @Override
+    public boolean isInterruptible()
+    {
+        return _isInterruptible;
+    }
+
+    @Override
+    public void closeChannel() throws ChannelException
+    {
+        _senderInChannel.close();
+    }
+
+    @Override
+    public Boolean call() throws RsyncException, InterruptedException
     {
         try {
             if (_log.isLoggable(Level.FINE)) {
@@ -186,27 +241,30 @@ public class Receiver implements MessageHandler
                                         "isRecursive=%s, sendFilterRules=%s, " +
                                         "receiveStatistics=%s, " +
                                         "exitEarlyIfEmptyList=%s",
-                                        targetPathName, _isDeferredWrite,
+                                        _targetPathName, _isDeferredWrite,
                                         _isListOnly, _isPreserveTimes,
-                                        _isRecursive, sendFilterRules,
-                                        receiveStatistics,
-                                        exitEarlyIfEmptyList));
+                                        _isRecursive, _isSendFilterRules,
+                                        _isReceiveStatistics,
+                                        _isExitEarlyIfEmptyList));
             }
-            if (sendFilterRules) {
+            if (_isSendFilterRules) {
                 sendEmptyFilterRules();
             }
 
             List<FileInfoStub> stubs = new LinkedList<>();
             _ioError |= receiveFileMetaDataInto(stubs);
-            if (stubs.size() == 0 && exitEarlyIfEmptyList) {
+            if (stubs.size() == 0 && _isExitEarlyIfEmptyList) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("empty file list - exiting early");
                 }
                 // NOTE: we never _receive_ any statistics if initial file list is empty
+                if (_isExitAfterEOF) {
+                    readAllMessagesUntilEOF();
+                }
                 return _ioError == 0;
             }
 
-            Path targetPath = PathOps.get(targetPathName);                      // throws InvalidPathException
+            Path targetPath = PathOps.get(_targetPathName);                     // throws InvalidPathException
             _pathResolver = getPathResolver(targetPath, stubs);                 // throws PathResolverException
             Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
             _ioError |= extractFileMetadata(stubs, builder);
@@ -217,8 +275,8 @@ public class Receiver implements MessageHandler
             _generator.generateSegment(segment);
             receiveFiles(fileList, segment);
             _stats.setNumFiles(fileList.numFiles());
-            if (receiveStatistics) {
-                receiveStatistics(_stats);
+            if (_isReceiveStatistics) {
+                receiveStatistics();
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
                         "(local) Total file size: %d bytes, Total bytes sent:" +
@@ -233,14 +291,19 @@ public class Receiver implements MessageHandler
                 _log.fine(String.format("Receiver returned %d errors",
                                         _ioError));
             }
+            if (_isExitAfterEOF) {
+                readAllMessagesUntilEOF();
+            }
             return _ioError == 0;
         } catch (RuntimeInterruptException e) {
             throw new InterruptedException();
         } catch (InvalidPathException e) { // Paths.get
             throw new RsyncException(String.format(
-                "illegal target path name %s: %s", targetPathName, e));
+                "illegal target path name %s: %s", _targetPathName, e));
         } catch (PathResolverException e) { // getPathResolver
             throw new RsyncException(e);
+        } finally {
+            _generator.stop();
         }
     }
 
@@ -351,18 +414,18 @@ public class Receiver implements MessageHandler
         }
     }
 
-    private void receiveStatistics(Statistics stats) throws ChannelException
+    private void receiveStatistics() throws ChannelException
     {
         long totalWritten = receiveAndDecodeLong(3);
         long totalRead = receiveAndDecodeLong(3);
         long totalFileSize = receiveAndDecodeLong(3);
         long fileListBuildTime = receiveAndDecodeLong(3);
         long fileListTransferTime = receiveAndDecodeLong(3);
-        stats.setFileListBuildTime(fileListBuildTime);
-        stats.setFileListTransferTime(fileListTransferTime);
-        stats.setTotalRead(totalRead);
-        stats.setTotalFileSize(totalFileSize);
-        stats.setTotalWritten(totalWritten);
+        _stats.setFileListBuildTime(fileListBuildTime);
+        _stats.setFileListTransferTime(fileListTransferTime);
+        _stats.setTotalRead(totalRead);
+        _stats.setTotalFileSize(totalFileSize);
+        _stats.setTotalWritten(totalWritten);
     }
 
     private void sendEmptyFilterRules() throws InterruptedException

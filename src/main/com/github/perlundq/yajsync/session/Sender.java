@@ -59,7 +59,7 @@ import com.github.perlundq.yajsync.util.PathOps;
 import com.github.perlundq.yajsync.util.Rolling;
 import com.github.perlundq.yajsync.util.RuntimeInterruptException;
 
-public class Sender implements MessageHandler
+public class Sender implements RsyncTask,MessageHandler
 {
     private static final Logger _log =
         Logger.getLogger(Sender.class.getName());
@@ -74,9 +74,14 @@ public class Sender implements MessageHandler
     private final Iterable<Path> _sourceFiles;
     private final TextDecoder _characterDecoder;
     private final TextEncoder _characterEncoder;
+    private boolean _isReceiveFilterRules;
+    private boolean _isSendStatistics;
+    private boolean _isExitEarlyIfEmptyList;
     private boolean _isRecursive;
     private int _nextSegmentIndex;
     private Statistics _stats = new Statistics();
+    private boolean _isInterruptible = true;
+    private boolean _isExitAfterEOF = false;
 
     public Sender(ReadableByteChannel in,
                   WritableByteChannel out,
@@ -96,27 +101,90 @@ public class Sender implements MessageHandler
         _checksumSeed = checksumSeed;
     }
 
-    public void setIsRecursive(boolean isRecursive)
+    public static Sender newServerInstance(ReadableByteChannel in,
+                                           WritableByteChannel out,
+                                           Iterable<Path> sourceFiles,
+                                           Charset charset,
+                                           byte[] checksumSeed)
+    {
+        return new Sender(in, out, sourceFiles, charset, checksumSeed).
+            setIsReceiveFilterRules(true).
+            setIsSendStatistics(true).
+            setIsExitEarlyIfEmptyList(true).
+            setIsExitAfterEOF(false);
+    }
+
+    public static Sender newClientInstance(ReadableByteChannel in,
+                                           WritableByteChannel out,
+                                           Iterable<Path> sourceFiles,
+                                           Charset charset,
+                                           byte[] checksumSeed)
+    {
+        return new Sender(in, out, sourceFiles, charset, checksumSeed).
+            setIsReceiveFilterRules(false).
+            setIsSendStatistics(false).
+            setIsExitEarlyIfEmptyList(false).
+            setIsExitAfterEOF(true);
+    }
+
+    public Sender setIsRecursive(boolean isRecursive)
     {
         _isRecursive = isRecursive;
+        return this;
     }
 
-    public boolean isRecursive()
+    public Sender setIsExitAfterEOF(boolean isExitAfterEOF)
     {
-        return _isRecursive;
+        _isExitAfterEOF = isExitAfterEOF;
+        return this;
     }
 
-    public boolean send(boolean receiveFilterRules,
-                        boolean sendStatistics,
-                        boolean exitEarlyIfEmptyList)
-        throws ChannelException, InterruptedException
+    public Sender setIsInterruptible(boolean isInterruptible)
+    {
+        _isInterruptible = isInterruptible;
+        return this;
+    }
+
+    public Sender setIsReceiveFilterRules(boolean isReceiveFilterRules)
+    {
+        _isReceiveFilterRules = isReceiveFilterRules;
+        return this;
+    }
+
+    public Sender setIsSendStatistics(boolean isSendStatistics)
+    {
+        _isSendStatistics = isSendStatistics;
+        return this;
+    }
+
+    public Sender setIsExitEarlyIfEmptyList(boolean isExitEarlyIfEmptyList)
+    {
+        _isExitEarlyIfEmptyList = isExitEarlyIfEmptyList;
+        return this;
+    }
+
+    @Override
+    public boolean isInterruptible()
+    {
+        return _isInterruptible;
+    }
+
+
+    @Override
+    public void closeChannel() throws ChannelException
+    {
+        _duplexChannel.close();
+    }
+
+    @Override
+    public Boolean call() throws ChannelException, InterruptedException
     {
         Filelist fileList = new Filelist(_isRecursive);
         try {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("Sender.transfer:");
             }
-            if (receiveFilterRules) {
+            if (_isReceiveFilterRules) {
                 String rules = receiveFilterRules();
                 if (rules.length() > 0) {
                     throw new RsyncProtocolException(
@@ -152,11 +220,14 @@ public class Sender implements MessageHandler
             long segmentSize = _duplexChannel.numBytesWritten() - numBytesWritten;
             _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
 
-            if (initialSegment.isFinished() && exitEarlyIfEmptyList) {
+            if (initialSegment.isFinished() && _isExitEarlyIfEmptyList) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("empty file list - exiting early");
                 }
                 _duplexChannel.flush();
+                if (_isExitAfterEOF) {
+                    readAllMessagesUntilEOF();
+                }
                 return isInitialListOK;
             }
 
@@ -172,7 +243,7 @@ public class Sender implements MessageHandler
             _stats.setTotalRead(_duplexChannel.numBytesRead());
             _stats.setTotalWritten(_duplexChannel.numBytesWritten());
             _stats.setNumFiles(fileList.numFiles());
-            if (sendStatistics) {
+            if (_isSendStatistics) {
                 sendStatistics(_stats);
             }
 
@@ -180,6 +251,9 @@ public class Sender implements MessageHandler
             if (index != Filelist.DONE) {
                 throw new RsyncProtocolException(
                     String.format("Invalid packet at end of run (%d)", index));
+            }
+            if (_isExitAfterEOF) {
+                readAllMessagesUntilEOF();
             }
             return isInitialListOK && ioError == 0;
         } catch (RuntimeInterruptException e) {

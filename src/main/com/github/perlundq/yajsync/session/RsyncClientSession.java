@@ -19,7 +19,6 @@
  */
 package com.github.perlundq.yajsync.session;
 
-import java.io.IOException;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
@@ -27,23 +26,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletionService;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import com.github.perlundq.yajsync.channels.ChannelException;
 import com.github.perlundq.yajsync.session.ClientSessionConfig.AuthProvider;
 import com.github.perlundq.yajsync.text.Text;
 
 public class RsyncClientSession
 {
-    private static final Logger _log =
-        Logger.getLogger(RsyncClientSession.class.getName());
     private boolean _isDeferredWrite;
     private boolean _isModuleListing;
     private boolean _isPreserveTimes;
@@ -55,244 +44,45 @@ public class RsyncClientSession
 
     public RsyncClientSession() {}
 
-    private List<Callable<Boolean>>
-    createSenderTasks(final ReadableByteChannel in,
-                      final WritableByteChannel out,
-                      final Charset charset,
-                      final byte[] checksumSeed,
-                      final List<Path> srcPaths)
-    {
-        Callable<Boolean> callableSender = new Callable<Boolean>() {
-            @Override
-            public Boolean call()
-                throws ChannelException, InterruptedException
-            {
-                Sender sender = new Sender(in, out, srcPaths, charset,
-                                           checksumSeed);
-                sender.setIsRecursive(_isRecursiveTransfer);
-                try {
-                    boolean isOK = sender.send(false,  // receiveFilterRules,
-                                               false,  // sendStatistics,
-                                               false); // exitEarlyIfEmptyList);
-                    sender.readAllMessagesUntilEOF();
-                    return isOK;
-                } finally {
-                    _statistics = sender.statistics();
-                }
-            }
-        };
-        List<Callable<Boolean>> result = new LinkedList<>();
-        result.add(callableSender);
-        return result;
-    }
-
-    private List<Callable<Boolean>>
-    createReceiverTasks(final ReadableByteChannel in,
-                        final WritableByteChannel out,
-                        final Charset charset,
-                        final byte[] checksumSeed,
-                        final String destinationPathName)
-
-    {
-        final Generator generator = new Generator(out, charset, checksumSeed);
-
-        Callable<Boolean> callableGenerator = new Callable<Boolean>() {
-            @Override
-            public Boolean call()
-                throws ChannelException, InterruptedException
-            {
-                generator.setIsRecursive(_isRecursiveTransfer);
-                generator.setIsPreserveTimes(_isPreserveTimes);
-                generator.setIsAlwaysItemize(_verbosity > 1);
-                generator.setIsListOnly(_isModuleListing);
-                return generator.generate();
-            }
-        };
-        Callable<Boolean> callableReceiver = new Callable<Boolean>() {
-            @Override
-            public Boolean call() throws InterruptedException, RsyncException
-            {
-                Receiver receiver = new Receiver(generator, in, charset);
-                receiver.setIsRecursive(_isRecursiveTransfer);
-                receiver.setIsPreserveTimes(_isPreserveTimes);
-                receiver.setIsListOnly(_isModuleListing);
-                receiver.setIsDeferredWrite(_isDeferredWrite);
-                try {
-                    boolean isOK = receiver.receive(destinationPathName,
-                                                    true,  // sendFilterRules,
-                                                    true,  // receiveStatistics,
-                                                    true); // exitEarlyIfEmptyList);
-                    receiver.readAllMessagesUntilEOF();
-                    return isOK;
-                } finally {
-                    _statistics = receiver.statistics();
-                    generator.stop();
-                }
-            }
-        };
-        List<Callable<Boolean>> result = new LinkedList<>();
-        result.add(callableGenerator);
-        result.add(callableReceiver);
-        return result;
-    }
-
-    // TODO: rename?
-    public boolean startSession(ExecutorService executor,
-                                ReadableByteChannel in,
-                                WritableByteChannel out,
-                                List<String> srcArgs,
-                                String dstArg,
-                                AuthProvider authProvider,
-                                String moduleName,
-                                boolean isChannelsInterruptible)
-        throws RsyncException
-    {
-        List<Future<Boolean>> futures = new LinkedList<>();
-        try {
-            List<String> serverArgs = createServerArgs(srcArgs, dstArg);
-            ClientSessionConfig cfg =                                           // throws IllegalArgumentException if _charset is not supported
-                ClientSessionConfig.handshake(in,
-                                              out,
-                                              _charset,
-                                              _isRecursiveTransfer,
-                                              moduleName,
-                                              serverArgs,
-                                              authProvider);
-
-            if (cfg.status() == SessionStatus.ERROR) {
-                return false;
-            } else if (cfg.status() == SessionStatus.EXIT) {
-                return true;
-            }
-
-            List<Callable<Boolean>> tasks;
-            if (_isSender) {
-                List<Path> srcPaths = toListOfPaths(srcArgs);
-                tasks = createSenderTasks(in, out, _charset, cfg.checksumSeed(),
-                                          srcPaths);
-            } else {
-                tasks = createReceiverTasks(in, out, _charset,
-                                            cfg.checksumSeed(), dstArg);
-            }
-
-            CompletionService<Boolean> ecs =
-                new ExecutorCompletionService<>(executor);
-            for (Callable<Boolean> task : tasks) {
-                futures.add(ecs.submit(task));
-            }
-
-            boolean isOK = true;
-            for (int i = 0; i < tasks.size(); i++) {
-                isOK = isOK && ecs.take().get();
-            }
-
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("exit " + (isOK ? "OK" : "ERROR"));
-            }
-            return isOK;
-        } catch (Throwable t) {
-            if (!isChannelsInterruptible) {
-                try {
-                    try {
-                        in.close();
-                    } finally {
-                        out.close();
-                    }
-                } catch (IOException e) {
-                    t.addSuppressed(e);
-                }
-            }
-
-            Throwable cause;
-            if (t instanceof ExecutionException) {
-                cause = t.getCause();
-            } else {
-                cause = t;
-            }
-            if (cause instanceof InterruptedException) {
-                if (_log.isLoggable(Level.FINE)) {
-                    _log.fine("client session thread interrupted");
-                }
-                return false;
-            } else if (cause instanceof ChannelException) {
-                throw (ChannelException) cause;
-            } else if (cause instanceof RsyncException) {
-                throw (RsyncException) cause;
-            } else if (cause instanceof Error) {
-                throw (Error) cause;
-            } else {
-                throw (RuntimeException) cause;
-            }
-        } finally {
-            for (Future<Boolean> future : futures) {
-                future.cancel(true);
-            }
-        }
-    }
-
-    public void increaseVerbosity()
-    {
-        _verbosity++;
-    }
-
-    public int verbosity()
-    {
-        return _verbosity;
-    }
-
-    public void setIsPreserveTimes(boolean isPreservedTimes)
+    public RsyncClientSession setIsPreserveTimes(boolean isPreservedTimes)
     {
         _isPreserveTimes = isPreservedTimes;
+        return this;
     }
 
-    public boolean isPreserveTimes()
-    {
-        return _isPreserveTimes;
-    }
-
-    public void setCharset(Charset charset)
+    public RsyncClientSession setCharset(Charset charset)
     {
         _charset = charset;
+        return this;
     }
 
-    public Charset charset()
+    public RsyncClientSession setIsDeferredWrite(boolean isDeferredWrite)
     {
-        return _charset;
+        _isDeferredWrite = isDeferredWrite;
+        return this;
+    }
+
+    public RsyncClientSession setIsRecursiveTransfer(boolean isRecursiveTransfer)
+    {
+        _isRecursiveTransfer = isRecursiveTransfer;
+        return this;
+    }
+
+    public RsyncClientSession setIsModuleListing(boolean isModuleListing)
+    {
+        _isModuleListing = isModuleListing;
+        return this;
+    }
+
+    public RsyncClientSession setIsSender(boolean isSender)
+    {
+        _isSender = isSender;
+        return this;
     }
 
     public Statistics statistics()
     {
         return _statistics;
-    }
-
-    public void setIsDeferredWrite(boolean isDeferredWrite)
-    {
-        _isDeferredWrite = isDeferredWrite;
-    }
-
-    public boolean isDeferredWrite()
-    {
-        return _isDeferredWrite;
-    }
-
-    public void setIsRecursiveTransfer(boolean isRecursiveTransfer)
-    {
-        _isRecursiveTransfer = isRecursiveTransfer;
-    }
-
-    public boolean isRecursiveTransfer()
-    {
-        return _isRecursiveTransfer;
-    }
-
-    public void setIsModuleListing(boolean isModuleListing)
-    {
-        _isModuleListing = isModuleListing;
-    }
-
-    public void setIsSender(boolean isSender)
-    {
-        _isSender = isSender;
     }
 
     private List<String> createServerArgs(List<String> srcArgs, String dstArg)
@@ -346,5 +136,69 @@ public class RsyncClientSession
             result.add(Paths.get(pathName));
         }
         return result;
+    }
+
+    public boolean transfer(ExecutorService executor,
+                            ReadableByteChannel in,
+                            WritableByteChannel out,
+                            List<String> srcArgs,
+                            String dstArg,
+                            AuthProvider authProvider,
+                            String moduleName,
+                            boolean isChannelsInterruptible)
+        throws RsyncException, InterruptedException
+    {
+        List<String> serverArgs = createServerArgs(srcArgs, dstArg);
+        ClientSessionConfig cfg =                                               // throws IllegalArgumentException if _charset is not supported
+            ClientSessionConfig.handshake(in,
+                                          out,
+                                          _charset,
+                                          _isRecursiveTransfer,
+                                          moduleName,
+                                          serverArgs,
+                                          authProvider);
+
+        if (cfg.status() == SessionStatus.ERROR) {
+            return false;
+        } else if (cfg.status() == SessionStatus.EXIT) {
+            return true;
+        }
+
+        if (_isSender) {
+            List<Path> srcPaths = toListOfPaths(srcArgs);
+            Sender sender = Sender.newClientInstance(in,
+                                                     out,
+                                                     srcPaths,
+                                                     _charset,
+                                                     cfg.checksumSeed()).
+                setIsRecursive(_isRecursiveTransfer).
+                setIsInterruptible(isChannelsInterruptible);
+            boolean isOK = RsyncTaskExecutor.exec(executor, sender);
+            _statistics = sender.statistics();
+            return isOK;
+        } else {
+            Generator generator =
+                Generator.newClientInstance(out, cfg.charset(),
+                                            cfg.checksumSeed()).
+                    setIsRecursive(_isRecursiveTransfer).
+                    setIsPreserveTimes(_isPreserveTimes).
+                    setIsAlwaysItemize(_verbosity > 1).
+                    setIsListOnly(_isModuleListing).
+                    setIsInterruptible(isChannelsInterruptible);
+            Receiver receiver = new Receiver(generator, in, _charset, dstArg).
+                setIsSendFilterRules(true).
+                setIsReceiveStatistics(true).
+                setIsExitEarlyIfEmptyList(true).
+                setIsRecursive(_isRecursiveTransfer).
+                setIsPreserveTimes(_isPreserveTimes).
+                setIsListOnly(_isModuleListing).
+                setIsDeferredWrite(_isDeferredWrite).
+                setIsInterruptible(isChannelsInterruptible).
+                setIsExitAfterEOF(true);
+            boolean isOK = RsyncTaskExecutor.exec(executor, generator,
+                                                         receiver);
+            _statistics = receiver.statistics();
+            return isOK;
+        }
     }
 }

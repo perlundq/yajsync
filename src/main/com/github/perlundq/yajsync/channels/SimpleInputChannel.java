@@ -134,4 +134,13 @@ public class SimpleInputChannel implements Readable
             throw new ChannelException(e);
         }
     }
+
+    public void close() throws ChannelException
+    {
+        try {
+            _sourceChannel.close();
+        } catch (IOException e) {
+            throw new ChannelException(e);
+        }
+    }
 }

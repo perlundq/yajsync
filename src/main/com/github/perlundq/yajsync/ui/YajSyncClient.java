@@ -547,7 +547,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("connected to " + sock);
             }
-            return session.startSession(executor,
+            return session.transfer(executor,
                                         sock,           // in
                                         sock,           // out
                                         _srcArgs,
@@ -563,7 +563,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         } catch (IOException e) { // SocketChannel.{open,close}()
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe("Error: socket open/close error: " +
-                    e.getMessage());
+                            e.getMessage());
             }
         } catch (ChannelException e) {              // startSession
             if (_log.isLoggable(Level.SEVERE)) {
@@ -573,6 +573,10 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         } catch (RsyncException e) {
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe(e.getMessage());
+            }
+        } catch (InterruptedException e) {                                      // should not happen
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.log(Level.SEVERE, "", e);
             }
         } finally {
             _statistics = session.statistics();
@@ -611,6 +615,10 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         } catch (RsyncException e) {
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe(e.getMessage());
+            }
+        } catch (InterruptedException e) {                                      // should not happen
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.log(Level.SEVERE, "", e);
             }
         } finally {
             _statistics = localTransfer.statistics();

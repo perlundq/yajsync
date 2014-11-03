@@ -58,7 +58,7 @@ import com.github.perlundq.yajsync.util.Rolling;
 import com.github.perlundq.yajsync.util.RuntimeInterruptException;
 import com.github.perlundq.yajsync.util.Util;
 
-public class Generator
+public class Generator implements RsyncTask
 {
     private interface Job {
         void process() throws ChannelException;
@@ -86,6 +86,7 @@ public class Generator
     private Filelist _fileList;  // effectively final
     private int _returnStatus ;
     private boolean _isRunning = true;
+    private boolean _isInterruptible = true;
 
     static {
         try {
@@ -105,44 +106,60 @@ public class Generator
         _characterEncoder = TextEncoder.newStrict(charset);
     }
 
-    public void setIsRecursive(boolean isRecursive)
+    public static Generator newServerInstance(WritableByteChannel out,
+                                              Charset charset,
+                                              byte[] checksumSeed)
+    {
+        return new Generator(out, charset, checksumSeed).setIsListOnly(false);
+    }
+
+    public static Generator newClientInstance(WritableByteChannel out,
+                                              Charset charset,
+                                              byte[] checksumSeed)
+    {
+        return new Generator(out, charset, checksumSeed);
+    }
+
+    public Generator setIsRecursive(boolean isRecursive)
     {
         _isRecursive = isRecursive;
+        return this;
     }
 
-    public boolean isRecursive()
-    {
-        return _isRecursive;
-    }
-
-    public void setIsListOnly(boolean isListOnly)
+    public Generator setIsListOnly(boolean isListOnly)
     {
         _isListOnly = isListOnly;
+        return this;
     }
 
-    public boolean isListOnly()
-    {
-        return _isListOnly;
-    }
-
-    public void setIsPreserveTimes(boolean isPreserveTimes)
+    public Generator setIsPreserveTimes(boolean isPreserveTimes)
     {
         _isPreserveTimes = isPreserveTimes;
+        return this;
     }
 
-    public boolean isPreserveTimes()
-    {
-        return _isPreserveTimes;
-    }
-
-    public void setIsAlwaysItemize(boolean isAlwaysItemize)
+    public Generator setIsAlwaysItemize(boolean isAlwaysItemize)
     {
         _isAlwaysItemize = isAlwaysItemize;
+        return this;
     }
 
-    public boolean isAlwaysItemize()
+    public Generator setIsInterruptible(boolean isInterruptible)
     {
-        return _isAlwaysItemize;
+        _isInterruptible = isInterruptible;
+        return this;
+    }
+
+    @Override
+    public boolean isInterruptible()
+    {
+        return _isInterruptible;
+    }
+
+    @Override
+    public void closeChannel() throws ChannelException
+    {
+        _senderOutChannel.close();
     }
 
     /**
@@ -229,10 +246,10 @@ public class Generator
         }
     }
 
-    public boolean generate() throws ChannelException,InterruptedException
+    @Override
+    public Boolean call() throws ChannelException, InterruptedException
     {
         try {
-            //processJobQueueImmediate();
             processJobQueueBatched();
             return _returnStatus == 0;
         } catch (RuntimeInterruptException e) {

@@ -142,4 +142,17 @@ public class BufferedOutputChannel implements Bufferable
     {
         return _buffer.position();
     }
+
+    public void close() throws ChannelException
+    {
+        try {
+            flush();
+        } finally {
+            try {
+                _sinkChannel.close();
+            } catch (IOException e) {
+                throw new ChannelException(e);
+            }
+        }
+    }
 }

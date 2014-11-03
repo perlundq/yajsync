@@ -207,7 +207,7 @@ public class YajSyncServer
                     RsyncServerSession session = new RsyncServerSession();
                     session.setCharset(_charset);
                     session.setIsDeferredWrite(_isDeferredWrite);
-                    isOK = session.startSession(_executor,
+                    isOK = session.transfer(_executor,
                                                 sock,    // in
                                                 sock,    // out
                                                 modules,

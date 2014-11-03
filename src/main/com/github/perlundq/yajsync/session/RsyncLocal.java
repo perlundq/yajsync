@@ -22,24 +22,13 @@ import java.io.IOException;
 import java.nio.channels.Pipe;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import com.github.perlundq.yajsync.channels.ChannelException;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.util.BitOps;
 
 public class RsyncLocal
 {
-    private static final Logger _log =
-        Logger.getLogger(RsyncLocal.class.getName());
     private int _verbosity;
     private boolean _isRecursiveTransfer;
     private boolean _isPreserveTimes;
@@ -74,133 +63,52 @@ public class RsyncLocal
         _isDeferredWrite = isDeferredWrite;
     }
 
+    private Pipe[] pipePair()
+    {
+        try {
+            Pipe[] pair = { Pipe.open(), Pipe.open() };
+            return pair;
+        } catch (IOException e){
+            throw new RuntimeException(e);
+        }
+    }
+
     public boolean transfer(ExecutorService executor,
                             Iterable<Path> srcPaths,
-                            final String destinationPathName)
-        throws RsyncException
+                            String destinationPathName)
+        throws RsyncException, InterruptedException
     {
-        List<Future<Boolean>> futures = new LinkedList<>();
-        try {
-            byte[] checksumSeed =
-                BitOps.toLittleEndianBuf((int) System.currentTimeMillis());
-            final Pipe toSender = Pipe.open();                                  // throws IOException
-            final Pipe toReceiver = Pipe.open();                                // throws IOException
-            final Sender sender = new Sender(toSender.source(),
-                                             toReceiver.sink(),
-                                             srcPaths,
-                                             _charset,
-                                             checksumSeed);
-            sender.setIsRecursive(_isRecursiveTransfer);
-            final Generator generator = new Generator(toSender.sink(), _charset,
-                                                      checksumSeed);
-            generator.setIsRecursive(_isRecursiveTransfer);
-            generator.setIsPreserveTimes(_isPreserveTimes);
-            generator.setIsAlwaysItemize(_verbosity > 1);
-            generator.setIsListOnly(false);
-            final Receiver receiver = new Receiver(generator,
-                                                   toReceiver.source(),
-                                                   _charset);
-            receiver.setIsRecursive(_isRecursiveTransfer);
-            receiver.setIsPreserveTimes(_isPreserveTimes);
-            receiver.setIsListOnly(false);
-            receiver.setIsDeferredWrite(_isDeferredWrite);
+        byte[] checksumSeed =
+            BitOps.toLittleEndianBuf((int) System.currentTimeMillis());
+        Pipe[] pipePair = pipePair();
+        Pipe toSender = pipePair[0];
+        Pipe toReceiver = pipePair[1];
 
-            final boolean transferFilterRules = false;
-            final boolean transferStatistics = false;
-            final boolean exitEarlyIfEmptyList = true;
+        Sender sender = new Sender(toSender.source(),
+                                   toReceiver.sink(),
+                                   srcPaths,
+                                   _charset,
+                                   checksumSeed).
+            setIsExitEarlyIfEmptyList(true).
+            setIsRecursive(_isRecursiveTransfer);
+        Generator generator = new Generator(toSender.sink(), _charset,
+                                            checksumSeed).
+            setIsRecursive(_isRecursiveTransfer).
+            setIsPreserveTimes(_isPreserveTimes).
+            setIsAlwaysItemize(_verbosity > 1);
+        Receiver receiver = new Receiver(generator,
+                                         toReceiver.source(),
+                                         _charset,
+                                         destinationPathName).
+            setIsExitEarlyIfEmptyList(true).
+            setIsRecursive(_isRecursiveTransfer).
+            setIsPreserveTimes(_isPreserveTimes).
+            setIsDeferredWrite(_isDeferredWrite);
 
-            ExecutorCompletionService<Boolean> ecs =
-                new ExecutorCompletionService<>(executor);
-            futures.add(ecs.submit(new Callable<Boolean>() {
-                @Override
-                public Boolean call()
-                    throws ChannelException, InterruptedException
-                {
-                    return generator.generate();
-                }
-            }));
-            futures.add(ecs.submit(new Callable<Boolean>() {
-                @Override
-                public Boolean call() throws ChannelException,
-                                             InterruptedException,
-                                             RsyncException {
-                    try {
-                        return receiver.receive(destinationPathName,
-                                                transferFilterRules,
-                                                transferStatistics,
-                                                exitEarlyIfEmptyList);
-                    } finally {
-                        generator.stop();
-                    }
-                }
-            }));
-            // NOTE: also updates _statistics
-            futures.add(ecs.submit(new Callable<Boolean>() {
-                @Override
-                public Boolean call()
-                    throws ChannelException, InterruptedException
-                {
-                    try {
-                        return sender.send(transferFilterRules,
-                                           transferStatistics,
-                                           exitEarlyIfEmptyList);
-                    } finally {
-                        _statistics = sender.statistics();
-                    }
-                }
-            }));
-
-            boolean isFirstOK = ecs.take().get();
-            boolean isSecondOK = ecs.take().get();
-            boolean isThirdOK = ecs.take().get();
-            return isFirstOK && isSecondOK && isThirdOK;
-            /**
-             * ArgumentParsingError      - not propagated
-             * ChannelEOFException       - connection closed prematurely
-             * ChannelException          - connection failure
-             * ChunkOverflow             - not propagated
-             * EOFException              - not propagated
-             * FileViewNotFound          - not propagated
-             * FileViewOpenFailed        - not propagated
-             * FileViewReadError         - not propagated
-             * IllegalArgumentException  - BUG
-             * IllegalStateException     - BUG
-             * InvalidPathException      - not propagated
-             * OverflowException         - not propagated
-             * RsyncProtocolException    - peer does not follow protocol
-             * RsyncSecurityException    - peer does not follow protocol, has security implications
-             * RuntimeException          - BUG
-             * RuntimeInterruptException - not propagated
-             * TextConversionException
-             */
-        } catch (Throwable t) {
-            Throwable cause;
-            if (t instanceof ExecutionException) {
-                cause = t.getCause();
-            } else {
-                cause = t;
-            }
-            if (cause instanceof InterruptedException) {
-                if (_log.isLoggable(Level.FINE)) {
-                    _log.fine("client session thread interrupted");
-                }
-                return false;
-            } else if (cause instanceof ChannelException) {
-                throw (ChannelException) cause;
-            } else if (cause instanceof RsyncException) {
-                throw (RsyncException) cause;
-            } else if (cause instanceof IOException) {
-                throw new RuntimeException(cause);                              // Pipe.open
-            } else if (cause instanceof Error) {
-                throw (Error) cause;
-            } else {
-                throw (RuntimeException) cause;
-            }
-        } finally {
-            for (Future<Boolean> future : futures) {
-                future.cancel(true);
-            }
-        }
+        boolean isOK = RsyncTaskExecutor.exec(executor, sender,
+                                                     generator, receiver);
+        _statistics = receiver.statistics();
+        return isOK;
     }
 
     public Statistics statistics()

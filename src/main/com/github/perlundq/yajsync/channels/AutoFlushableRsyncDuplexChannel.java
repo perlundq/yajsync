@@ -74,4 +74,13 @@ public class AutoFlushableRsyncDuplexChannel extends AutoFlushableDuplexChannel
     {
         return _outChannel.numBytesWritten();
     }
+
+    public void close() throws ChannelException
+    {
+        try {
+            _inChannel.close();
+        } finally {
+            _outChannel.close();
+        }
+    }
 }
