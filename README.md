@@ -61,24 +61,24 @@ called Uploads:
 ```
 $ cat yajsyncd.conf
 
-# This line and all text after a # is a comment. Text within square
+# This line and all text after a `#' is a comment. Text within square
 # brackets define the name of a new module. A module definition may be
 # followed by any number of predefined parameter value statements on
 # the form key = value. The current available module parameters are:
-
 #
-# path        an existing path to the module (mandatory)
-# comment text that will be used by the client in module listings
-              (optional)
-# is_readable a boolean (true or false) indicating whether files may
-#             be read below this module (optional, default is true)
-# is_writable a boolean (true or false) indicating whether files may
-#             be written below this module (optional, default is false)
+#    path          An existing path to the module (mandatory).
+#    comment       Text that will be shown to the client in module listings
+#                  (optional).
+#    is_readable   A boolean (true or false) indicating whether files
+#                  may be read below this module (optional, default is
+#                  true).
+#    is_writable   A boolean (true or false) indicating whether files
+#                  may be written below this module (optional, default
+#                  is false).
 
-
-# Downloads: path is the only mandatory module parameter, this one
-# also provides a comment. All modules are implicitly readable and not
-# writable:
+# This is a module definition for a module called Downloads. path is
+# the only mandatory module parameter. This one also provides a
+# comment. All modules are implicitly readable but not writable:
 [Downloads]
 path = /path/to/Downloads/
 comment = this text will be printed on module listings, it is optional
@@ -104,7 +104,7 @@ java -Dumask=$(umask) -jar build/jar/yajsync.jar --port=14415 -r example localho
 
 The same thing using the alternative syntax:
 ```
-java -Dumask=$(umask) -jar build/jar/yajsync.jar-r example rsync://localhost:14415/Uploads
+java -Dumask=$(umask) -jar build/jar/yajsync.jar -r example rsync://localhost:14415/Uploads
 ```
 
 And finally the same thing using the original rsync client:
