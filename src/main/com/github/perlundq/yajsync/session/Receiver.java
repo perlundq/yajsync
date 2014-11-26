@@ -469,20 +469,17 @@ public class Receiver implements RsyncTask,MessageHandler
 
     private void printMessage(Message message)
     {
+        assert message.isText();
         try {
-            ByteBuffer payload = message.payload();
-            String text = _characterDecoder.decode(payload);                    // throws TextConversionException
             MessageCode msgType = message.header().messageType();
-
-            if (msgType.isUrgent() && _log.isLoggable(Level.WARNING)) {
-                _log.warning(String.format("<SENDER> %s: %s",
-                                           msgType, Text.stripLast(text)));
-            } else if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format("<SENDER> %s: %s",
-                                        msgType, Text.stripLast(text)));
-            }
             if (msgType.equals(MessageCode.ERROR_XFER)) {
                 _ioError |= IoError.TRANSFER;                        // this is not what native does though - it stores it in a separate variable called got_xfer_error
+            }
+            if (_log.isLoggable(message.logLevelOrNull())) {
+                String text = _characterDecoder.decode(message.payload());      // throws TextConversionException
+                _log.log(message.logLevelOrNull(),
+                         String.format("<SENDER> %s: %s",
+                                       msgType, Text.stripLast(text)));
             }
         } catch (TextConversionException e) {
             if (_log.isLoggable(Level.SEVERE)) {

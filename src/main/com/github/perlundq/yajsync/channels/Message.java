@@ -21,6 +21,7 @@
 package com.github.perlundq.yajsync.channels;
 
 import java.nio.ByteBuffer;
+import java.util.logging.Level;
 
 public class Message
 {
@@ -84,5 +85,37 @@ public class Message
     public ByteBuffer payload()
     {
         return _payload;
+    }
+
+    public boolean isText()
+    {
+        switch (_header.messageType()) {
+        case LOG:
+        case INFO:
+        case WARNING:
+        case ERROR_XFER:
+        case ERROR:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    public Level logLevelOrNull()
+    {
+        assert isText();
+        switch (_header.messageType()) {
+        case LOG:
+            return Level.FINE;
+        case INFO:
+            return Level.INFO;
+        case WARNING:
+            return Level.WARNING;
+        case ERROR_XFER: // fall through
+        case ERROR:
+            return Level.SEVERE;
+        default:
+            return null;
+        }
     }
 }
