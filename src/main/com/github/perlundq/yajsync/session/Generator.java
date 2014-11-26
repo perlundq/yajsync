@@ -325,7 +325,7 @@ public class Generator implements RsyncTask
     {
         final ByteBuffer payload =
             ByteBuffer.wrap(_characterEncoder.encode(text));
-        final Message message = new Message(MessageCode.ERROR_XFER, payload);
+        final Message message = new Message(code, payload);
 
         Job j = new Job() {
             @Override
