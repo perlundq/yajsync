@@ -453,7 +453,6 @@ public class Receiver implements RsyncTask,MessageHandler
             int index = message.payload().getInt();
             handleMessageNoSend(index);
             break;
-        case DATA:
         case INFO:
         case ERROR:
         case ERROR_XFER:
