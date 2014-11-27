@@ -49,6 +49,7 @@ public final class Environment
     public static final boolean IS_PATH_SEPARATOR_BACK_SLASH = PATH_SEPARATOR.equals(Text.BACK_SLASH);
     public static final boolean IS_RUNNING_WINDOWS = isRunningWindows();
 
+    public static final boolean IS_UNIX_FS = FileSystems.getDefault().supportedFileAttributeViews().contains("unix");
     public static final boolean IS_POSIX_FS = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
 
     private Environment() {}

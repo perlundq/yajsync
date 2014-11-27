@@ -25,8 +25,10 @@ import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -75,7 +77,15 @@ public class RsyncFileAttributes
 
     public static RsyncFileAttributes stat(Path path) throws IOException
     {
-        if (Environment.IS_POSIX_FS) {
+        if (Environment.IS_UNIX_FS) {
+            Map<String, Object> attrs =
+                Files.readAttributes(path, "unix:lastModifiedTime,mode,size",
+                                     LinkOption.NOFOLLOW_LINKS);
+            long mtime = ((FileTime) attrs.get("lastModifiedTime")).to(TimeUnit.SECONDS);
+            int mode = (int) attrs.get("mode");
+            long size = (long) attrs.get("size");
+            return new RsyncFileAttributes(mode, size, mtime);
+        } else if (Environment.IS_POSIX_FS) {
             PosixFileAttributes attrs =
                 Files.readAttributes(path, PosixFileAttributes.class,
                                      LinkOption.NOFOLLOW_LINKS);
