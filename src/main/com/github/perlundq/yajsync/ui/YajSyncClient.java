@@ -367,7 +367,10 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
 
         options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                               "tls", "",
-                                              "tunnel all data over TLS/SSL",
+                                              String.format("tunnel all data " +
+                                                            "over TLS/SSL " +
+                                                            "(default %s)",
+                                                            _isTLS),
             new Option.Handler() {
             @Override public void handle(Option option) {
                 _isTLS = true;
