@@ -83,6 +83,8 @@ public class Sender implements RsyncTask,MessageHandler
     private boolean _isInterruptible = true;
     private boolean _isExitAfterEOF = false;
 
+    private int _ioError;
+
     public Sender(ReadableByteChannel in,
                   WritableByteChannel out,
                   Iterable<Path> sourceFiles,
@@ -255,7 +257,7 @@ public class Sender implements RsyncTask,MessageHandler
             if (_isExitAfterEOF) {
                 readAllMessagesUntilEOF();
             }
-            return isInitialListOK && ioError == 0;
+            return isInitialListOK && (ioError | _ioError) == 0;
         } catch (RuntimeInterruptException e) {
             throw new InterruptedException();
         } finally {
@@ -266,12 +268,55 @@ public class Sender implements RsyncTask,MessageHandler
         }
     }
 
+    /**
+     * @throws RsyncProtocolException if peer sends a message we cannot decode
+     */
     @Override
     public void handleMessage(Message message)
     {
-        throw new RuntimeException(String.format(
-            "TODO: not implemented: Sender.handleMessage(%s)",
-            message.toString()));
+        switch (message.header().messageType()) {
+        case IO_ERROR:
+            _ioError |= message.payload().getInt();
+            break;
+        case INFO:
+        case ERROR:
+        case ERROR_XFER:
+        case WARNING:
+        case LOG:
+            printMessage(message);                                              // throws TextConversionException
+            break;
+        default:
+            throw new RuntimeException(
+                "TODO: (not yet implemented) missing case statement for " +
+                message);
+        }
+    }
+
+    /**
+     * @throws RsyncProtocolException if peer sends a message we cannot decode
+     */
+    private void printMessage(Message message)
+    {
+        assert message.isText();
+        try {
+            MessageCode msgType = message.header().messageType();
+            if (msgType.equals(MessageCode.ERROR_XFER)) {
+                _ioError |= IoError.TRANSFER;
+            }
+            if (_log.isLoggable(message.logLevelOrNull())) {
+                String text = _characterDecoder.decode(message.payload());      // throws TextConversionException
+                _log.log(message.logLevelOrNull(),
+                         String.format("<RECEIVER> %s: %s",                     // Receiver here means the opposite of Sender, not the process which actually would be Generator...
+                                       msgType, Text.stripLast(text)));
+            }
+        } catch (TextConversionException e) {
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.severe(String.format(
+                    "Peer sent a message but we failed to convert all " +
+                    "characters in message. %s (%s)", e, message.toString()));
+            }
+            throw new RsyncProtocolException(e);
+        }
     }
 
     public Statistics statistics()
