@@ -52,7 +52,7 @@ public final class RsyncTaskExecutor
         for (int i = 0; i < futures.size(); i++) {
             try {
                 if (_log.isLoggable(Level.FINER)) {
-                    _log.finer(String.format("waiting for result from task" +
+                    _log.finer(String.format("waiting for result from task " +
                                              "%d/%d", i + 1, futures.size()));
                 }
                 boolean isThreadOK = ecs.take().get();                          // take throws InterruptedException, get throws CancellationException
