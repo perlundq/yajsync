@@ -364,7 +364,8 @@ public class Sender implements RsyncTask,MessageHandler
                 char iFlags = _duplexChannel.getChar();
                 if (!Item.isValidItem(iFlags)) {
                     throw new IllegalStateException(String.format(
-                        "got flags %d - not supported"));
+                        "got flags %s - not supported",
+                        Integer.toBinaryString((int) iFlags)));
                 }
                 if ((iFlags & Item.TRANSFER) == 0) {
                     if (segment == null ||
