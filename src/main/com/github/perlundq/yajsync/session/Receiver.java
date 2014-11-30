@@ -27,6 +27,7 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -120,6 +121,7 @@ public class Receiver implements RsyncTask,MessageHandler
     private boolean _isExitEarlyIfEmptyList;
     private boolean _isRecursive;
     private boolean _isListOnly;
+    private boolean _isPreservePermissions;
     private boolean _isPreserveTimes;
     private boolean _isDeferredWrite;
     private boolean _isInterruptible = true;
@@ -173,6 +175,12 @@ public class Receiver implements RsyncTask,MessageHandler
     public Receiver setIsListOnly(boolean isListOnly)
     {
         _isListOnly = isListOnly;
+        return this;
+    }
+
+    public Receiver setIsPreservePermissions(boolean isPreservePermissions)
+    {
+        _isPreservePermissions = isPreservePermissions;
         return this;
     }
 
@@ -744,6 +752,32 @@ public class Receiver implements RsyncTask,MessageHandler
         }
     }
 
+    private void updateAttrsIfDiffer(Path path, RsyncFileAttributes targetAttrs)
+        throws IOException
+    {
+        RsyncFileAttributes curAttrs = RsyncFileAttributes.stat(path);
+
+        if (_isPreservePermissions && curAttrs.mode() != targetAttrs.mode()) {
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(String.format(
+                    "updating file permissions %o -> %o on %s",
+                    curAttrs.mode(), targetAttrs.mode(), path));
+            }
+            FileOps.setFileMode(path, targetAttrs.mode(),
+                                LinkOption.NOFOLLOW_LINKS);
+        }
+        if (_isPreserveTimes && curAttrs.lastModifiedTime() != targetAttrs.lastModifiedTime()) {
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(String.format(
+                    "updating mtime %d -> %d on %s",
+                    curAttrs.lastModifiedTime(),
+                    targetAttrs.lastModifiedTime(), path));
+            }
+            FileOps.setLastModifiedTime(path, targetAttrs.lastModifiedTime(),
+                                        LinkOption.NOFOLLOW_LINKS);
+        }
+    }
+
     private void matchData(Filelist.Segment segment, int index,
                            FileInfo fileInfo, Checksum.Header checksumHeader,
                            Path tempFile)
@@ -756,26 +790,8 @@ public class Receiver implements RsyncTask,MessageHandler
                                                       md);
         if (isRemoteAndLocalFileIdentical(resultFile, md, fileInfo)) {
             try {
-                RsyncFileAttributes attrs = RsyncFileAttributes.stat(resultFile);
-                if (attrs.mode() != fileInfo.attrs().mode()) {
-                    if (_log.isLoggable(Level.FINE)) {
-                        _log.fine(String.format(
-                            "updating file permissions %o -> %o on %s",
-                            attrs.mode(), fileInfo.attrs().mode(), resultFile));
-                    }
-                    Set<PosixFilePermission> perms = PosixFilePermissions.fromString(Text.stripFirst(FileOps.modeToString(fileInfo.attrs().mode())));
-                    Files.setPosixFilePermissions(resultFile, perms);
-                }
-                if (_isPreserveTimes && attrs.lastModifiedTime() != fileInfo.attrs().lastModifiedTime()) {
-                    if (_log.isLoggable(Level.FINE)) {
-                        _log.fine(String.format(
-                            "updating mtime %d -> %d on %s",
-                            attrs.lastModifiedTime(),
-                            fileInfo.attrs().lastModifiedTime(), resultFile));
-                    }
-                    Files.setLastModifiedTime(resultFile,
-                                              FileTime.from(fileInfo.attrs().lastModifiedTime(),
-                                                            TimeUnit.SECONDS));
+                if (_isPreservePermissions || _isPreserveTimes) {
+                    updateAttrsIfDiffer(resultFile, fileInfo.attrs());
                 }
                 if (!_isDeferredWrite || !resultFile.equals(fileInfo.path())) {
                     if (_log.isLoggable(Level.FINE)) {

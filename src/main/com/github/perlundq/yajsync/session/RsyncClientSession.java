@@ -41,8 +41,15 @@ public class RsyncClientSession
     private Charset _charset = Charset.forName(Text.UTF8_NAME);
     private int _verbosity;
     private Statistics _statistics = new Statistics();
+    private boolean _isPreservePermissions;
 
     public RsyncClientSession() {}
+
+    public RsyncClientSession setIsPreservePermissions(boolean isPreservedPermissions)
+    {
+        _isPreservePermissions = isPreservedPermissions;
+        return this;
+    }
 
     public RsyncClientSession setIsPreserveTimes(boolean isPreservedTimes)
     {
@@ -100,6 +107,9 @@ public class RsyncClientSession
         }
         if (_isModuleListing) {
 //            sb.append("d");        // FIXME: BUG: is this really correct
+        }
+        if (_isPreservePermissions) {
+            sb.append("p");
         }
         if (_isPreserveTimes) {
             sb.append("t");
@@ -181,6 +191,7 @@ public class RsyncClientSession
                 Generator.newClientInstance(out, cfg.charset(),
                                             cfg.checksumSeed()).
                     setIsRecursive(_isRecursiveTransfer).
+                    setIsPreservePermissions(_isPreservePermissions).
                     setIsPreserveTimes(_isPreserveTimes).
                     setIsAlwaysItemize(_verbosity > 1).
                     setIsListOnly(_isModuleListing).
@@ -190,6 +201,7 @@ public class RsyncClientSession
                 setIsReceiveStatistics(true).
                 setIsExitEarlyIfEmptyList(true).
                 setIsRecursive(_isRecursiveTransfer).
+                setIsPreservePermissions(_isPreservePermissions).
                 setIsPreserveTimes(_isPreserveTimes).
                 setIsListOnly(_isModuleListing).
                 setIsDeferredWrite(_isDeferredWrite).

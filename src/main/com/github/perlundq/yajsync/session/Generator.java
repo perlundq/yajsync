@@ -25,11 +25,14 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
-import java.util.Collections;
+import java.util.ArrayDeque;
 import java.util.Date;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -73,7 +76,7 @@ public class Generator implements RsyncTask
     private final byte[] _checksumSeed;
 
     private final LinkedBlockingQueue<Job> _jobs = new LinkedBlockingQueue<>();
-    private final List<FileInfo> _filesWithWrongAttributes = new LinkedList<>();
+    private Deque<Runnable> _deferredFileAttrUpdates = new ArrayDeque<>();
     private final TextEncoder _characterEncoder;
     private final TextDecoder _characterDecoder;
     private final SimpleDateFormat _compatibleTimeFormatter =
@@ -81,6 +84,7 @@ public class Generator implements RsyncTask
     private final List<Filelist.Segment> _generated = new LinkedList<>();
     private boolean _isAlwaysItemize;
     private boolean _isRecursive;
+    private boolean _isPreservePermissions;
     private boolean _isPreserveTimes;
     private boolean _isListOnly;
     private Filelist _fileList;  // effectively final
@@ -129,6 +133,12 @@ public class Generator implements RsyncTask
     public Generator setIsListOnly(boolean isListOnly)
     {
         _isListOnly = isListOnly;
+        return this;
+    }
+
+    public Generator setIsPreservePermissions(boolean isPreservePermissions)
+    {
+        _isPreservePermissions = isPreservePermissions;
         return this;
     }
 
@@ -289,7 +299,9 @@ public class Generator implements RsyncTask
         Job j = new Job() {
             @Override
             public void process() throws ChannelException {
-                applyCorrectAttributes();
+                for (Runnable r : _deferredFileAttrUpdates) {
+                    r.run();
+                }
                 _isRunning = false;
             }
             @Override
@@ -433,10 +445,8 @@ public class Generator implements RsyncTask
         RsyncFileAttributes attrs = RsyncFileAttributes.statOrNull(dir.path());
         if (attrs == null) {
             Files.createDirectories(dir.path());
-            gotDirtyAttribute(dir);
-        } else if (attrs.lastModifiedTime() != dir.attrs().lastModifiedTime()) { // FIXME: generalize generator dirty attribute testing
-            gotDirtyAttribute(dir);
         }
+        deferUpdateAttrsIfDiffer(dir.path(), attrs, dir.attrs());
     }
 
     private int sendChecksumForSegmentFiles(Filelist.Segment segment)
@@ -624,12 +634,6 @@ public class Generator implements RsyncTask
         return itemizeFile(index, fileInfo, existingAttrs, digestLength);
     }
 
-    private static boolean isTimeEquals(RsyncFileAttributes left,
-                                        RsyncFileAttributes right)
-    {
-        return left.lastModifiedTime() == right.lastModifiedTime();
-    }
-
     private void sendChecksumHeader(Checksum.Header header)
         throws ChannelException
     {
@@ -660,11 +664,11 @@ public class Generator implements RsyncTask
 
     private void sendItemizeAndChecksums(int index,
                                          FileInfo fileInfo,
-                                         RsyncFileAttributes existingAttrs,
+                                         RsyncFileAttributes curAttrs,
                                          int minDigestLength)
         throws ChannelException
     {
-        long currentSize = existingAttrs.size();
+        long currentSize = curAttrs.size();
         int blockLength = getBlockLengthFor(currentSize);
 //        int blockLength = getCompatibleBlockLengthFor(currentSize);
         int windowLength = blockLength;
@@ -687,7 +691,7 @@ public class Generator implements RsyncTask
                                         fileInfo, index, header));
             }
 
-            sendItemizeInfo(index, fileInfo, existingAttrs, Item.TRANSFER);
+            sendItemizeInfo(index, curAttrs, fileInfo.attrs(), Item.TRANSFER);
             sendChecksumHeader(header);
 
             MessageDigest md = MD5.newInstance();
@@ -709,7 +713,7 @@ public class Generator implements RsyncTask
                     "(Generator) received I/O error during checksum " +
                     "generation (%s)", e.getMessage()));
             }
-            sendItemizeInfo(index, fileInfo, null, Item.TRANSFER);
+            sendItemizeInfo(index, null, fileInfo.attrs(), Item.TRANSFER);
             sendChecksumHeader(ZERO_SUM);
         } catch (FileViewReadError e) { // from FileView.close() if there were any I/O errors during file read
             if (_log.isLoggable(Level.WARNING)) {
@@ -720,61 +724,112 @@ public class Generator implements RsyncTask
         }
     }
 
+    private void updateAttrsIfDiffer(Path path, RsyncFileAttributes curAttrs,
+                                     RsyncFileAttributes targetAttrs)
+        throws IOException
+    {
+        if (_isPreservePermissions && (curAttrs == null ||
+                                       curAttrs.mode() != targetAttrs.mode())) {
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(String.format(
+                    "(Generator) updating file permissions %o -> %o on %s",
+                    curAttrs == null ? 0 : curAttrs.mode(),
+                    targetAttrs.mode(), path));
+            }
+            FileOps.setFileMode(path, targetAttrs.mode(),
+                                LinkOption.NOFOLLOW_LINKS);
+        }
+        if (_isPreserveTimes &&
+            (curAttrs == null ||
+             curAttrs.lastModifiedTime() != targetAttrs.lastModifiedTime()))
+        {
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(String.format(
+                    "(Generator) updating mtime %d -> %d on %s",
+                    curAttrs == null ? 0 : curAttrs.lastModifiedTime(),
+                    targetAttrs.lastModifiedTime(), path));
+            }
+            FileOps.setLastModifiedTime(path, targetAttrs.lastModifiedTime(),
+                                        LinkOption.NOFOLLOW_LINKS);
+        }
+    }
+
+    private void deferUpdateAttrsIfDiffer(final Path path,
+                                          final RsyncFileAttributes curAttrs,
+                                          final RsyncFileAttributes targetAttrs)
+        throws IOException
+    {
+        Runnable j = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    updateAttrsIfDiffer(path, curAttrs, targetAttrs);
+                } catch (IOException e) {
+                    if (_log.isLoggable(Level.WARNING)) {
+                        _log.warning(String.format(
+                            "(Generator) received I/O error while applying " +
+                            "attributes on %s: %s", path, e.getMessage()));
+                    }
+                    _returnStatus++;
+                }
+            }
+        };
+        _deferredFileAttrUpdates.addFirst(j);
+    }
+
     private boolean itemizeFile(int index,
                                 FileInfo fileInfo,
-                                RsyncFileAttributes existingAttrs,
+                                RsyncFileAttributes curAttrs,
                                 int digestLength)
         throws ChannelException
     {
         // NOTE: native opens the file first though even if its file size is zero
-        if (isDataModified(fileInfo.attrs(), existingAttrs)) {
-            if (existingAttrs == null) {
-                sendItemizeInfo(index, fileInfo, existingAttrs, Item.TRANSFER);
+        if (isDataModified(fileInfo.attrs(), curAttrs)) {
+            if (curAttrs == null) {
+                sendItemizeInfo(index, curAttrs, fileInfo.attrs(),
+                                Item.TRANSFER);
                 sendChecksumHeader(ZERO_SUM);
             } else {
-                sendItemizeAndChecksums(index, fileInfo, existingAttrs,
+                sendItemizeAndChecksums(index, fileInfo, curAttrs,
                                         digestLength);
             }
             return true;
         }
 
         if (_isAlwaysItemize) {
-            sendItemizeInfo(index, fileInfo, existingAttrs, Item.NO_CHANGE);
+            sendItemizeInfo(index, curAttrs, fileInfo.attrs(), Item.NO_CHANGE);
         }
-        // FIXME: only set the attributes that we are interested in preserving
-        // FIXME: compare only settable attributes
-        if (!fileInfo.attrs().isSettableAttributesEquals(existingAttrs)) {
-            try {
-                FileOps.setFileAttributes(fileInfo.path(), fileInfo.attrs());
-            } catch (IOException e) {
-                if (_log.isLoggable(Level.WARNING)) {
-                    _log.warning(String.format(
-                        "(Generator) received I/O error while applying " +
-                        "attributes on %s: %s",
-                        fileInfo.path(), e.getMessage()));
-                }
-                _returnStatus++;
+
+        try {
+            updateAttrsIfDiffer(fileInfo.path(), curAttrs, fileInfo.attrs());
+        } catch (IOException e) {
+            if (_log.isLoggable(Level.WARNING)) {
+                _log.warning(String.format(
+                    "(Generator) received I/O error while applying " +
+                    "attributes on %s: %s", fileInfo.path(), e.getMessage()));
             }
+            _returnStatus++;
         }
         return false;
     }
 
-    private char itemizeFlags(FileInfo fileInfo,
-                              RsyncFileAttributes existingAttrs)
+    private char itemizeFlags(RsyncFileAttributes curAttrs,
+                              RsyncFileAttributes targetAttrs)
     {
-        if (existingAttrs == null) {
+        if (curAttrs == null) {
             return Item.IS_NEW;
         }
 
         char iFlags = Item.NO_CHANGE;
-
+        if (_isPreservePermissions && curAttrs.mode() != targetAttrs.mode()) {
+            iFlags |= Item.REPORT_PERMS;
+        }
         if (_isPreserveTimes &&
-            !isTimeEquals(fileInfo.attrs(), existingAttrs)) {
+            curAttrs.lastModifiedTime() != targetAttrs.lastModifiedTime())
+        {
             iFlags |= Item.REPORT_TIME;
         }
-
-        if (fileInfo.attrs().isRegularFile() &&
-            fileInfo.attrs().size() != existingAttrs.size()) {
+        if (curAttrs.isRegularFile() && curAttrs.size() != targetAttrs.size()) {
             iFlags |= Item.REPORT_SIZE;
         }
 
@@ -782,12 +837,12 @@ public class Generator implements RsyncTask
     }
 
     private void sendItemizeInfo(int index,
-                                 FileInfo fileInfo,
-                                 RsyncFileAttributes existingAttrs,
+                                 RsyncFileAttributes curAttrs,
+                                 RsyncFileAttributes targetAttrs,
                                  char iMask)
         throws ChannelException
     {
-        char iFlags = (char) (iMask | itemizeFlags(fileInfo, existingAttrs));
+        char iFlags = (char) (iMask | itemizeFlags(curAttrs, targetAttrs));
         if (_log.isLoggable(Level.FINE)) {
             _log.fine("(Generator) sending itemizeFlags=" + (int) iFlags);
         }
@@ -797,27 +852,20 @@ public class Generator implements RsyncTask
 
     private void itemizeDirectory(int index,
                                   FileInfo fileInfo,
-                                  RsyncFileAttributes existingAttrs)
+                                  RsyncFileAttributes curAttrs)
         throws ChannelException,IOException
     {
-        if (existingAttrs == null) {
-            sendItemizeInfo(index, fileInfo, existingAttrs, Item.LOCAL_CHANGE);
+        if (curAttrs == null) {
+            sendItemizeInfo(index, curAttrs, fileInfo.attrs(),
+                            Item.LOCAL_CHANGE);
             mkdir(fileInfo);   // throws IOException
         } else {
             if (_isAlwaysItemize) {
-                sendItemizeInfo(index, fileInfo, existingAttrs, Item.NO_CHANGE);
+                sendItemizeInfo(index, curAttrs, fileInfo.attrs(),
+                                Item.NO_CHANGE);
             }
-
-            // FIXME:
-//            if (fileInfo.attrs().mode() != existingAttrs.mode()) { // update if we add support for modifying other stuff then the file mode
-            if (fileInfo.attrs().lastModifiedTime() != existingAttrs.lastModifiedTime()) { // update if we add support for modifying other stuff then the file mode
-                if (_log.isLoggable(Level.FINE)) {
-                    _log.fine(String.format(
-                        "(Generator) %s != %s, attribute update postponed",
-                        fileInfo.attrs(), existingAttrs));
-                }
-                gotDirtyAttribute(fileInfo);
-            }
+            deferUpdateAttrsIfDiffer(fileInfo.path(),
+                                     curAttrs, fileInfo.attrs());
         }
     }
 
@@ -862,34 +910,6 @@ public class Generator implements RsyncTask
                 " int value (%d)", num, result, Integer.MAX_VALUE));
         }
         return (int) result;
-    }
-
-    private void gotDirtyAttribute(FileInfo fileInfo)
-    {
-        if (_isPreserveTimes) {
-            _filesWithWrongAttributes.add(fileInfo);
-        }
-    }
-
-    private void applyCorrectAttributes()
-    {
-        Collections.reverse(_filesWithWrongAttributes);
-        for (FileInfo f : _filesWithWrongAttributes) {
-            try {
-                if (_log.isLoggable(Level.FINE)) {
-                    _log.fine("(Generator) applying correct attributes on " +
-                              f);
-                }
-                FileOps.setFileAttributes(f.path(), f.attrs());
-            } catch (IOException e) {
-                if (_log.isLoggable(Level.WARNING)) {
-                    _log.warning(String.format(
-                        "(Generator) failed to set attributes on %s: %s",
-                        f.path(), e.getMessage()));
-                }
-                _returnStatus++;
-            }
-        }
     }
 
     private void removeAllFinishedSegmentsAndNotifySender()

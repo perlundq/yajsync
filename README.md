@@ -11,6 +11,8 @@ Currently implemented rsync options:
 
 - Incremental recursion (-r, --recursive)
 
+- Preserve permissions (-p, --perms)
+
 - Preserve times (-t, --times)
 
 - Module file listings

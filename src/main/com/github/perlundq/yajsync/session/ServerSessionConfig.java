@@ -56,9 +56,11 @@ public class ServerSessionConfig extends SessionConfig
     private boolean _isIncrementalRecurse = false;
     private boolean _isRecursiveTransfer = false;
     private boolean _isSender = false;
+    private boolean _isPreservePermissions = false;
     private boolean _isPreserveTimes = false;
     private Module _module;
     private int _verbosity = 0;
+
 
     /**
      * @throws IllegalArgumentException if charset is not supported
@@ -282,6 +284,14 @@ public class ServerSessionConfig extends SessionConfig
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
+            "perms", "p", "",
+            new Option.Handler() {
+                @Override public void handle(Option option) {
+                    setIsPreservePermissions();
+                }}));
+
+        argsParser.add(Option.newWithoutArgument(
+            Option.Policy.OPTIONAL,
             "times", "t", "",
             new Option.Handler() {
                 @Override public void handle(Option option) {
@@ -406,6 +416,11 @@ public class ServerSessionConfig extends SessionConfig
         _peerConnection.putInt(BitOps.toBigEndianInt(_checksumSeed));
     }
 
+    private void setIsPreservePermissions()
+    {
+        _isPreservePermissions = true;
+    }
+
     private void setIsPreserveTimes()
     {
         _isPreserveTimes = true;
@@ -424,6 +439,11 @@ public class ServerSessionConfig extends SessionConfig
     public boolean isRecursive()
     {
         return _isRecursiveTransfer;
+    }
+
+    public boolean isPreservePermissions()
+    {
+        return _isPreservePermissions;
     }
 
     public boolean isPreserveTimes()

@@ -31,6 +31,7 @@ public class RsyncLocal
 {
     private int _verbosity;
     private boolean _isRecursiveTransfer;
+    private boolean _isPreservePermissions;
     private boolean _isPreserveTimes;
     private boolean _isDeferredWrite;
     private Charset _charset = Charset.forName(Text.UTF8_NAME);
@@ -51,6 +52,11 @@ public class RsyncLocal
     public void setIsRecursiveTransfer(boolean isRecursiveTransfer)
     {
         _isRecursiveTransfer = isRecursiveTransfer;
+    }
+
+    public void setIsPreservePermissions(boolean isPreservePermissions)
+    {
+        _isPreservePermissions = isPreservePermissions;
     }
 
     public void setIsPreserveTimes(boolean isPreserveTimes)
@@ -94,6 +100,7 @@ public class RsyncLocal
         Generator generator = new Generator(toSender.sink(), _charset,
                                             checksumSeed).
             setIsRecursive(_isRecursiveTransfer).
+            setIsPreservePermissions(_isPreservePermissions).
             setIsPreserveTimes(_isPreserveTimes).
             setIsAlwaysItemize(_verbosity > 1);
         Receiver receiver = new Receiver(generator,
@@ -102,6 +109,7 @@ public class RsyncLocal
                                          destinationPathName).
             setIsExitEarlyIfEmptyList(true).
             setIsRecursive(_isRecursiveTransfer).
+            setIsPreservePermissions(_isPreservePermissions).
             setIsPreserveTimes(_isPreserveTimes).
             setIsDeferredWrite(_isDeferredWrite);
 

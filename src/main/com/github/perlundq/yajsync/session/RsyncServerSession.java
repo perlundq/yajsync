@@ -75,6 +75,7 @@ public class RsyncServerSession
                 Generator.newServerInstance(out, cfg.charset(),
                                             cfg.checksumSeed()).
                     setIsRecursive(cfg.isRecursive()).
+                    setIsPreservePermissions(cfg.isPreservePermissions()).
                     setIsPreserveTimes(cfg.isPreserveTimes()).
                     setIsAlwaysItemize(cfg.verbosity() > 1).
                     setIsInterruptible(isChannelsInterruptible);
@@ -82,6 +83,7 @@ public class RsyncServerSession
                 Receiver.newServerInstance(generator, in, cfg.charset(),
                                            cfg.getReceiverDestination().toString()).
                     setIsRecursive(cfg.isRecursive()).
+                    setIsPreservePermissions(cfg.isPreservePermissions()).
                     setIsPreserveTimes(cfg.isPreserveTimes()).
                     setIsDeferredWrite(_isDeferredWrite).
                     setIsInterruptible(isChannelsInterruptible);

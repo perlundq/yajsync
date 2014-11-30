@@ -234,6 +234,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
 
     private boolean _isDeferredWrite;
     private boolean _isModuleListing;
+    private boolean _isPreservePermissions;
     private boolean _isPreserveTimes;
     private boolean _isRecursiveTransfer;
     private boolean _isRemote;
@@ -317,6 +318,17 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             new Option.Handler() {
                 @Override public void handle(Option option) {
                     _verbosity++;
+                }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "perms", "p",
+                                      String.format("preserve file " +
+                                                    "permissions (default %s)",
+                                                    _isPreservePermissions),
+            new Option.Handler() {
+                @Override public void handle(Option option) {
+                    _isPreservePermissions = true;
                 }}));
 
         options.add(
@@ -537,6 +549,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         session.setCharset(_charset);
         session.setIsDeferredWrite(_isDeferredWrite);
         session.setIsModuleListing(_isModuleListing);
+        session.setIsPreservePermissions(_isPreservePermissions);
         session.setIsPreserveTimes(_isPreserveTimes);
         session.setIsRecursiveTransfer(_isRecursiveTransfer);
         session.setIsSender(_isSender);
@@ -601,6 +614,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         localTransfer.setCharset(_charset);
         localTransfer.setVerbosity(_verbosity);
         localTransfer.setIsRecursiveTransfer(_isRecursiveTransfer);
+        localTransfer.setIsPreservePermissions(_isPreservePermissions);
         localTransfer.setIsPreserveTimes(_isPreserveTimes);
         localTransfer.setIsDeferredWrite(_isDeferredWrite);
         List<Path> srcPaths = new LinkedList<>();

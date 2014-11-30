@@ -143,15 +143,6 @@ public class RsyncFileAttributes
         return Objects.hash(_lastModified, _size, _mode);
     }
 
-    public boolean isSettableAttributesEquals(Object obj)
-    {
-        if (obj != null && getClass() == obj.getClass()) {
-            RsyncFileAttributes other = (RsyncFileAttributes) obj;
-            return _lastModified == other._lastModified;
-        }
-        return false;
-    }
-
     public int mode()
     {
         return _mode;

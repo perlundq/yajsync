@@ -20,9 +20,13 @@ package com.github.perlundq.yajsync.util;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
@@ -104,7 +108,7 @@ public class FileOps
             return UNKNOWN_STR;
         }
     }
-    
+
     private static String shortfileTypeToString(int mode)
     {
         switch (fileType(mode)) {
@@ -127,20 +131,65 @@ public class FileOps
         }
     }
 
+    private static boolean isUserReadable(int mode)
+    {
+        return (mode & S_IRUSR) != 0;
+    }
+
+    private static boolean isUserWritable(int mode)
+    {
+        return (mode & S_IWUSR) != 0;
+    }
+
+    private static boolean isUserExecutable(int mode)
+    {
+        return (mode & S_IXUSR) != 0;
+    }
+
+    private static boolean isGroupReadable(int mode)
+    {
+        return (mode & S_IRGRP) != 0;
+    }
+
+    private static boolean isGroupWritable(int mode)
+    {
+        return (mode & S_IWGRP) != 0;
+    }
+
+    private static boolean isGroupExecutable(int mode)
+    {
+        return (mode & S_IXGRP) != 0;
+    }
+
+    private static boolean isOtherReadable(int mode)
+    {
+        return (mode & S_IROTH) != 0;
+    }
+
+    private static boolean isOtherWritable(int mode)
+    {
+        return (mode & S_IWOTH) != 0;
+    }
+
+    private static boolean isOtherExecutable(int mode)
+    {
+        return (mode & S_IXOTH) != 0;
+    }
+
     private static String permOtherToString(int mode)
     {
         StringBuilder sb = new StringBuilder();
-        if ((mode & S_IROTH) == S_IROTH) {
+        if (isOtherReadable(mode)) {
             sb.append("r");
         } else {
             sb.append("-");
         }
-        if ((mode & S_IWOTH) == S_IWOTH) {
+        if (isOtherWritable(mode)) {
             sb.append("w");
         } else {
             sb.append("-");
         }
-        if ((mode & S_IXOTH) == S_IXOTH) {
+        if (isOtherExecutable(mode)) {
             sb.append("x");
         } else {
             sb.append("-");
@@ -227,12 +276,66 @@ public class FileOps
         }
     }
 
-    public static void setFileAttributes(Path path, RsyncFileAttributes attrs)
+    private static Set<PosixFilePermission> modeToPosixFilePermissions(int mode)
+    {
+        Set<PosixFilePermission> result = new HashSet<>();
+        if (isUserReadable(mode)) {
+            result.add(PosixFilePermission.OWNER_READ);
+        }
+        if (isUserWritable(mode)) {
+            result.add(PosixFilePermission.OWNER_WRITE);
+        }
+        if (isUserExecutable(mode)) {
+            result.add(PosixFilePermission.OWNER_EXECUTE);
+        }
+        if (isGroupReadable(mode)) {
+            result.add(PosixFilePermission.GROUP_READ);
+        }
+        if (isGroupWritable(mode)) {
+            result.add(PosixFilePermission.GROUP_WRITE);
+        }
+        if (isGroupExecutable(mode)) {
+            result.add(PosixFilePermission.GROUP_EXECUTE);
+        }
+        if (isOtherReadable(mode)) {
+            result.add(PosixFilePermission.OTHERS_READ);
+        }
+        if (isOtherWritable(mode)) {
+            result.add(PosixFilePermission.OTHERS_WRITE);
+        }
+        if (isOtherExecutable(mode)) {
+            result.add(PosixFilePermission.OTHERS_EXECUTE);
+        }
+        return result;
+    }
+
+    public static void setFileMode(Path path, int mode,
+                                   LinkOption... linkOption)
         throws IOException
     {
-        Files.setLastModifiedTime(path,
-                                  FileTime.from(attrs.lastModifiedTime(),
-                                  TimeUnit.SECONDS));
+        try {
+            boolean requiresUnix = (mode & (S_ISUID | S_ISGID | S_ISVTX)) != 0;
+            if (requiresUnix) {
+                Files.setAttribute(path, "unix:mode", mode, linkOption);
+            } else {
+                Files.setAttribute(path,
+                                   "posix:permissions",
+                                   modeToPosixFilePermissions(mode),
+                                   linkOption);
+            }
+        } catch (UnsupportedOperationException e) {
+            throw new IOException(e);
+        }
+    }
+
+    public static void setLastModifiedTime(Path path, long mtime,
+                                           LinkOption... linkOption)
+        throws IOException
+    {
+        Files.setAttribute(path,
+                           "basic:lastModifiedTime",
+                           FileTime.from(mtime, TimeUnit.SECONDS),
+                           linkOption);
     }
 
     public static long sizeOf(Path file)
