@@ -29,8 +29,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
-
 public class FileOps
 {
     public static final int S_IFMT   = 0170000; // bit mask for the file type bit fields
