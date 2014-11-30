@@ -444,13 +444,15 @@ public class Receiver implements RsyncTask,MessageHandler
         return _stats;
     }
 
+    /**
+     * @throws RsyncProtocolException if peer sends a message we cannot decode
+     */
     @Override
     public void handleMessage(Message message)
     {
         switch (message.header().messageType()) {
         case IO_ERROR:
-            int ioError = message.payload().getInt();
-            _ioError |= ioError;
+            _ioError |= message.payload().getInt();
             break;
         case NO_SEND:
             int index = message.payload().getInt();
@@ -466,10 +468,13 @@ public class Receiver implements RsyncTask,MessageHandler
         default:
             throw new RuntimeException(
                 "TODO: (not yet implemented) missing case statement for " +
-                    message);
+                message);
         }
     }
 
+    /**
+     * @throws RsyncProtocolException if peer sends a message we cannot decode
+     */
     private void printMessage(Message message)
     {
         assert message.isText();
@@ -490,7 +495,7 @@ public class Receiver implements RsyncTask,MessageHandler
                     "Peer sent a message but we failed to convert all " +
                     "characters in message. %s (%s)", e, message.toString()));
             }
-            _ioError |= IoError.GENERAL;
+            throw new RsyncProtocolException(e);
         }
     }
 
