@@ -678,7 +678,7 @@ public class Receiver implements RsyncTask,MessageHandler
                 } catch (IOException e) {
                     if (_log.isLoggable(Level.WARNING)) {
                         _log.warning(String.format(
-                            "failed to create tempfile for %s: %s",
+                            "failed to create tempfile in %s: %s",
                             fileInfo.path().getParent(), e.getMessage()));
                     }
                     discardData(checksumHeader);
@@ -921,7 +921,6 @@ public class Receiver implements RsyncTask,MessageHandler
                         _log.log(Level.SEVERE, "", e);
                     }
                 }
-
             } else if (!PathOps.isDirectoryStructurePreservable(pathName)) {    // TODO: implement support for user defined mapping of illegal characters
                 ioError |= IoError.GENERAL;
                 try {
@@ -1130,6 +1129,10 @@ public class Receiver implements RsyncTask,MessageHandler
             if (token < 0) {  // token correlates to a matching block index
                 final int blockIndex = - (token + 1);  // blockIndex >= 0 && blockIndex <= Integer.MAX_VALUE
 
+                if (_log.isLoggable(Level.FINEST)) {
+                    _log.finest(String.format("got matching block index %d",
+                                              blockIndex));
+                }
                 if (blockIndex > checksumHeader.chunkCount() - 1) {
                     throw new RsyncProtocolException(String.format(
                         "Received invalid block index from peer %d, which is " +
@@ -1156,6 +1159,11 @@ public class Receiver implements RsyncTask,MessageHandler
                         expectedIndex++;
                         continue;
                     }
+                    if (_log.isLoggable(Level.FINE)) {
+                        _log.fine(String.format("defer-write disabled since " +
+                                                "%d != %d",
+                                                blockIndex, expectedIndex));
+                    }
                     isIntact = false;
                     copyBlockRange(expectedIndex, checksumHeader, replica,
                                    outFile, md);
@@ -1163,6 +1171,11 @@ public class Receiver implements RsyncTask,MessageHandler
                 matchReplica(blockIndex, checksumHeader, replica, outFile, md);
             } else if (token > 0) { // receive non-matched literal data from peer:
                 if (isIntact) {
+                    if (_log.isLoggable(Level.FINE)) {
+                        _log.fine(String.format("defer-write disabled since " +
+                                                "we got literal data %d",
+                                                token));
+                    }
                     isIntact = false;
                     copyBlockRange(expectedIndex, checksumHeader, replica,
                                    outFile, md);
@@ -1176,6 +1189,13 @@ public class Receiver implements RsyncTask,MessageHandler
         }
 
         if (isIntact && expectedIndex != checksumHeader.chunkCount()) { // rare truncation of multiples of checksum blocks
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(String.format("defer-write disabled since " +
+                                        "expectedIndex %d != " +
+                                        "checksumHeader.chunkCount() %d",
+                                        expectedIndex,
+                                        checksumHeader.chunkCount()));
+            }
             isIntact = false;
             copyBlockRange(expectedIndex, checksumHeader, replica, outFile, md);
         }
@@ -1184,6 +1204,9 @@ public class Receiver implements RsyncTask,MessageHandler
         }
 
         if (_log.isLoggable(Level.FINE)) {
+            if (_isDeferredWrite && replica != null && !isIntact) {
+                _log.fine("deferred write disabled");
+            }
             _log.fine(String.format("total bytes = %d, num matched bytes = " +
                                     "%d, num literal bytes = %d, %f%% match",
                                     sizeMatch + sizeLiteral,

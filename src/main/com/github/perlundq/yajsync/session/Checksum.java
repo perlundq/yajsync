@@ -19,9 +19,10 @@
  */
 package com.github.perlundq.yajsync.session;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
 
 import com.github.perlundq.yajsync.util.Multimap;
 
@@ -60,8 +61,6 @@ class Checksum
             return _length;
         }
 
-        // we have to store the index here, code when matching gets really ugly
-        // otherwise
         public int chunkIndex()
         {
             return _chunkIndex;
@@ -202,34 +201,122 @@ class Checksum
                              _header);
     }
 
+    private int chunkLengthFor(int chunkIndex)
+    {
+        boolean isLastChunkIndex = chunkIndex == _header._chunkCount - 1;
+        if (isLastChunkIndex && _header._remainder > 0) {
+            return _header._remainder;
+        }
+        return _header._blockLength;
+    }
+
     public void addChunkInformation(int rolling, byte[] md5sum)
     {
         assert md5sum != null;
         assert md5sum.length >= MIN_DIGEST_LENGTH &&
                md5sum.length <= MAX_DIGEST_LENGTH;
+        assert _sums.size() <= _header._chunkCount - 1;
 
         int chunkIndex = _sums.size();
-        assert chunkIndex <= _header._chunkCount - 1;
-        boolean isLastChunkIndex = chunkIndex == _header._chunkCount - 1;
-        Chunk chunk;
-        if (isLastChunkIndex && _header._remainder > 0) {
-            chunk = new Chunk(_header._remainder, md5sum, chunkIndex);
-        } else {
-            chunk = new Chunk(_header._blockLength, md5sum, chunkIndex);
-        }
+        int chunkLength = chunkLengthFor(chunkIndex);
+        Chunk chunk = new Chunk(chunkLength, md5sum, chunkIndex);
         _sums.put(rolling, chunk);
     }
 
-    public Iterable<Chunk> getChunksWithChecksum(int computedChecksum)
+    // retrieve a close index for the chunk with the supplied chunk index
+    private int closeIndexOf(List<Chunk> chunks, int chunkIndex)
     {
-        Collection<Chunk> result = _sums.get(computedChecksum);
+        int idx = binarySearch(chunks, chunkIndex);
+        if (idx < 0) {
+            return - idx - 1;
+        }
+        return idx;
+    }
+
+    private int binarySearch(List<Chunk> chunks, int chunkIndex)
+    {
+        int i_left = 0;
+        int i_right = chunks.size() - 1;
+
+        while (i_left <= i_right) {
+            int i_middle = i_left + (i_right - i_left) / 2;                     // i_middle < i_right and i_middle >= i_left
+            int chunkIndex_m = chunks.get(i_middle).chunkIndex();
+            if (chunkIndex_m == chunkIndex) {
+                return i_middle;
+            } else if (chunkIndex_m < chunkIndex) {
+                i_left = i_middle + 1;
+            } else { //chunkIndex_m > chunkIndex
+                i_right = i_middle - 1;
+            }
+        }
+        return - i_left - 1;
+    }
+
+    public Iterable<Chunk> getCandidateChunks(int rolling,
+                                              final int length,
+                                              final int preferredChunkIndex)
+    {
+        final List<Chunk> chunks = _sums.get(rolling);
         // Optimization to avoid allocating tons of empty iterators for non
         // matching entries on large files:
-        if (result.isEmpty()) {
+        if (chunks.isEmpty()) {
             return EMPTY_ITERABLE;
-        } else {
-            return result;
         }
+
+        // return an Iterable which filters out chunks with non matching length
+        // and starts with preferredIndex (or close to preferredIndex)
+        return new Iterable<Chunk>() {
+            int it_index = 0;
+            int initialIndex = closeIndexOf(chunks, preferredChunkIndex);
+            boolean isInitial = true;
+
+            @Override
+            public Iterator<Chunk> iterator() {
+                return new Iterator<Chunk>() {
+
+                    private int nextIndex() {
+                        for (int i = it_index; i < chunks.size(); i++) {
+                            if (i != initialIndex &&
+                                chunks.get(i).length() == length) {
+                                return i;
+                            }
+                        }
+                        return chunks.size();
+                    }
+
+                    @Override
+                    public boolean hasNext() {
+                        if (isInitial) {
+                            return true;
+                        }
+                        it_index = nextIndex();
+                        return it_index < chunks.size();
+                    }
+
+                    @Override
+                    public Chunk next() {
+                        try {
+                            Chunk c;
+                            if (isInitial) {
+                                c = chunks.get(initialIndex);
+                                isInitial = false;
+                            } else {
+                                c = chunks.get(it_index);
+                                it_index++;
+                            }
+                            return c;
+                        } catch (IndexOutOfBoundsException e) {
+                            throw new NoSuchElementException(e.getMessage());
+                        }
+                    }
+
+                    @Override
+                    public void remove() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+        };
     }
 
     public Header header()

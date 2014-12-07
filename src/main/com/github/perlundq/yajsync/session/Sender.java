@@ -703,8 +703,8 @@ public class Sender implements RsyncTask,MessageHandler
             if (directory == null) { // duplicates already removed by us, but native keeps them so we have "stored" a null reference for that index instead
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format("skipping expansion and sending " +
-                                             "of segment index %d (duplicate)",
-                                             _nextSegmentIndex));
+                                            "of segment index %d (duplicate)",
+                                            _nextSegmentIndex));
                 }
                 _nextSegmentIndex++;
                 continue;
@@ -940,6 +940,7 @@ public class Sender implements RsyncTask,MessageHandler
 
         int rolling = Rolling.compute(fv.array(), fv.startOffset(),
                                       fv.windowLength());
+        int preferredIndex = 0;
         long sizeLiteral = 0;
         long sizeMatch = 0;
         byte[] localChunkMd5sum = null;
@@ -951,18 +952,10 @@ public class Sender implements RsyncTask,MessageHandler
                 _log.finest(fv.toString());
             }
 
-            for (Checksum.Chunk chunk :
-                 peerChecksum.getChunksWithChecksum(rolling)) { // auto-boxed conversion of rolling, will be lots of them for a large file with no/few matches
-
-                if (chunk.length() != fv.windowLength()) {
-                    if (_log.isLoggable(Level.FINE)) {
-                        _log.fine(String.format(
-                            "skipping matching rolling %d - chunk length %d" +
-                            " mismatches with window length %d",
-                            rolling, chunk.length(), fv.windowLength()));
-                    }
-                    continue;
-                }
+            for (Checksum.Chunk chunk : peerChecksum.getCandidateChunks(
+                                                            rolling,
+                                                            fv.windowLength(),
+                                                            preferredIndex)) {
 
                 if (localChunkMd5sum == null) {
                     chunkDigest.update(fv.array(),
@@ -991,6 +984,7 @@ public class Sender implements RsyncTask,MessageHandler
                                       fv.totalBytes());
 
                     _duplexChannel.putInt(- (chunk.chunkIndex() + 1));
+                    preferredIndex = chunk.chunkIndex() + 1;
                     // we have sent all literal data until start of this
                     // chunk which in turn is matching peer's checksum,
                     // reset cursor:

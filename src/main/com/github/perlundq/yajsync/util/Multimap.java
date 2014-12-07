@@ -18,15 +18,15 @@
  */
 package com.github.perlundq.yajsync.util;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 public final class Multimap<K, V>
 {
-    private final Map<K,Collection<V>> _map;
+    private final Map<K,List<V>> _map;
     private int _size;
     
     public Multimap(int size)
@@ -35,9 +35,9 @@ public final class Multimap<K, V>
     }
 
     // we trust the caller to not modify the returned collection
-    public Collection<V> get(K key)
+    public List<V> get(K key)
     {
-        Collection<V> values = _map.get(key);
+        List<V> values = _map.get(key);
         if (values == null) {
             return Collections.emptyList();
         } else {
@@ -47,9 +47,9 @@ public final class Multimap<K, V>
 
     public boolean put(K key, V value)
     {
-        Collection<V> existing = get(key);
+        List<V> existing = get(key);
         if (existing.isEmpty()) {
-            existing = new LinkedList<>();
+            existing = new ArrayList<>();
             _map.put(key, existing);
         }
         boolean isAdded = existing.add(value);
