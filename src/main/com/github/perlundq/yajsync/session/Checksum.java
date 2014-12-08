@@ -228,7 +228,8 @@ class Checksum
     {
         int idx = binarySearch(chunks, chunkIndex);
         if (idx < 0) {
-            return - idx - 1;
+            int insertionPoint = - idx - 1;
+            return Math.min(insertionPoint, chunks.size() - 1);
         }
         return idx;
     }
@@ -249,6 +250,11 @@ class Checksum
                 i_right = i_middle - 1;
             }
         }
+        /*
+         * return i_left as the insertion point - the first index with a chunk
+         * index greater than chunkIndex.
+         * i_left >= 0 and i_left <= chunks.size()
+         */
         return - i_left - 1;
     }
 
