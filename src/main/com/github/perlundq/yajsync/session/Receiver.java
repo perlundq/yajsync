@@ -1090,8 +1090,18 @@ public class Receiver implements RsyncTask,MessageHandler
                 if (attrs.isRegularFile()) {
                     boolean isIntact = combineDataToFile(replica, outFile,
                                                          checksumHeader, md);
-                    isIntact = isIntact && attrs.equals(RsyncFileAttributes.statOrNull(fileInfo.path()));
-                    return isIntact ? fileInfo.path() : tempFile;
+                    if (isIntact) {
+                        if (!attrs.equals(RsyncFileAttributes.statOrNull(fileInfo.path()))) {
+                            if (_log.isLoggable(Level.WARNING)) {
+                                _log.warning(String.format(
+                                    "%s modified during verification",
+                                    fileInfo.path()));
+                            }
+                            md.update((byte) 0);
+                        }
+                        return fileInfo.path();
+                    }
+                    return tempFile;
                 } // else discard later
             } catch (NoSuchFileException e) {  // replica.open
                 combineDataToFile(null, outFile, checksumHeader, md);
