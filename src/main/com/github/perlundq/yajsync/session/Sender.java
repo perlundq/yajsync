@@ -29,7 +29,6 @@ import java.nio.charset.Charset;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.logging.Level;
@@ -46,6 +45,7 @@ import com.github.perlundq.yajsync.channels.RsyncOutChannel;
 import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
+import com.github.perlundq.yajsync.io.CustomFileSystem;
 import com.github.perlundq.yajsync.io.FileView;
 import com.github.perlundq.yajsync.io.FileViewNotFound;
 import com.github.perlundq.yajsync.io.FileViewOpenFailed;
@@ -1103,7 +1103,7 @@ public class Sender implements RsyncTask,MessageHandler
                 "unable to decode path name of %s using %s",
                 fileInfo, _characterDecoder.charset()));
         }
-        Path relativePath = Paths.get(pathName);
+        Path relativePath = CustomFileSystem.getPath(pathName);
         return PathOps.subtractPath(fileInfo.path(), relativePath);
     }
 

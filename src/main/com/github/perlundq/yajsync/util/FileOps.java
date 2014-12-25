@@ -267,7 +267,11 @@ public class FileOps
     public static boolean atomicMove(Path tempFile, Path path)
     {
         try {
-            Files.move(tempFile, path, StandardCopyOption.ATOMIC_MOVE);
+            if (tempFile.getFileSystem().equals(path.getFileSystem())) {
+                Files.move(tempFile, path, StandardCopyOption.ATOMIC_MOVE);
+            } else {
+            	Files.move(tempFile, path, StandardCopyOption.REPLACE_EXISTING);
+            }
             return true;
         } catch (IOException e) {
             return false;

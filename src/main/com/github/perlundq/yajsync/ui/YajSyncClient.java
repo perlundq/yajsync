@@ -27,7 +27,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -43,6 +42,7 @@ import com.github.perlundq.yajsync.channels.net.ChannelFactory;
 import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
 import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
 import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
+import com.github.perlundq.yajsync.io.CustomFileSystem;
 import com.github.perlundq.yajsync.session.ClientSessionConfig;
 import com.github.perlundq.yajsync.session.RsyncClientSession;
 import com.github.perlundq.yajsync.session.RsyncException;
@@ -206,7 +206,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         private static String toLocalPathName(String pathName)
         {
             assert !pathName.isEmpty();
-            Path p = Paths.get(pathName);
+            Path p = CustomFileSystem.getPath(pathName);
             if (pathName.endsWith(Text.SLASH)) {
                 p = p.resolve(PathOps.DOT_DIR);  // Paths.get returns normalized path, any trailing slash is not preserved
             }
@@ -619,7 +619,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         localTransfer.setIsDeferredWrite(_isDeferredWrite);
         List<Path> srcPaths = new LinkedList<>();
         for (String pathName : _srcArgs) {
-            srcPaths.add(Paths.get(pathName));                                  // throws InvalidPathException
+            srcPaths.add(CustomFileSystem.getPath(pathName));                                  // throws InvalidPathException
         }
 
         try {

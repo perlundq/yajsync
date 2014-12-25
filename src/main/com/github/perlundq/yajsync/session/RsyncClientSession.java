@@ -23,11 +23,11 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+import com.github.perlundq.yajsync.io.CustomFileSystem;
 import com.github.perlundq.yajsync.session.ClientSessionConfig.AuthProvider;
 import com.github.perlundq.yajsync.text.Text;
 
@@ -143,7 +143,7 @@ public class RsyncClientSession
     {
         List<Path> result = new LinkedList<>();
         for (String pathName : pathNames) {
-            result.add(Paths.get(pathName));
+            result.add(CustomFileSystem.getPath(pathName));
         }
         return result;
     }
