@@ -22,10 +22,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.UserPrincipal;
 
+import com.github.perlundq.yajsync.io.CustomFileSystem;
 import com.github.perlundq.yajsync.text.Text;
 
 public final class Environment
@@ -99,7 +99,7 @@ public final class Environment
 
     public static Path getWorkingDirectory()
     {
-        return Paths.get(getNonNullProperty(PROPERTY_KEY_CWD));
+        return CustomFileSystem.getPath(getNonNullProperty(PROPERTY_KEY_CWD));
     }
 
     public static String getServerConfig(String defName)

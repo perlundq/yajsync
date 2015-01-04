@@ -22,15 +22,14 @@ package com.github.perlundq.yajsync.session;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.Arrays;
@@ -49,6 +48,7 @@ import com.github.perlundq.yajsync.filelist.ConcurrentFilelist;
 import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
+import com.github.perlundq.yajsync.io.CustomFileSystem;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.text.TextConversionException;
 import com.github.perlundq.yajsync.text.TextDecoder;
@@ -355,7 +355,7 @@ public class Receiver implements RsyncTask,MessageHandler
             {                                                                       // -> targetPath
                 return new PathResolver() {
                     @Override public Path relativePathOf(String pathName) {
-                        return Paths.get(stubs.get(0)._pathName);
+                        return CustomFileSystem.getPath(stubs.get(0)._pathName);
                     }
                     @Override public Path fullPathOf(Path relativePath) {
                         return targetPath;
@@ -368,7 +368,7 @@ public class Receiver implements RsyncTask,MessageHandler
                 }
                 return new PathResolver() {
                     @Override public Path relativePathOf(String pathName) {
-                        Path relativePath = Paths.get(pathName);                    // throws InvalidPathException
+                        Path relativePath = CustomFileSystem.getPath(pathName);                    // throws InvalidPathException
                         if (relativePath.isAbsolute()) {
                             throw new RsyncSecurityException(relativePath +
                                 " is absolute");
@@ -668,7 +668,7 @@ public class Receiver implements RsyncTask,MessageHandler
 
                 Path tempFile = null;
                 try {
-                    tempFile = Files.createTempFile(fileInfo.path().getParent(),
+                    tempFile = Files.createTempFile(CustomFileSystem.getTempPath(fileInfo.path().getParent().toString()),
                                                     null, null);
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine("created tempfile " + tempFile);
@@ -1081,10 +1081,10 @@ public class Receiver implements RsyncTask,MessageHandler
         assert checksumHeader != null;
         assert md != null;
 
-        try (FileChannel outFile = FileChannel.open(tempFile,
+        try (SeekableByteChannel outFile = Files.newByteChannel(tempFile,
                                                     StandardOpenOption.WRITE)) {
-            try (FileChannel replica =
-                   FileChannel.open(fileInfo.path(), StandardOpenOption.READ)) {
+            try (SeekableByteChannel replica =
+            		Files.newByteChannel(fileInfo.path(), StandardOpenOption.READ)) {
                 RsyncFileAttributes attrs =
                     RsyncFileAttributes.stat(fileInfo.path());
                 if (attrs.isRegularFile()) {
@@ -1115,8 +1115,8 @@ public class Receiver implements RsyncTask,MessageHandler
     }
 
     // replica may be null
-    private boolean combineDataToFile(FileChannel replica,
-                                      FileChannel outFile,
+    private boolean combineDataToFile(SeekableByteChannel replica,
+    								  SeekableByteChannel outFile,
                                       Checksum.Header checksumHeader,
                                       MessageDigest md)
         throws IOException, ChannelException
@@ -1229,7 +1229,7 @@ public class Receiver implements RsyncTask,MessageHandler
         return isIntact;
     }
 
-    private void copyRemoteBlocks(FileChannel outFile, int length,
+    private void copyRemoteBlocks(SeekableByteChannel outFile, int length,
                                   MessageDigest md)
         throws ChannelException
     {
@@ -1251,7 +1251,7 @@ public class Receiver implements RsyncTask,MessageHandler
 
     private void verifyBlockRange(int endIndex,
                                   Checksum.Header checksumHeader,
-                                  FileChannel replica,
+                                  SeekableByteChannel replica,
                                   MessageDigest md)
         throws IOException
     {
@@ -1260,8 +1260,8 @@ public class Receiver implements RsyncTask,MessageHandler
 
     private void copyBlockRange(int endIndex,
                                 Checksum.Header checksumHeader,
-                                FileChannel replica,
-                                FileChannel outFile,
+                                SeekableByteChannel replica,
+                                SeekableByteChannel outFile,
                                 MessageDigest md)
         throws IOException
     {
@@ -1272,8 +1272,8 @@ public class Receiver implements RsyncTask,MessageHandler
 
     private void matchReplica(int blockIndex,
                               Checksum.Header checksumHeader,
-                              FileChannel replica,
-                              FileChannel outFile,
+                              SeekableByteChannel replica,
+                              SeekableByteChannel outFile,
                               MessageDigest md)
         throws IOException
     {
@@ -1281,7 +1281,8 @@ public class Receiver implements RsyncTask,MessageHandler
             ByteBuffer.allocate(sizeForChecksumBlock(blockIndex,
                                                      checksumHeader));
         long fileOffset = blockIndex * checksumHeader.blockLength();
-        int bytesRead = replica.read(replicaBuf, fileOffset);
+        replica.position(fileOffset);
+        int bytesRead = replica.read(replicaBuf);
         if (replicaBuf.hasRemaining()) {
             throw new IllegalStateException(String.format(
                 "truncated read from replica (%s), read %d " +
@@ -1309,7 +1310,7 @@ public class Receiver implements RsyncTask,MessageHandler
     }
 
     // FIXME: handle out of space sitation without a stack trace
-    private void writeOut(FileChannel outFile, ByteBuffer src)
+    private void writeOut(SeekableByteChannel outFile, ByteBuffer src)
     {
         try {
             outFile.write(src); // NOTE: might notably fail due to running out of disk space

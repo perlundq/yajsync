@@ -24,7 +24,6 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
@@ -34,6 +33,7 @@ import java.util.regex.Pattern;
 
 import com.github.perlundq.yajsync.channels.ChannelEOFException;
 import com.github.perlundq.yajsync.channels.ChannelException;
+import com.github.perlundq.yajsync.io.CustomFileSystem;
 import com.github.perlundq.yajsync.security.RsyncAuthContext;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.text.TextConversionException;
@@ -333,7 +333,7 @@ public class ServerSessionConfig extends SessionConfig
                                       fileName));
                 }
                 Path safePath =
-                    _module.restrictedPath().resolve(Paths.get(fileName));
+                    _module.restrictedPath().resolve(CustomFileSystem.getPath(fileName));
                 if (Text.isNameDotDir(fileName)) {
                     safePath = safePath.resolve(PathOps.DOT_DIR);
                 }
@@ -349,7 +349,7 @@ public class ServerSessionConfig extends SessionConfig
                     unnamed, unnamed.size()));
             }
             String fileName = unnamed.get(0);
-            Path safePath = _module.restrictedPath().resolve(Paths.get(fileName));
+            Path safePath = _module.restrictedPath().resolve(CustomFileSystem.getPath(fileName));
             _receiverDestination = safePath.normalize();
 
             if (_log.isLoggable(Level.FINE)) {

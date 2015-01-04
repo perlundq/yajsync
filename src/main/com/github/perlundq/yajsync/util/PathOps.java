@@ -20,17 +20,17 @@ package com.github.perlundq.yajsync.util;
 
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.List;
 
+import com.github.perlundq.yajsync.io.CustomFileSystem;
 import com.github.perlundq.yajsync.text.Text;
 
 public final class PathOps
 {
-    public static final Path EMPTY = Paths.get(Text.EMPTY);
-    public static final Path DOT_DIR = Paths.get(Text.DOT);
-    public static final Path DOT_DOT_DIR = Paths.get(Text.DOT_DOT);
+    public static final Path EMPTY = CustomFileSystem.getPath(Text.EMPTY);
+    public static final Path DOT_DIR = CustomFileSystem.getPath(Text.DOT);
+    public static final Path DOT_DOT_DIR = CustomFileSystem.getPath(Text.DOT_DOT);
 
     private PathOps() {}
 
@@ -166,7 +166,7 @@ public final class PathOps
                 String normalized =
                     Text.deleteTrailingDots(p.toString()).toLowerCase();
                 if (!normalized.isEmpty()) {
-                    paths.add(Paths.get(normalized));
+                    paths.add(CustomFileSystem.getPath(normalized));
                 }
             }
         }
@@ -197,8 +197,8 @@ public final class PathOps
     public static Path get(String name)
     {
         if (name.endsWith(Text.SLASH)) {
-            return Paths.get(name + Text.DOT);
+            return CustomFileSystem.getPath(name + Text.DOT);
         }
-        return Paths.get(name);
+        return CustomFileSystem.getPath(name);
     }
 }
