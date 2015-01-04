@@ -37,6 +37,7 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.github.perlundq.yajsync.io.CustomFileSystem;
 import com.github.perlundq.yajsync.session.Module;
 import com.github.perlundq.yajsync.session.ModuleException;
 import com.github.perlundq.yajsync.session.ModuleNotFoundException;
@@ -152,8 +153,8 @@ public class Configuration implements Modules
 
                 try {
                     RestrictedPath vp =
-                        new RestrictedPath(Paths.get(moduleName),
-                                           Paths.get(pathValue));
+                        new RestrictedPath(CustomFileSystem.getPath(moduleName),
+                        		CustomFileSystem.getPath(pathValue));
                     SimpleModule m = new SimpleModule(moduleName, vp);
                     String comment = Text.nullToEmptyStr(moduleContent.get(MODULE_KEY_COMMENT));
                     m._comment = comment;
