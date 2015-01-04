@@ -121,7 +121,7 @@ public class Configuration implements Modules
         {
             Map<String, Map<String, String>> modules;
             try (BufferedReader reader = Files.newBufferedReader(
-                                                   Paths.get(fileName),
+                                                   CustomFileSystem.getConfigPath(fileName),
                                                    Charset.defaultCharset())) {
                 modules = parse(reader);
             } catch (IOException e) {

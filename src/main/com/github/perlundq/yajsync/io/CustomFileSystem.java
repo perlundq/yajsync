@@ -1,8 +1,9 @@
 /*
- * Processing of incoming file lists and file data from Sender
+ * Configurable FileSystem implementations
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
  * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2014 Florian Sager
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,10 +28,15 @@ import java.nio.file.Path;
 public class CustomFileSystem {
 
 	private static FileSystem _filesystem = FileSystems.getDefault();
+	private static FileSystem _configFilesystem = FileSystems.getDefault();
 	private static FileSystem _tempFilesystem = FileSystems.getDefault();
 
 	public static void setFileSystem(FileSystem filesystem) {
 		_filesystem = filesystem;
+	}
+	
+	public static void setConfigFileSystem(FileSystem configFilesystem) {
+		_configFilesystem = configFilesystem;
 	}
 	
 	public static void setTempFileSystem(FileSystem tempFilesystem) {
@@ -40,7 +46,11 @@ public class CustomFileSystem {
 	public static Path getPath(String path) {
 		return _filesystem.getPath(path);
 	}
-	
+
+	public static Path getConfigPath(String path) {
+		return _configFilesystem.getPath(path);
+	}
+
 	public static Path getTempPath(String path) {
 		return _tempFilesystem.getPath(path);
 	}
