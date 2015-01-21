@@ -854,12 +854,12 @@ public class Receiver implements RsyncTask,MessageHandler
                             _senderInChannel.numBytesPrefetched();
 
         while (true) {
-            char flags = (char) _senderInChannel.getByte();
+            char flags = (char) (_senderInChannel.getByte() & 0xFF);
             if (flags == 0) {
                 break;
             }
             if ((flags & TransmitFlags.EXTENDED_FLAGS) != 0) {
-                flags |= _senderInChannel.getByte() << 8;
+                flags |= (_senderInChannel.getByte() & 0xFF) << 8;
                 if (flags == (TransmitFlags.EXTENDED_FLAGS |
                               TransmitFlags.IO_ERROR_ENDLIST)) {
                     ioError |= receiveAndDecodeInt();
@@ -869,6 +869,9 @@ public class Receiver implements RsyncTask,MessageHandler
                     }
                     break;
                 }
+            }
+            if (_log.isLoggable(Level.FINER)) {
+                _log.finer("got flags " + Integer.toBinaryString(flags));
             }
             byte[] pathNameBytes = receivePathNameBytes(flags);
             RsyncFileAttributes attrs = receiveRsyncFileAttributes(flags);

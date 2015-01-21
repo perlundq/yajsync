@@ -814,6 +814,9 @@ public class Sender implements RsyncTask,MessageHandler
         } else {
             _duplexChannel.putByte((byte) xflags);
         }
+        if (_log.isLoggable(Level.FINER)) {
+            _log.finer("sent flags " + Integer.toBinaryString(xflags));
+        }
 
         if ((xflags & TransmitFlags.SAME_NAME) != 0) {
             _duplexChannel.putByte((byte) numPrefixBytes);
