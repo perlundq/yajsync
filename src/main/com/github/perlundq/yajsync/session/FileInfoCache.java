@@ -19,19 +19,22 @@
  */
 package com.github.perlundq.yajsync.session;
 
+import com.github.perlundq.yajsync.filelist.User;
+
 class FileInfoCache
 {
     private int _prevMode = -1;
     private byte[] _prevFileName = {};
     private long _prevLastModified = 0;
-    
+    private User _prevUser;
+
     public FileInfoCache() {}
-    
+
     public int getPrevMode()
     {
         return _prevMode;
     }
-    
+
     public void setPrevMode(int prevMode)
     {
         _prevMode = prevMode;
@@ -55,5 +58,15 @@ class FileInfoCache
     public void setPrevLastModified(long prevLastModified)
     {
         _prevLastModified = prevLastModified;
+    }
+
+    public User getPrevUserOrNull()
+    {
+        return _prevUser;
+    }
+
+    public void setPrevUser(User user)
+    {
+        _prevUser = user;
     }
 }

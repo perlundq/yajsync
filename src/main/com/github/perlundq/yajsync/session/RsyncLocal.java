@@ -33,6 +33,7 @@ public class RsyncLocal
     private boolean _isRecursiveTransfer;
     private boolean _isPreservePermissions;
     private boolean _isPreserveTimes;
+    private boolean _isPreserveUser;
     private boolean _isDeferredWrite;
     private Charset _charset = Charset.forName(Text.UTF8_NAME);
     private Statistics _statistics = new Statistics();
@@ -62,6 +63,11 @@ public class RsyncLocal
     public void setIsPreserveTimes(boolean isPreserveTimes)
     {
         _isPreserveTimes = isPreserveTimes;
+    }
+
+    public void setIsPreserveUser(boolean isPreserveUser)
+    {
+        _isPreserveUser = isPreserveUser;
     }
 
     public void setIsDeferredWrite(boolean isDeferredWrite)
@@ -95,6 +101,7 @@ public class RsyncLocal
                                    srcPaths,
                                    _charset,
                                    checksumSeed).
+            setIsPreserveUser(_isPreserveUser).
             setIsExitEarlyIfEmptyList(true).
             setIsRecursive(_isRecursiveTransfer);
         Generator generator = new Generator(toSender.sink(), _charset,
@@ -102,6 +109,7 @@ public class RsyncLocal
             setIsRecursive(_isRecursiveTransfer).
             setIsPreservePermissions(_isPreservePermissions).
             setIsPreserveTimes(_isPreserveTimes).
+            setIsPreserveUser(_isPreserveUser).
             setIsAlwaysItemize(_verbosity > 1);
         Receiver receiver = new Receiver(generator,
                                          toReceiver.source(),
@@ -111,6 +119,7 @@ public class RsyncLocal
             setIsRecursive(_isRecursiveTransfer).
             setIsPreservePermissions(_isPreservePermissions).
             setIsPreserveTimes(_isPreserveTimes).
+            setIsPreserveUser(_isPreserveUser).
             setIsDeferredWrite(_isDeferredWrite);
 
         boolean isOK = RsyncTaskExecutor.exec(executor, sender,

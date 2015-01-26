@@ -32,6 +32,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -46,6 +48,7 @@ import com.github.perlundq.yajsync.channels.RsyncOutChannel;
 import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
+import com.github.perlundq.yajsync.filelist.User;
 import com.github.perlundq.yajsync.io.FileView;
 import com.github.perlundq.yajsync.io.FileViewNotFound;
 import com.github.perlundq.yajsync.io.FileViewOpenFailed;
@@ -74,10 +77,12 @@ public class Sender implements RsyncTask,MessageHandler
     private final Iterable<Path> _sourceFiles;
     private final TextDecoder _characterDecoder;
     private final TextEncoder _characterEncoder;
+    private final Set<User> _transferredUserNames = new LinkedHashSet<>();
     private boolean _isReceiveFilterRules;
     private boolean _isSendStatistics;
     private boolean _isExitEarlyIfEmptyList;
     private boolean _isRecursive;
+    private boolean _isPreserveUser;
     private int _nextSegmentIndex;
     private Statistics _stats = new Statistics();
     private boolean _isInterruptible = true;
@@ -132,6 +137,12 @@ public class Sender implements RsyncTask,MessageHandler
     public Sender setIsRecursive(boolean isRecursive)
     {
         _isRecursive = isRecursive;
+        return this;
+    }
+
+    public Sender setIsPreserveUser(boolean isPreserveUser)
+    {
+        _isPreserveUser = isPreserveUser;
         return this;
     }
 
@@ -217,6 +228,10 @@ public class Sender implements RsyncTask,MessageHandler
             }
             long t3 = System.currentTimeMillis();
 
+            if (_isPreserveUser && !_isRecursive) {
+                sendUserList();
+            }
+
             _stats.setFileListBuildTime(Math.max(1, t2 - t1));
             _stats.setFileListTransferTime(Math.max(0, t3 - t2));
             long segmentSize = _duplexChannel.numBytesWritten() - numBytesWritten;
@@ -266,6 +281,39 @@ public class Sender implements RsyncTask,MessageHandler
             _stats.setTotalWritten(_duplexChannel.numBytesWritten());
             _stats.setNumFiles(fileList.numFiles());
         }
+    }
+
+    private void sendUserId(int uid) throws ChannelException
+    {
+        if (_log.isLoggable(Level.FINER)) {
+            _log.finer("sending user id " + uid);
+        }
+        sendEncodedInt(uid);
+    }
+
+    private void sendUserName(String name) throws ChannelException
+    {
+        if (_log.isLoggable(Level.FINER)) {
+            _log.finer("sending user name " + name);
+        }
+        ByteBuffer buf = ByteBuffer.wrap(_characterEncoder.encode(name));
+        if (buf.remaining() > 0xFF) { // unlikely scenario, we could also recover from this (by truncating or falling back to nobody)
+            throw new IllegalStateException(String.format(
+                "encoded length of user name %s is %d, which is larger than " +
+                "what fits in a byte (255)", name, buf.remaining()));
+        }
+        _duplexChannel.putByte((byte) buf.remaining());
+        _duplexChannel.put(buf);
+    }
+
+    private void sendUserList() throws ChannelException
+    {
+        for (User user : _transferredUserNames) {
+            assert user.uid() != User.root().uid();
+            sendUserId(user.uid());
+            sendUserName(user.name());
+        }
+        sendEncodedInt(0);
     }
 
     /**
@@ -754,6 +802,7 @@ public class Sender implements RsyncTask,MessageHandler
         return isOK;
     }
 
+    // flist.c:send_file_entry
     private void sendFileMetaData(FileInfo fileInfo) throws ChannelException
     {
         if (_log.isLoggable(Level.FINE)) {
@@ -775,7 +824,21 @@ public class Sender implements RsyncTask,MessageHandler
             _fileInfoCache.setPrevMode(mode);
         }
 
-        xflags |= TransmitFlags.SAME_UID;
+        User user = fileInfo.attrs().user();
+        if (_isPreserveUser &&
+            !user.equals(_fileInfoCache.getPrevUserOrNull()))
+        {
+            _fileInfoCache.setPrevUser(user);
+            if (!user.equals(User.root())) {
+                if (_isRecursive && !_transferredUserNames.contains(user)) {
+                    xflags |= TransmitFlags.USER_NAME_FOLLOWS;
+                } // else send in batch later
+                _transferredUserNames.add(user);
+            }
+        } else {
+            xflags |= TransmitFlags.SAME_UID;
+        }
+
         xflags |= TransmitFlags.SAME_GID;
 
         long lastModified = attrs.lastModifiedTime();
@@ -837,6 +900,13 @@ public class Sender implements RsyncTask,MessageHandler
 
         if ((xflags & TransmitFlags.SAME_MODE) == 0) {
             _duplexChannel.putInt(mode);
+        }
+
+        if (_isPreserveUser && ((xflags & TransmitFlags.SAME_UID) == 0)) {
+            sendUserId(user.uid());
+            if ((xflags & TransmitFlags.USER_NAME_FOLLOWS) != 0) {
+                sendUserName(user.name());
+            }
         }
 
         // TODO: assert fileName is equal to symbolic link name in native

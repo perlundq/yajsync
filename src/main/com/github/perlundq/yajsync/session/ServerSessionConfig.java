@@ -58,6 +58,7 @@ public class ServerSessionConfig extends SessionConfig
     private boolean _isSender = false;
     private boolean _isPreservePermissions = false;
     private boolean _isPreserveTimes = false;
+    private boolean _isPreserveUser = false;
     private Module _module;
     private int _verbosity = 0;
 
@@ -284,6 +285,14 @@ public class ServerSessionConfig extends SessionConfig
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
+            "owner", "o", "",
+            new Option.Handler() {
+                @Override public void handle(Option option) {
+                    setIsPreserveUser();
+                }}));
+
+        argsParser.add(Option.newWithoutArgument(
+            Option.Policy.OPTIONAL,
             "perms", "p", "",
             new Option.Handler() {
                 @Override public void handle(Option option) {
@@ -426,6 +435,11 @@ public class ServerSessionConfig extends SessionConfig
         _isPreserveTimes = true;
     }
 
+    private void setIsPreserveUser()
+    {
+        _isPreserveUser = true;
+    }
+
     public boolean isSender()
     {
         return _isSender;
@@ -449,6 +463,11 @@ public class ServerSessionConfig extends SessionConfig
     public boolean isPreserveTimes()
     {
         return _isPreserveTimes;
+    }
+
+    public boolean isPreserveUser()
+    {
+        return _isPreserveUser;
     }
 
     public Path getReceiverDestination()

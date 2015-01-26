@@ -42,6 +42,7 @@ public class RsyncClientSession
     private int _verbosity;
     private Statistics _statistics = new Statistics();
     private boolean _isPreservePermissions;
+    private boolean _isPreserveUser;
 
     public RsyncClientSession() {}
 
@@ -54,6 +55,12 @@ public class RsyncClientSession
     public RsyncClientSession setIsPreserveTimes(boolean isPreservedTimes)
     {
         _isPreserveTimes = isPreservedTimes;
+        return this;
+    }
+
+    public RsyncClientSession setIsPreserveUser(boolean isPreservedUser)
+    {
+        _isPreserveUser = isPreservedUser;
         return this;
     }
 
@@ -113,6 +120,9 @@ public class RsyncClientSession
         }
         if (_isPreserveTimes) {
             sb.append("t");
+        }
+        if (_isPreserveUser) {
+            sb.append("o");
         }
         if (_isRecursiveTransfer) {
             sb.append("r");
@@ -182,6 +192,7 @@ public class RsyncClientSession
                                                      _charset,
                                                      cfg.checksumSeed()).
                 setIsRecursive(_isRecursiveTransfer).
+                setIsPreserveUser(_isPreserveUser).
                 setIsInterruptible(isChannelsInterruptible);
             boolean isOK = RsyncTaskExecutor.exec(executor, sender);
             _statistics = sender.statistics();
@@ -193,6 +204,7 @@ public class RsyncClientSession
                     setIsRecursive(_isRecursiveTransfer).
                     setIsPreservePermissions(_isPreservePermissions).
                     setIsPreserveTimes(_isPreserveTimes).
+                    setIsPreserveUser(_isPreserveUser).
                     setIsAlwaysItemize(_verbosity > 1).
                     setIsListOnly(_isModuleListing).
                     setIsInterruptible(isChannelsInterruptible);
@@ -203,6 +215,7 @@ public class RsyncClientSession
                 setIsRecursive(_isRecursiveTransfer).
                 setIsPreservePermissions(_isPreservePermissions).
                 setIsPreserveTimes(_isPreserveTimes).
+                setIsPreserveUser(_isPreserveUser).
                 setIsListOnly(_isModuleListing).
                 setIsDeferredWrite(_isDeferredWrite).
                 setIsInterruptible(isChannelsInterruptible).

@@ -236,6 +236,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     private boolean _isModuleListing;
     private boolean _isPreservePermissions;
     private boolean _isPreserveTimes;
+    private boolean _isPreserveUser;
     private boolean _isRecursiveTransfer;
     private boolean _isRemote;
     private boolean _isSender;
@@ -341,6 +342,17 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             new Option.Handler() {
                 @Override public void handle(Option option) {
                     _isPreserveTimes  = true;
+                }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "owner", "o",
+                                      String.format("preserve owner " +
+                                                    "(default %s)",
+                                                    _isPreserveUser),
+            new Option.Handler() {
+                @Override public void handle(Option option) {
+                    _isPreserveUser  = true;
                 }}));
 
         options.add(
@@ -551,6 +563,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         session.setIsModuleListing(_isModuleListing);
         session.setIsPreservePermissions(_isPreservePermissions);
         session.setIsPreserveTimes(_isPreserveTimes);
+        session.setIsPreserveUser(_isPreserveUser);
         session.setIsRecursiveTransfer(_isRecursiveTransfer);
         session.setIsSender(_isSender);
 
@@ -616,6 +629,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         localTransfer.setIsRecursiveTransfer(_isRecursiveTransfer);
         localTransfer.setIsPreservePermissions(_isPreservePermissions);
         localTransfer.setIsPreserveTimes(_isPreserveTimes);
+        localTransfer.setIsPreserveUser(_isPreserveUser);
         localTransfer.setIsDeferredWrite(_isDeferredWrite);
         List<Path> srcPaths = new LinkedList<>();
         for (String pathName : _srcArgs) {

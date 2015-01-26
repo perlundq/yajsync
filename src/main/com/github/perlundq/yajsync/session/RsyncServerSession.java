@@ -68,6 +68,7 @@ public class RsyncServerSession
                                                      cfg.charset(),
                                                      cfg.checksumSeed()).
                 setIsRecursive(cfg.isRecursive()).
+                setIsPreserveUser(cfg.isPreserveUser()).
                 setIsInterruptible(isChannelsInterruptible);
             return RsyncTaskExecutor.exec(executor, sender);
         } else {
@@ -77,6 +78,7 @@ public class RsyncServerSession
                     setIsRecursive(cfg.isRecursive()).
                     setIsPreservePermissions(cfg.isPreservePermissions()).
                     setIsPreserveTimes(cfg.isPreserveTimes()).
+                    setIsPreserveUser(cfg.isPreserveUser()).
                     setIsAlwaysItemize(cfg.verbosity() > 1).
                     setIsInterruptible(isChannelsInterruptible);
             Receiver receiver =
@@ -85,6 +87,7 @@ public class RsyncServerSession
                     setIsRecursive(cfg.isRecursive()).
                     setIsPreservePermissions(cfg.isPreservePermissions()).
                     setIsPreserveTimes(cfg.isPreserveTimes()).
+                    setIsPreserveUser(cfg.isPreserveUser()).
                     setIsDeferredWrite(_isDeferredWrite).
                     setIsInterruptible(isChannelsInterruptible);
 

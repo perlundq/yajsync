@@ -86,6 +86,7 @@ public class Generator implements RsyncTask
     private boolean _isRecursive;
     private boolean _isPreservePermissions;
     private boolean _isPreserveTimes;
+    private boolean _isPreserveUser;
     private boolean _isListOnly;
     private Filelist _fileList;  // effectively final
     private int _returnStatus ;
@@ -145,6 +146,12 @@ public class Generator implements RsyncTask
     public Generator setIsPreserveTimes(boolean isPreserveTimes)
     {
         _isPreserveTimes = isPreserveTimes;
+        return this;
+    }
+
+    public Generator setIsPreserveUser(boolean isPreserveUser)
+    {
+        _isPreserveUser = isPreserveUser;
         return this;
     }
 
@@ -752,6 +759,28 @@ public class Generator implements RsyncTask
             FileOps.setLastModifiedTime(path, targetAttrs.lastModifiedTime(),
                                         LinkOption.NOFOLLOW_LINKS);
         }
+        // NOTE: keep this one last in the method, in case we fail due to
+        //       insufficient permissions (the other ones are more likely to
+        //       succeed).
+        // NOTE: we cannot detect if we have the capabilities to change
+        //       ownership (knowing if UID 0 is not sufficient)
+        // TODO: fall back to changing uid (find out how rsync works) if name
+        //       change fails
+        if (_isPreserveUser &&
+            (curAttrs == null ||
+             !curAttrs.user().equals(targetAttrs.user())))
+        {
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(String.format(
+                    "(Generator) updating ownership %s -> %s on %s",
+                    curAttrs == null ? "" : curAttrs.user(),
+                    targetAttrs.user(), path));
+            }
+            // NOTE: side effect of chown in Linux is that set user/group id bit
+            //       might be cleared.
+            FileOps.setOwner(path, targetAttrs.user(),
+                             LinkOption.NOFOLLOW_LINKS);
+        }
     }
 
     private void deferUpdateAttrsIfDiffer(final Path path,
@@ -828,6 +857,9 @@ public class Generator implements RsyncTask
             curAttrs.lastModifiedTime() != targetAttrs.lastModifiedTime())
         {
             iFlags |= Item.REPORT_TIME;
+        }
+        if (_isPreserveUser && !curAttrs.user().equals(targetAttrs.user())) {
+            iFlags |= Item.REPORT_OWNER;
         }
         if (curAttrs.isRegularFile() && curAttrs.size() != targetAttrs.size()) {
             iFlags |= Item.REPORT_SIZE;

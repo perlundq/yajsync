@@ -26,6 +26,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.UserPrincipal;
 
+import com.github.perlundq.yajsync.filelist.User;
 import com.github.perlundq.yajsync.text.Text;
 
 public final class Environment
@@ -48,15 +49,22 @@ public final class Environment
     public static final boolean IS_PATH_SEPARATOR_SLASH = PATH_SEPARATOR.equals(Text.SLASH);
     public static final boolean IS_PATH_SEPARATOR_BACK_SLASH = PATH_SEPARATOR.equals(Text.BACK_SLASH);
     public static final boolean IS_RUNNING_WINDOWS = isRunningWindows();
-
     public static final boolean IS_UNIX_FS = FileSystems.getDefault().supportedFileAttributeViews().contains("unix");
     public static final boolean IS_POSIX_FS = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
 
     private Environment() {}
 
-    public static String getUserId()
+    public static int getUserId()
     {
-        return getNonNullProperty(PROPERTY_KEY_USER_UID);
+        String uidString = System.getProperty(PROPERTY_KEY_USER_UID);
+        if (uidString == null) {
+            return User.nobody().uid();
+        }
+        int uid = Integer.parseInt(uidString);
+        if (uid < 0 || uid > User.UID_MAX) {
+            return User.nobody().uid();
+        }
+        return uid;
     }
 
     public static String getGroupId()
@@ -64,10 +72,9 @@ public final class Environment
         return getNonNullProperty(PROPERTY_KEY_GROUP_UID);
     }
 
-    // native defaults to nobody when authenticating
     public static String getUserName()
     {
-        return getNonNullProperty(PROPERTY_KEY_USER_NAME);
+        return getPropertyOrDefault(PROPERTY_KEY_USER_NAME, User.nobody().name());
     }
 
     public static String getGroupName()

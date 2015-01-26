@@ -29,6 +29,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import com.github.perlundq.yajsync.filelist.User;
+
 public class FileOps
 {
     public static final int S_IFMT   = 0170000; // bit mask for the file type bit fields
@@ -344,4 +346,26 @@ public class FileOps
             return -1;
         }
     }
+
+    public static void setOwner(Path path, User user, LinkOption... linkOption)
+        throws IOException
+    {
+        try {
+            Files.setAttribute(path, "posix:owner", user.userPrincipal(),
+                               linkOption);
+        } catch (UnsupportedOperationException e) {
+            throw new IOException(e);
+        }
+    }
+
+    public static void setUserId(Path path, User user, LinkOption... linkOption)
+        throws IOException
+    {
+        try {
+            Files.setAttribute(path, "unix:uid", user.uid(), linkOption);
+        } catch (UnsupportedOperationException e) {
+            throw new IOException(e);
+        }
+    }
+
 }
