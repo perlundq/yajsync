@@ -126,6 +126,7 @@ public class Receiver implements RsyncTask,MessageHandler
     private boolean _isDeferredWrite;
     private boolean _isInterruptible = true;
     private boolean _isExitAfterEOF;
+    private boolean _isSafeFileList = true;
     private int _ioError;
     private PathResolver _pathResolver;
 
@@ -229,6 +230,12 @@ public class Receiver implements RsyncTask,MessageHandler
     public Receiver setIsExitEarlyIfEmptyList(boolean isExitEarlyIfEmptyList)
     {
         _isExitEarlyIfEmptyList = isExitEarlyIfEmptyList;
+        return this;
+    }
+
+    public Receiver setIsSafeFileList(boolean isSafeFileList)
+    {
+        _isSafeFileList = isSafeFileList;
         return this;
     }
 
@@ -944,6 +951,9 @@ public class Receiver implements RsyncTask,MessageHandler
                 flags |= (_senderInChannel.getByte() & 0xFF) << 8;
                 if (flags == (TransmitFlags.EXTENDED_FLAGS |
                               TransmitFlags.IO_ERROR_ENDLIST)) {
+                    if (!_isSafeFileList) {
+                        throw new RsyncProtocolException("invalid flag " + Integer.toBinaryString(flags));
+                    }
                     ioError |= receiveAndDecodeInt();
                     if (_log.isLoggable(Level.WARNING)) {
                         _log.warning(String.format("peer process returned an " +

@@ -83,6 +83,7 @@ public class Sender implements RsyncTask,MessageHandler
     private boolean _isExitEarlyIfEmptyList;
     private boolean _isRecursive;
     private boolean _isPreserveUser;
+    private boolean _isSafeFileList = true;
     private int _nextSegmentIndex;
     private Statistics _stats = new Statistics();
     private boolean _isInterruptible = true;
@@ -176,6 +177,12 @@ public class Sender implements RsyncTask,MessageHandler
         return this;
     }
 
+    public Sender setIsSafeFileList(boolean isSafeFileList)
+    {
+        _isSafeFileList = isSafeFileList;
+        return this;
+    }
+
     @Override
     public boolean isInterruptible()
     {
@@ -236,6 +243,10 @@ public class Sender implements RsyncTask,MessageHandler
             _stats.setFileListTransferTime(Math.max(0, t3 - t2));
             long segmentSize = _duplexChannel.numBytesWritten() - numBytesWritten;
             _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
+
+            if (!_isSafeFileList && !isInitialListOK) {
+                sendIntMessage(MessageCode.IO_ERROR, IoError.GENERAL);
+            }
 
             if (initialSegment.isFinished() && _isExitEarlyIfEmptyList) {
                 if (_log.isLoggable(Level.FINE)) {
@@ -929,10 +940,14 @@ public class Sender implements RsyncTask,MessageHandler
         if (_log.isLoggable(Level.FINE)) {
             _log.fine("sending file list error notification to peer");
         }
-        _duplexChannel.putChar(
-            (char) (0xFFFF & (TransmitFlags.EXTENDED_FLAGS |
-                              TransmitFlags.IO_ERROR_ENDLIST)));
-        sendEncodedInt(IoError.GENERAL);
+        if (_isSafeFileList) {
+            _duplexChannel.putChar(
+                (char) (0xFFFF & (TransmitFlags.EXTENDED_FLAGS |
+                                  TransmitFlags.IO_ERROR_ENDLIST)));
+            sendEncodedInt(IoError.GENERAL);
+        } else {
+            _duplexChannel.putByte((byte) 0);
+        }
     }
 
     private void sendChecksumHeader(Checksum.Header header)

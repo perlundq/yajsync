@@ -41,6 +41,7 @@ public class ClientSessionConfig extends SessionConfig
     private static final Logger _log =
         Logger.getLogger(ClientSessionConfig.class.getName());
     private final boolean _isRecursive;
+    private boolean _isSafeFileList;
 
     /**
      * @throws IllegalArgumentException if charset is not supported
@@ -91,6 +92,10 @@ public class ClientSessionConfig extends SessionConfig
         }
     }
 
+    public boolean isSafeFileList()
+    {
+        return _isSafeFileList;
+    }
     /**
      * @throws TextConversionException
      */
@@ -166,10 +171,7 @@ public class ClientSessionConfig extends SessionConfig
             throw new RsyncProtocolException("peer does not support " +
                                              "incremental recurse");
         }
-        if ((flags & RsyncCompatibilities.CF_SAFE_FLIST) == 0) {
-            throw new RsyncProtocolException("peer does not support " +
-                                             "safe file lists");
-        }
+        _isSafeFileList = (flags & RsyncCompatibilities.CF_SAFE_FLIST) != 0;
     }
 
     private void receiveChecksumSeed() throws ChannelException

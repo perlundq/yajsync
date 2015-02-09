@@ -61,6 +61,7 @@ public class ServerSessionConfig extends SessionConfig
     private boolean _isPreserveUser = false;
     private Module _module;
     private int _verbosity = 0;
+    private boolean _isSafeFileList;
 
 
     /**
@@ -389,13 +390,7 @@ public class ServerSessionConfig extends SessionConfig
             }
             if (str.contains("s")) { // CF_SYMLINK_ICONV
             }
-            if (str.contains("f")) { // CF_SAFE_FLIST
-                // NOP, corresponds to use_safe_inc_flist in native rsync
-            } else {
-                throw new RsyncProtocolException(
-                    String.format("Peer does not support safe file lists: %s",
-                                  str));
-            }
+            _isSafeFileList = str.contains("f");
         } else {
             throw new RsyncProtocolException(
                 String.format("Protocol not supported - got %s from peer",
@@ -405,7 +400,10 @@ public class ServerSessionConfig extends SessionConfig
 
     private void sendCompatibilities() throws ChannelException
     {
-        byte flags = RsyncCompatibilities.CF_SAFE_FLIST;
+        byte flags = 0;
+        if (_isSafeFileList) {
+            flags |= RsyncCompatibilities.CF_SAFE_FLIST;
+        }
         if (_isIncrementalRecurse) {
             flags |= RsyncCompatibilities.CF_INC_RECURSE;
         }
@@ -468,6 +466,11 @@ public class ServerSessionConfig extends SessionConfig
     public boolean isPreserveUser()
     {
         return _isPreserveUser;
+    }
+
+    public boolean isSafeFileList()
+    {
+        return _isSafeFileList;
     }
 
     public Path getReceiverDestination()

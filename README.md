@@ -4,8 +4,7 @@ yajsync
 yajsync is a port of [rsync](http://rsync.samba.org) written in Java.
 
 yajsync currently supports a minimal subset of rsync protocol version
-30.0, with the additional constraint that the peer must also support
-rsync safe file lists.
+30.0.
 
 Currently implemented rsync options:
 

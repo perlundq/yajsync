@@ -193,7 +193,8 @@ public class RsyncClientSession
                                                      cfg.checksumSeed()).
                 setIsRecursive(_isRecursiveTransfer).
                 setIsPreserveUser(_isPreserveUser).
-                setIsInterruptible(isChannelsInterruptible);
+                setIsInterruptible(isChannelsInterruptible).
+                setIsSafeFileList(cfg.isSafeFileList());
             boolean isOK = RsyncTaskExecutor.exec(executor, sender);
             _statistics = sender.statistics();
             return isOK;
@@ -219,7 +220,8 @@ public class RsyncClientSession
                 setIsListOnly(_isModuleListing).
                 setIsDeferredWrite(_isDeferredWrite).
                 setIsInterruptible(isChannelsInterruptible).
-                setIsExitAfterEOF(true);
+                setIsExitAfterEOF(true).
+                setIsSafeFileList(cfg.isSafeFileList());
             boolean isOK = RsyncTaskExecutor.exec(executor, generator,
                                                          receiver);
             _statistics = receiver.statistics();
