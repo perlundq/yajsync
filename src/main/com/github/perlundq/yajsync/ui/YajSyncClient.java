@@ -251,6 +251,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     private String _moduleName;
     private String _userName;
     private boolean _isTLS;
+    private boolean _isTransferDirs = false;
 
     @Override
     public String getUser()
@@ -298,6 +299,19 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                             "ASCII counterparts and vice versa", charsetName));
                     }
                 }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "dirs", "d",
+                                      String.format("transfer directories " +
+                                                    "without recursing " +
+                                                    "(default %s)",
+                                                    _isTransferDirs),
+            new Option.Handler() {
+                @Override public void handle(Option option) {
+                    _isTransferDirs = true;
+                }
+            }));
 
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
@@ -566,6 +580,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         session.setIsPreserveUser(_isPreserveUser);
         session.setIsRecursiveTransfer(_isRecursiveTransfer);
         session.setIsSender(_isSender);
+        session.setIsTransferDirs(_isTransferDirs);
 
         ChannelFactory socketFactory = _isTLS ? new SSLChannelFactory()
                                               : new StandardChannelFactory();
@@ -631,6 +646,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         localTransfer.setIsPreserveTimes(_isPreserveTimes);
         localTransfer.setIsPreserveUser(_isPreserveUser);
         localTransfer.setIsDeferredWrite(_isDeferredWrite);
+        localTransfer.setIsTransferDirs(_isTransferDirs);
         List<Path> srcPaths = new LinkedList<>();
         for (String pathName : _srcArgs) {
             srcPaths.add(Paths.get(pathName));                                  // throws InvalidPathException

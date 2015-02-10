@@ -62,6 +62,7 @@ public class ServerSessionConfig extends SessionConfig
     private Module _module;
     private int _verbosity = 0;
     private boolean _isSafeFileList;
+    private boolean _isTransferDirs = false;
 
 
     /**
@@ -309,6 +310,14 @@ public class ServerSessionConfig extends SessionConfig
                 }}));
 
 
+        argsParser.add(Option.newWithoutArgument(
+            Option.Policy.OPTIONAL,
+            "dirs", "d", "",
+            new Option.Handler() {
+                @Override public void handle(Option option) {
+                _isTransferDirs = true;
+                }}));
+
         // FIXME: let ModuleProvider mutate this argsParser instance before
         // calling parse (e.g. adding specific options or removing options)
 
@@ -487,5 +496,10 @@ public class ServerSessionConfig extends SessionConfig
     private String receiveModule() throws ChannelException
     {
         return readLine();
+    }
+
+    public boolean isTransferDirs()
+    {
+        return _isTransferDirs;
     }
 }

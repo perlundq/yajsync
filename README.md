@@ -16,6 +16,8 @@ Currently implemented rsync options:
 
 - Preserve times (-t, --times)
 
+- Transfer directories (-d, --dirs)
+
 - Module file listings
 
 yajsync is compliant with at least rsync version 3.0.9.
@@ -42,7 +44,7 @@ Warning
 
 This software is still unstable and there might be data corruption
 bugs hiding. So use it only carefully at your own risk.
-     
+
 If you encounter any problems please create an issue with
 https://github.com/perlundq/yajsync/issues/new
 
@@ -180,7 +182,7 @@ Recommended extra options to the jvm (i.e. must be placed before the
 Turn on assertions:
 
     -ea
-    
+
 Use a more memory conservative garbage collector:
 
     -XX:+UseConcMarkSweepGC

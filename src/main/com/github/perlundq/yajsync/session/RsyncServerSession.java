@@ -70,7 +70,8 @@ public class RsyncServerSession
                 setIsRecursive(cfg.isRecursive()).
                 setIsPreserveUser(cfg.isPreserveUser()).
                 setIsInterruptible(isChannelsInterruptible).
-                setIsSafeFileList(cfg.isSafeFileList());
+                setIsSafeFileList(cfg.isSafeFileList()).
+                setIsTransferDirs(cfg.isTransferDirs());
             return RsyncTaskExecutor.exec(executor, sender);
         } else {
             Generator generator =

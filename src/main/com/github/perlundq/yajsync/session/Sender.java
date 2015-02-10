@@ -88,7 +88,7 @@ public class Sender implements RsyncTask,MessageHandler
     private Statistics _stats = new Statistics();
     private boolean _isInterruptible = true;
     private boolean _isExitAfterEOF = false;
-
+    private boolean _isTransferDirs = false;
     private int _ioError;
 
     public Sender(ReadableByteChannel in,
@@ -180,6 +180,12 @@ public class Sender implements RsyncTask,MessageHandler
     public Sender setIsSafeFileList(boolean isSafeFileList)
     {
         _isSafeFileList = isSafeFileList;
+        return this;
+    }
+
+    public Sender setIsTransferDirs(boolean isTransferDirs)
+    {
+        _isTransferDirs = isTransferDirs;
         return this;
     }
 
@@ -640,6 +646,14 @@ public class Sender implements RsyncTask,MessageHandler
                         _log.warning("pruning duplicate " + fileInfo);
                     }
                     isOK = false;  // should we possibly not treat this as an error? (if so also change print statement to debug)
+                    continue;
+                }
+                if (!_isRecursive && !_isTransferDirs &&
+                    fileInfo.attrs().isDirectory())
+                {
+                    if (_log.isLoggable(Level.INFO)) {
+                        _log.info("skipping directory " + fileInfo);
+                    }
                     continue;
                 }
                 if (_log.isLoggable(Level.FINE)) {

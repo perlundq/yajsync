@@ -37,6 +37,7 @@ public class RsyncLocal
     private boolean _isDeferredWrite;
     private Charset _charset = Charset.forName(Text.UTF8_NAME);
     private Statistics _statistics = new Statistics();
+    private boolean _isTransferDirs = false;
 
     public RsyncLocal() {}
 
@@ -75,6 +76,11 @@ public class RsyncLocal
         _isDeferredWrite = isDeferredWrite;
     }
 
+    public void setIsTransferDirs(boolean isTransferDirs)
+    {
+        _isTransferDirs = isTransferDirs;
+    }
+
     private Pipe[] pipePair()
     {
         try {
@@ -103,7 +109,8 @@ public class RsyncLocal
                                    checksumSeed).
             setIsPreserveUser(_isPreserveUser).
             setIsExitEarlyIfEmptyList(true).
-            setIsRecursive(_isRecursiveTransfer);
+            setIsRecursive(_isRecursiveTransfer).
+            setIsTransferDirs(_isTransferDirs);
         Generator generator = new Generator(toSender.sink(), _charset,
                                             checksumSeed).
             setIsRecursive(_isRecursiveTransfer).

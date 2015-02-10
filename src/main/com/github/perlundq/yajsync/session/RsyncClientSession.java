@@ -43,6 +43,7 @@ public class RsyncClientSession
     private Statistics _statistics = new Statistics();
     private boolean _isPreservePermissions;
     private boolean _isPreserveUser;
+    private boolean _isTransferDirs;
 
     public RsyncClientSession() {}
 
@@ -94,6 +95,12 @@ public class RsyncClientSession
         return this;
     }
 
+    public RsyncClientSession setIsTransferDirs(boolean isTransferDirs)
+    {
+        _isTransferDirs = isTransferDirs;
+        return this;
+    }
+
     public Statistics statistics()
     {
         return _statistics;
@@ -112,8 +119,8 @@ public class RsyncClientSession
         for (int i = 0; i < _verbosity; i++) {
             sb.append("v");
         }
-        if (_isModuleListing) {
-//            sb.append("d");        // FIXME: BUG: is this really correct
+        if (_isTransferDirs || _isModuleListing && !_isRecursiveTransfer) {
+            sb.append("d");
         }
         if (_isPreservePermissions) {
             sb.append("p");
@@ -195,6 +202,9 @@ public class RsyncClientSession
                 setIsPreserveUser(_isPreserveUser).
                 setIsInterruptible(isChannelsInterruptible).
                 setIsSafeFileList(cfg.isSafeFileList());
+            boolean isTransferDirs = _isTransferDirs ||
+                                     _isModuleListing && !_isRecursiveTransfer;
+            sender.setIsTransferDirs(isTransferDirs);
             boolean isOK = RsyncTaskExecutor.exec(executor, sender);
             _statistics = sender.statistics();
             return isOK;
