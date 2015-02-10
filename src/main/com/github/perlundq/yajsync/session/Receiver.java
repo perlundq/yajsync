@@ -370,17 +370,14 @@ public class Receiver implements RsyncTask,MessageHandler
                     incompleteAttrs));
             }
             User completeUser = uidUserMap.get(incompleteAttrs.user().uid());
-            if (completeUser == null) {
-                throw new RsyncProtocolException(String.format(
-                    "unable to find mapping for uid %d in peer uid list %s",
-                    incompleteAttrs.user().uid(), uidUserMap));
+            if (completeUser != null) {
+                RsyncFileAttributes completeAttrs =
+                    new RsyncFileAttributes(incompleteAttrs.mode(),
+                                            incompleteAttrs.size(),
+                                            incompleteAttrs.lastModifiedTime(),
+                                            completeUser);
+                stub._attrs = completeAttrs;
             }
-            RsyncFileAttributes completeAttrs =
-                new RsyncFileAttributes(incompleteAttrs.mode(),
-                                        incompleteAttrs.size(),
-                                        incompleteAttrs.lastModifiedTime(),
-                                        completeUser);
-            stub._attrs = completeAttrs;
         }
     }
 
@@ -850,7 +847,8 @@ public class Receiver implements RsyncTask,MessageHandler
             FileOps.setLastModifiedTime(path, targetAttrs.lastModifiedTime(),
                                         LinkOption.NOFOLLOW_LINKS);
         }
-        if (_isPreserveUser && !curAttrs.user().equals(targetAttrs.user())) {
+        if (_isPreserveUser && !targetAttrs.user().name().isEmpty() &&
+            !curAttrs.user().name().equals(targetAttrs.user().name())) {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("updating ownership %s -> %s on %s",
                                         curAttrs.user(), targetAttrs.user(),
@@ -860,6 +858,18 @@ public class Receiver implements RsyncTask,MessageHandler
             //        bit are cleared.
             FileOps.setOwner(path, targetAttrs.user(),
                              LinkOption.NOFOLLOW_LINKS);
+        } else if (_isPreserveUser && targetAttrs.user().name().isEmpty() &&
+             curAttrs.user().uid() != targetAttrs.user().uid())
+        {
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(String.format("updating uid %d -> %d on %s",
+                                        curAttrs.user().uid(),
+                                        targetAttrs.user().uid(), path));
+            }
+            // NOTE: side effect of chown in Linux is that set user/group id bit
+            //       might be cleared.
+            FileOps.setUserId(path, targetAttrs.user().uid(),
+                              LinkOption.NOFOLLOW_LINKS);
         }
     }
 
@@ -1150,9 +1160,7 @@ public class Receiver implements RsyncTask,MessageHandler
                 int uid = receiveUserId();
                 user = _uidUserMap.get(uid);  // Note: _uidUserMap contains a predefined mapping for root
                 if (user == null) {
-                    throw new RsyncProtocolException(String.format(
-                        "expected user name for uid %d to have been sent " +
-                        "previously", uid));
+                    user = new User("", uid);
                 }
             } else { // if (!_isRecursive) {
                 user = receiveIncompleteUser();  // User with uid but no user name. User name mappings are sent in batch after initial file list

@@ -358,11 +358,11 @@ public class FileOps
         }
     }
 
-    public static void setUserId(Path path, User user, LinkOption... linkOption)
+    public static void setUserId(Path path, int uid, LinkOption... linkOption)
         throws IOException
     {
         try {
-            Files.setAttribute(path, "unix:uid", user.uid(), linkOption);
+            Files.setAttribute(path, "unix:uid", uid, linkOption);
         } catch (UnsupportedOperationException e) {
             throw new IOException(e);
         }

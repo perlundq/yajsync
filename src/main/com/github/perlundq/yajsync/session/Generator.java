@@ -55,6 +55,7 @@ import com.github.perlundq.yajsync.io.FileViewReadError;
 import com.github.perlundq.yajsync.text.TextConversionException;
 import com.github.perlundq.yajsync.text.TextDecoder;
 import com.github.perlundq.yajsync.text.TextEncoder;
+import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.MD5;
 import com.github.perlundq.yajsync.util.Rolling;
@@ -766,9 +767,9 @@ public class Generator implements RsyncTask
         //       ownership (knowing if UID 0 is not sufficient)
         // TODO: fall back to changing uid (find out how rsync works) if name
         //       change fails
-        if (_isPreserveUser &&
+        if (_isPreserveUser && !targetAttrs.user().name().isEmpty() &&
             (curAttrs == null ||
-             !curAttrs.user().equals(targetAttrs.user())))
+             !curAttrs.user().name().equals(targetAttrs.user().name())))
         {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format(
@@ -780,6 +781,20 @@ public class Generator implements RsyncTask
             //       might be cleared.
             FileOps.setOwner(path, targetAttrs.user(),
                              LinkOption.NOFOLLOW_LINKS);
+        } else if (_isPreserveUser && targetAttrs.user().name().isEmpty() &&
+            (curAttrs == null ||
+             curAttrs.user().uid() != targetAttrs.user().uid()))
+        {
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(String.format(
+                    "(Generator) updating uid %s -> %d on %s",
+                    curAttrs == null ? "" : curAttrs.user().uid(),
+                    targetAttrs.user().uid(), path));
+            }
+            // NOTE: side effect of chown in Linux is that set user/group id bit
+            //       might be cleared.
+            FileOps.setUserId(path, targetAttrs.user().uid(),
+                              LinkOption.NOFOLLOW_LINKS);
         }
     }
 
