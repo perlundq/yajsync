@@ -55,7 +55,6 @@ import com.github.perlundq.yajsync.io.FileViewReadError;
 import com.github.perlundq.yajsync.text.TextConversionException;
 import com.github.perlundq.yajsync.text.TextDecoder;
 import com.github.perlundq.yajsync.text.TextEncoder;
-import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.MD5;
 import com.github.perlundq.yajsync.util.Rolling;
@@ -368,7 +367,14 @@ public class Generator implements RsyncTask
             @Override
             public void process() throws ChannelException {
                 if (_isListOnly) {
-                    listSegment(segment);
+                    if (!_isRecursive) {
+                        listFullSegment(segment);
+                    } else if (segment.directory() == null) {
+                        listInitialSegmentRecursive(segment);
+                    } else {
+                        listSegmentRecursive(segment);
+                    }
+                    segment.removeAll();
                 } else {
                     sendChecksumForSegment(segment);
                 }
@@ -523,21 +529,42 @@ public class Generator implements RsyncTask
 //                                           TimeUnit.SECONDS),
     }
 
-    private void listSegment(Filelist.Segment segment)
+    private void listFullSegment(Filelist.Segment segment)
     {
-        FileInfo dir = segment.directory();
-        boolean listFirstDir = dir == null; // dir is only null for initial file list
-        if (dir != null) {
-            System.out.println(listFileInfo(dir)); // FIXME: don't hardcode System.out?
-        }
+        assert !_isRecursive;
+        assert segment.directory() == null;
         for (FileInfo f : segment.files()) {
-            if (!_isRecursive ||
-                !f.attrs().isDirectory() || listFirstDir) {
+            System.out.println(listFileInfo(f));
+        }
+    }
+
+    private void listInitialSegmentRecursive(Filelist.Segment segment)
+    {
+        assert _isRecursive;
+        assert segment.directory() == null;
+        boolean listFirstDotDir = true;
+        for (FileInfo f : segment.files()) {
+            if (!f.attrs().isDirectory()) {
                 System.out.println(listFileInfo(f));
-                listFirstDir = false;
+            } else if (listFirstDotDir) {
+                if (f.isDotDir()) {
+                    System.out.println(listFileInfo(f));
+                }
+                listFirstDotDir = false;
             }
         }
-        segment.removeAll();
+    }
+
+    private void listSegmentRecursive(Filelist.Segment segment)
+    {
+        assert _isRecursive;
+        assert segment.directory() != null;
+        System.out.println(listFileInfo(segment.directory()));
+        for (FileInfo f : segment.files()) {
+            if (!f.attrs().isDirectory()) {
+                System.out.println(listFileInfo(f));
+            }
+        }
     }
 
     private void sendChecksumForSegment(Filelist.Segment segment)
