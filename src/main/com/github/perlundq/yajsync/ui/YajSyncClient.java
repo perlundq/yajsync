@@ -19,8 +19,10 @@
  */
 package com.github.perlundq.yajsync.ui;
 
+import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.UnknownHostException;
 import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.Charset;
@@ -252,6 +254,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     private String _userName;
     private boolean _isTLS;
     private boolean _isTransferDirs = false;
+    private boolean _readStdin = false;
 
     @Override
     public String getUser()
@@ -386,6 +389,15 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             new Option.Handler() {
                 @Override public void handle(Option option) {
                     _remotePort = (int) option.getValue();
+                }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "stdin", "",
+                                      "read list of source files from stdin",
+            new Option.Handler() {
+                @Override public void handle(Option option) {
+                    _readStdin = true;
                 }}));
 
         String deferredWriteHelp = String.format(
@@ -532,10 +544,28 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                 argsParser.add(o);
             }
             argsParser.parse(Arrays.asList(args));                              // TODO: print warning for any not applicable option (e.g. defer-write for sender)
-            parseUnnamedArgs(argsParser.getUnnamedArguments());
+            if (_readStdin) {
+                List<String> srcArgs = new LinkedList<>();
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(System.in))) {
+                    while (true) {
+                        String line = br.readLine();
+                        if (line == null) {
+                            break;
+                        }
+                        srcArgs.add(line);
+                    }
+                }
+                srcArgs.addAll(argsParser.getUnnamedArguments());
+                parseUnnamedArgs(srcArgs);
+            } else {
+                parseUnnamedArgs(argsParser.getUnnamedArguments());
+            }
         } catch (ArgumentParsingError e) {
             System.err.println(e.getMessage());
             System.err.println(argsParser.toUsageString());
+            System.exit(1);
+        } catch (IOException e) {
+            System.err.println(e.getMessage());
             System.exit(1);
         }
 
