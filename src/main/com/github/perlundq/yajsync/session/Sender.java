@@ -686,7 +686,6 @@ public class Sender implements RsyncTask,MessageHandler
 
     private boolean expand(Filelist.SegmentBuilder builder, FileInfo directory)
     {
-        assert _isRecursive;
         assert builder != null;
         assert directory != null;
 

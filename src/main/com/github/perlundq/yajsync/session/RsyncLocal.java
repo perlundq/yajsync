@@ -38,6 +38,7 @@ public class RsyncLocal
     private Charset _charset = Charset.forName(Text.UTF8_NAME);
     private Statistics _statistics = new Statistics();
     private boolean _isTransferDirs = false;
+    private boolean _isModuleListing = false;
 
     public RsyncLocal() {}
 
@@ -49,6 +50,11 @@ public class RsyncLocal
     public void setCharset(Charset charset)
     {
         _charset = charset;
+    }
+
+    public void setIsModuleListing(boolean isModuleListing)
+    {
+        _isModuleListing = isModuleListing;
     }
 
     public void setIsRecursiveTransfer(boolean isRecursiveTransfer)
@@ -102,6 +108,8 @@ public class RsyncLocal
         Pipe toSender = pipePair[0];
         Pipe toReceiver = pipePair[1];
 
+        boolean isTransferDirs = _isTransferDirs ||
+                                 _isModuleListing && !_isRecursiveTransfer;
         Sender sender = new Sender(toSender.source(),
                                    toReceiver.sink(),
                                    srcPaths,
@@ -110,13 +118,14 @@ public class RsyncLocal
             setIsPreserveUser(_isPreserveUser).
             setIsExitEarlyIfEmptyList(true).
             setIsRecursive(_isRecursiveTransfer).
-            setIsTransferDirs(_isTransferDirs);
+            setIsTransferDirs(isTransferDirs);
         Generator generator = new Generator(toSender.sink(), _charset,
                                             checksumSeed).
             setIsRecursive(_isRecursiveTransfer).
             setIsPreservePermissions(_isPreservePermissions).
             setIsPreserveTimes(_isPreserveTimes).
             setIsPreserveUser(_isPreserveUser).
+            setIsListOnly(_isModuleListing).
             setIsAlwaysItemize(_verbosity > 1);
         Receiver receiver = new Receiver(generator,
                                          toReceiver.source(),
@@ -127,6 +136,7 @@ public class RsyncLocal
             setIsPreservePermissions(_isPreservePermissions).
             setIsPreserveTimes(_isPreserveTimes).
             setIsPreserveUser(_isPreserveUser).
+            setIsListOnly(_isModuleListing).
             setIsDeferredWrite(_isDeferredWrite);
 
         boolean isOK = RsyncTaskExecutor.exec(executor, sender,

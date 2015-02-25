@@ -671,6 +671,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         RsyncLocal localTransfer = new RsyncLocal();
         localTransfer.setCharset(_charset);
         localTransfer.setVerbosity(_verbosity);
+        localTransfer.setIsModuleListing(_isModuleListing);
         localTransfer.setIsRecursiveTransfer(_isRecursiveTransfer);
         localTransfer.setIsPreservePermissions(_isPreservePermissions);
         localTransfer.setIsPreserveTimes(_isPreserveTimes);
