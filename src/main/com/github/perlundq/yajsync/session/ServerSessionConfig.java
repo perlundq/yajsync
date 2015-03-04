@@ -256,56 +256,56 @@ public class ServerSessionConfig extends SessionConfig
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
             "sender", "", "",
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     setIsSender();
                 }}));
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
             "recursive", "r", "",
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     enableRecursiveTransfer();
                 }}));
 
         argsParser.add(Option.newStringOption(
             Option.Policy.REQUIRED,
             "rsh", "e", "",
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     parsePeerCompatibilites((String) option.getValue());
                 }}));
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
             "verbose", "v", "",
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     increaseVerbosity();
                 }}));
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
             "owner", "o", "",
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     setIsPreserveUser();
                 }}));
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
             "perms", "p", "",
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     setIsPreservePermissions();
                 }}));
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
             "times", "t", "",
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     setIsPreserveTimes();
                 }}));
 
@@ -313,15 +313,16 @@ public class ServerSessionConfig extends SessionConfig
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
             "dirs", "d", "",
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                 _isTransferDirs = true;
                 }}));
 
         // FIXME: let ModuleProvider mutate this argsParser instance before
         // calling parse (e.g. adding specific options or removing options)
 
-        argsParser.parse(receivedArguments);
+        ArgumentParser.Status rc = argsParser.parse(receivedArguments);
+        assert rc == ArgumentParser.Status.CONTINUE;
         assert !_isRecursiveTransfer || _isIncrementalRecurse :
                "We support only incremental recursive transfers for now";
 

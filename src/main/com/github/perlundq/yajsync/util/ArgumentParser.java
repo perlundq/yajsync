@@ -29,6 +29,7 @@ import java.util.Set;
 
 public class ArgumentParser
 {
+    public enum Status { CONTINUE, EXIT_OK, EXIT_ERROR };
     private final String _programName;
     private final String _unnamedHelpText;
     private final Map<String, Option> _longOptions = new HashMap<>();
@@ -62,16 +63,14 @@ public class ArgumentParser
 
     public void addHelpTextDestination(final PrintStream stream)
     {
-        add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "help", "h",
-            "show this help text",
-            new Option.Handler() {
-                @Override public void handle(Option option)
-                    throws ArgumentParsingError {
-                    stream.println(toUsageString());
-                    System.exit(1);    // FIXME: can we make the caller do this instead
-        }}));
+        Option.Handler h = new Option.Handler() {
+            @Override
+            public Status handle(Option option) {
+                stream.println(toUsageString());
+                return Status.EXIT_OK;
+            }
+        };
+        add(Option.newHelpOption(h));
     }
 
     /**
@@ -102,7 +101,7 @@ public class ArgumentParser
         }
     }
 
-    public void parse(Iterable<String> args) throws ArgumentParsingError
+    public Status parse(Iterable<String> args) throws ArgumentParsingError
     {
         Option currentOption = null;
         boolean isRemainingUnnamed = false;
@@ -112,14 +111,20 @@ public class ArgumentParser
                 assert currentOption == null;
                 addUnnamed(arg);
             } else if (currentOption != null) { // from previous short option
-                setValue(currentOption, arg);
+                Status rc = setValue(currentOption, arg);
+                if (rc != Status.CONTINUE) {
+                    return rc;
+                }
                 currentOption = null;
             } else if (isEndOfOptionMarker(arg)) {
                 isRemainingUnnamed = true;
             } else if (isLongOption(arg)) {
                 String[] result = splitLongOption(arg);
                 Option opt = getOptionForName(result[0]);
-                setValue(opt, result[1]);
+                Status rc = setValue(opt, result[1]);
+                if (rc != Status.CONTINUE) {
+                    return rc;
+                }
             } else if (isShortOption(arg)) {
                 assert currentOption == null;
                 char[] charArray = arg.toCharArray();
@@ -132,13 +137,19 @@ public class ArgumentParser
                         int length = charArray.length - offset;
                         if (offset < charArray.length && length > 0) {
                             String value = new String(charArray, offset, length);
-                            setValue(opt, value);
+                            Status rc = setValue(opt, value);
+                            if (rc != Status.CONTINUE) {
+                                return rc;
+                            }
                         } else { // else set value from next arg
                             currentOption = opt;
                         }
                         break;
                     } else {
-                        setValue(opt, "");
+                        Status rc = setValue(opt, "");
+                        if (rc != Status.CONTINUE) {
+                            return rc;
+                        }
                     }
                 }
             } else {
@@ -159,6 +170,7 @@ public class ArgumentParser
                     "%s is a required option", o.name()));
             }
         }
+        return Status.CONTINUE;
     }
 
     public String toUsageString()
@@ -311,10 +323,12 @@ public class ArgumentParser
         return result;
     }
 
-    private void setValue(Option opt, String value) throws ArgumentParsingError
+    private Status setValue(Option opt, String value)
+        throws ArgumentParsingError
     {
-        opt.setValue(value);
+        Status rc = opt.setValue(value);
         _parsed.add(opt);
+        return rc;
     }
 
     private boolean isUnnamedArgsAllowed()

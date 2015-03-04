@@ -80,9 +80,9 @@ public class YajSyncServer
                                            String.format("which charset to " +
                                                          "use (default %s)",
                                                          _charset),
-            new Option.Handler() {
+            new Option.ContinuingHandler() {
                 @Override
-                public void handle(Option option) throws ArgumentParsingError {
+                public void handleAndContinue(Option option) throws ArgumentParsingError {
                     String charsetName = (String) option.getValue();
                     try {
                         _charset = Charset.forName(charsetName);
@@ -106,8 +106,8 @@ public class YajSyncServer
                                               String.format("output verbosity" +
                                                             " (default %d)",
                                                             _verbosity),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _verbosity++;
                 }}));
 
@@ -116,8 +116,8 @@ public class YajSyncServer
                                            String.format("address to bind to" +
                                                          "(default %s)",
                                                          _address),
-            new Option.Handler() {
-                @Override public void handle(Option option) throws ArgumentParsingError {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) throws ArgumentParsingError {
                     try {
                         _address = InetAddress.getByName((String) option.getValue());
                     } catch (UnknownHostException e) {
@@ -130,8 +130,8 @@ public class YajSyncServer
                                             String.format("port number to " +
                                                           "listen on (default" +
                                                           " %d)", _port),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _port = (int) option.getValue();
                 }}));
 
@@ -140,8 +140,8 @@ public class YajSyncServer
                                             String.format("size of thread " +
                                                           "pool (default %d)",
                                                           _numThreads),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _numThreads = (int) option.getValue();
                 }}));
 
@@ -154,8 +154,8 @@ public class YajSyncServer
         options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                               "defer-write", "",
                                               deferredWriteHelp,
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _isDeferredWrite = true;
                 }}));
 
@@ -165,8 +165,8 @@ public class YajSyncServer
                                                             "over TLS/SSL " +
                                                             "(default %s)",
                                                             _isTLS),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _isTLS = true;
                     // SSLChannel.read and SSLChannel.write depends on
                     // ByteBuffer.array and ByteBuffer.arrayOffset. Disable
@@ -251,7 +251,7 @@ public class YajSyncServer
         };
     }
 
-    public void start(String[] args) throws IOException, InterruptedException
+    public int start(String[] args) throws IOException, InterruptedException
     {
         ArgumentParser argsParser =
             ArgumentParser.newNoUnnamed(getClass().getSimpleName());
@@ -263,11 +263,14 @@ public class YajSyncServer
             for (Option o : _moduleProvider.options()) {
                 argsParser.add(o);
             }
-            argsParser.parse(Arrays.asList(args));                              // throws ArgumentParsingError
+            ArgumentParser.Status rc = argsParser.parse(Arrays.asList(args));   // throws ArgumentParsingError
+            if (rc != ArgumentParser.Status.CONTINUE) {
+                return rc == ArgumentParser.Status.EXIT_OK ? 0 : 1;
+            }
         } catch (ArgumentParsingError e) {
             System.err.println(e.getMessage());
             System.err.println(argsParser.toUsageString());
-            System.exit(1);
+            return -1;
         }
 
         Level logLevel = Util.getLogLevelForNumber(Util.WARNING_LOG_LEVEL_NUM +

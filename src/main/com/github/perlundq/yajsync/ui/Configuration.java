@@ -92,8 +92,8 @@ public class Configuration implements Modules
         @Override
         public Collection<Option> options()
         {
-            Option.Handler handler = new Option.Handler() {
-                @Override public void handle(Option option) {
+            Option.ContinuingHandler handler = new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _cfgFileName = (String) option.getValue();
                 }
             };

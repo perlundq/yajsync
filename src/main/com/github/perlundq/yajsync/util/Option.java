@@ -22,7 +22,20 @@ public class Option
 {
     public interface Handler
     {
-        void handle(Option option) throws ArgumentParsingError;
+        ArgumentParser.Status handle(Option option) throws ArgumentParsingError;
+    }
+
+    public static abstract class ContinuingHandler implements Handler
+    {
+        public ArgumentParser.Status handle(Option option)
+            throws ArgumentParsingError
+        {
+            handleAndContinue(option);
+            return ArgumentParser.Status.CONTINUE;
+        }
+
+        public abstract void handleAndContinue(Option option)
+            throws ArgumentParsingError;
     }
 
     public enum Policy { OPTIONAL, REQUIRED }
@@ -86,7 +99,16 @@ public class Option
                           handler);
     }
 
-    public void setValue(String str) throws ArgumentParsingError
+    public static Option newHelpOption(Handler handler)
+    {
+        return Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                         "help", "h",
+                                         "show this help text",
+                                         handler);
+    }
+
+    public ArgumentParser.Status setValue(String str)
+        throws ArgumentParsingError
     {
         try {
             if (_type == Void.class) {
@@ -111,8 +133,9 @@ public class Option
             }
             _numInstances++;
             if (_handler != null) {
-                _handler.handle(this);
+                return _handler.handle(this);
             }
+            return ArgumentParser.Status.CONTINUE;
         } catch (NumberFormatException e) {
             throw new ArgumentParsingError(String.format("%s - invalid value" +
                                                          " %s%n%s%nExample: %s",

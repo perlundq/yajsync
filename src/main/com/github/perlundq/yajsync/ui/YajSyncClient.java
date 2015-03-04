@@ -283,8 +283,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                                    String.format("which charset to use " +
                                                  "(default %s)",
                                                  _charset),
-            new Option.Handler() {
-                @Override public void handle(Option option)
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option)
                     throws ArgumentParsingError {
                     String charsetName = (String) option.getValue();
                     try {
@@ -310,8 +310,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                                                     "without recursing " +
                                                     "(default %s)",
                                                     _isTransferDirs),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _isTransferDirs = true;
                 }
             }));
@@ -322,8 +322,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                                       String.format("recurse into directories" +
                                                     " (default %s)",
                                                     _isRecursiveTransfer),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _isRecursiveTransfer  = true;
                 }}));
 
@@ -333,8 +333,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                                       String.format("output verbosity " +
                                                     "(default %d)",
                                                     _verbosity),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _verbosity++;
                 }}));
 
@@ -344,8 +344,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                                       String.format("preserve file " +
                                                     "permissions (default %s)",
                                                     _isPreservePermissions),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _isPreservePermissions = true;
                 }}));
 
@@ -356,8 +356,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                                                     "modification time " +
                                                     "(default %s)",
                                                     _isPreserveTimes),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _isPreserveTimes  = true;
                 }}));
 
@@ -367,8 +367,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                                       String.format("preserve owner " +
                                                     "(default %s)",
                                                     _isPreserveUser),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _isPreserveUser  = true;
                 }}));
 
@@ -376,8 +376,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "stats", "",
                                       "show file transfer statistics",
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _isShowStatistics = true;
                 }}));
 
@@ -386,8 +386,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                                     "port", "",
                                     String.format("server port number " +
                                                   "(default %d)", _remotePort),
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _remotePort = (int) option.getValue();
                 }}));
 
@@ -395,8 +395,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "stdin", "",
                                       "read list of source files from stdin",
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _readStdin = true;
                 }}));
 
@@ -410,8 +410,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "defer-write", "", deferredWriteHelp,
-            new Option.Handler() {
-                @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
                     _isDeferredWrite = true;
                 }}));
 
@@ -421,8 +421,8 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                                                             "over TLS/SSL " +
                                                             "(default %s)",
                                                             _isTLS),
-            new Option.Handler() {
-            @Override public void handle(Option option) {
+            new Option.ContinuingHandler() {
+            @Override public void handleAndContinue(Option option) {
                 _isTLS = true;
                 // SSLChannel.read and SSLChannel.write depends on
                 // ByteBuffer.array and ByteBuffer.arrayOffset. Disable direct
@@ -533,7 +533,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             stats.totalRead());
     }
 
-    public void start(String[] args)
+    public int start(String[] args)
     {
         ArgumentParser argsParser =
             ArgumentParser.newWithUnnamed(getClass().getSimpleName(),
@@ -543,7 +543,10 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             for (Option o : options()) {
                 argsParser.add(o);
             }
-            argsParser.parse(Arrays.asList(args));                              // TODO: print warning for any not applicable option (e.g. defer-write for sender)
+            ArgumentParser.Status rc = argsParser.parse(Arrays.asList(args));
+            if (rc != ArgumentParser.Status.CONTINUE) {
+                return rc == ArgumentParser.Status.EXIT_OK ? 0 : 1;
+            }
             if (_readStdin) {
                 List<String> srcArgs = new LinkedList<>();
                 try (BufferedReader br = new BufferedReader(new InputStreamReader(System.in))) {
@@ -563,10 +566,10 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         } catch (ArgumentParsingError e) {
             System.err.println(e.getMessage());
             System.err.println(argsParser.toUsageString());
-            System.exit(1);
+            return -1;
         } catch (IOException e) {
             System.err.println(e.getMessage());
-            System.exit(1);
+            return -1;
         }
 
         Level logLevel = Util.getLogLevelForNumber(Util.WARNING_LOG_LEVEL_NUM +
@@ -587,9 +590,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             if (_log.isLoggable(Level.INFO)) {
                 _log.info("exit status: " + (isOK ? "OK" : "ERROR"));
             }
-            if (!isOK) {
-                System.exit(1);
-            }
+            return isOK ? 0 : -1;
         } finally {
             executor.shutdown();
         }
@@ -710,6 +711,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                            "there might be data corruption bugs hiding. So " +
                            "use it only carefully at your own risk.");
 
-        new YajSyncClient().start(args);
+        int rc = new YajSyncClient().start(args);
+        System.exit(rc);
     }
 }
