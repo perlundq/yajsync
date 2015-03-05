@@ -19,6 +19,7 @@
 package com.github.perlundq.yajsync.session;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.channels.Pipe;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
@@ -98,6 +99,7 @@ public class RsyncLocal
     }
 
     public boolean transfer(ExecutorService executor,
+                            PrintStream out,
                             Iterable<Path> srcPaths,
                             String destinationPathName)
         throws RsyncException, InterruptedException
@@ -120,7 +122,7 @@ public class RsyncLocal
             setIsRecursive(_isRecursiveTransfer).
             setIsTransferDirs(isTransferDirs);
         Generator generator = new Generator(toSender.sink(), _charset,
-                                            checksumSeed).
+                                            checksumSeed, out).
             setIsRecursive(_isRecursiveTransfer).
             setIsPreservePermissions(_isPreservePermissions).
             setIsPreserveTimes(_isPreserveTimes).

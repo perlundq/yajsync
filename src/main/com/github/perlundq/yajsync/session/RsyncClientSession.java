@@ -19,6 +19,7 @@
  */
 package com.github.perlundq.yajsync.session;
 
+import java.io.PrintStream;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
@@ -172,22 +173,25 @@ public class RsyncClientSession
                             String dstArg,
                             AuthProvider authProvider,
                             String moduleName,
-                            boolean isChannelsInterruptible)
+                            boolean isChannelsInterruptible,
+                            PrintStream stdout,
+                            PrintStream stderr)
         throws RsyncException, InterruptedException
     {
         List<String> serverArgs = createServerArgs(srcArgs, dstArg);
-        ClientSessionConfig cfg =                                               // throws IllegalArgumentException if _charset is not supported
-            ClientSessionConfig.handshake(in,
-                                          out,
-                                          _charset,
-                                          _isRecursiveTransfer,
-                                          moduleName,
-                                          serverArgs,
-                                          authProvider);
+        ClientSessionConfig cfg = new ClientSessionConfig(in,
+                                                          out,
+                                                          _charset,
+                                                          _isRecursiveTransfer,
+                                                          stdout,
+                                                          stderr);
 
-        if (cfg.status() == SessionStatus.ERROR) {
+        SessionStatus status = cfg.handshake(moduleName, serverArgs,
+                                             authProvider);
+
+        if (status == SessionStatus.ERROR) {
             return false;
-        } else if (cfg.status() == SessionStatus.EXIT) {
+        } else if (status == SessionStatus.EXIT) {
             return true;
         }
 
@@ -211,7 +215,8 @@ public class RsyncClientSession
         } else {
             Generator generator =
                 Generator.newClientInstance(out, cfg.charset(),
-                                            cfg.checksumSeed()).
+                                            cfg.checksumSeed(),
+                                            stdout).
                     setIsRecursive(_isRecursiveTransfer).
                     setIsPreservePermissions(_isPreservePermissions).
                     setIsPreserveTimes(_isPreserveTimes).

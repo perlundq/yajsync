@@ -21,6 +21,7 @@
 package com.github.perlundq.yajsync.session;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
@@ -82,6 +83,7 @@ public class Generator implements RsyncTask
     private final SimpleDateFormat _compatibleTimeFormatter =
         new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
     private final List<Filelist.Segment> _generated = new LinkedList<>();
+    private final PrintStream _out;
     private boolean _isAlwaysItemize;
     private boolean _isRecursive;
     private boolean _isPreservePermissions;
@@ -102,27 +104,29 @@ public class Generator implements RsyncTask
     }
 
     public Generator(WritableByteChannel out, Charset charset,
-                     byte[] checksumSeed)
+                     byte[] checksumSeed, PrintStream stdout)
     {
 
         _senderOutChannel = new RsyncOutChannel(out, OUTPUT_CHANNEL_BUF_SIZE);
         _checksumSeed = checksumSeed;
         _characterDecoder = TextDecoder.newStrict(charset);
         _characterEncoder = TextEncoder.newStrict(charset);
+        _out = stdout;
     }
 
     public static Generator newServerInstance(WritableByteChannel out,
                                               Charset charset,
                                               byte[] checksumSeed)
     {
-        return new Generator(out, charset, checksumSeed).setIsListOnly(false);
+        return new Generator(out, charset, checksumSeed, null).setIsListOnly(false);
     }
 
     public static Generator newClientInstance(WritableByteChannel out,
                                               Charset charset,
-                                              byte[] checksumSeed)
+                                              byte[] checksumSeed,
+                                              PrintStream stdout)
     {
-        return new Generator(out, charset, checksumSeed);
+        return new Generator(out, charset, checksumSeed, stdout);
     }
 
     public Generator setIsRecursive(boolean isRecursive)
@@ -534,7 +538,7 @@ public class Generator implements RsyncTask
         assert !_isRecursive;
         assert segment.directory() == null;
         for (FileInfo f : segment.files()) {
-            System.out.println(listFileInfo(f));
+            _out.println(listFileInfo(f));
         }
     }
 
@@ -545,10 +549,10 @@ public class Generator implements RsyncTask
         boolean listFirstDotDir = true;
         for (FileInfo f : segment.files()) {
             if (!f.attrs().isDirectory()) {
-                System.out.println(listFileInfo(f));
+                _out.println(listFileInfo(f));
             } else if (listFirstDotDir) {
                 if (f.isDotDir()) {
-                    System.out.println(listFileInfo(f));
+                    _out.println(listFileInfo(f));
                 }
                 listFirstDotDir = false;
             }
@@ -559,10 +563,10 @@ public class Generator implements RsyncTask
     {
         assert _isRecursive;
         assert segment.directory() != null;
-        System.out.println(listFileInfo(segment.directory()));
+        _out.println(listFileInfo(segment.directory()));
         for (FileInfo f : segment.files()) {
             if (!f.attrs().isDirectory()) {
-                System.out.println(listFileInfo(f));
+                _out.println(listFileInfo(f));
             }
         }
     }

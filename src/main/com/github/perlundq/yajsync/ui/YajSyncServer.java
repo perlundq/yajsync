@@ -20,6 +20,7 @@
 package com.github.perlundq.yajsync.ui;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
@@ -69,8 +70,27 @@ public class YajSyncServer
     private InetAddress _address = InetAddress.getLoopbackAddress();
     private ModuleProvider _moduleProvider = ModuleProvider.getDefault();
     private ExecutorService _executor;
+    private PrintStream _out = System.out;
+    private PrintStream _err = System.err;
 
     public YajSyncServer() {}
+
+    public YajSyncServer setStandardOut(PrintStream out)
+    {
+        _out = out;
+        return this;
+    }
+
+    public YajSyncServer setStandardErr(PrintStream err)
+    {
+        _err = err;
+        return this;
+    }
+
+    public void setModuleProvider(ModuleProvider moduleProvider)
+    {
+        _moduleProvider = moduleProvider;
+    }
 
     private Iterable<Option> options()
     {
@@ -256,7 +276,7 @@ public class YajSyncServer
         ArgumentParser argsParser =
             ArgumentParser.newNoUnnamed(getClass().getSimpleName());
         try {
-            argsParser.addHelpTextDestination(System.out);
+            argsParser.addHelpTextDestination(_out);
             for (Option o : options()) {
                 argsParser.add(o);
             }
@@ -268,8 +288,8 @@ public class YajSyncServer
                 return rc == ArgumentParser.Status.EXIT_OK ? 0 : 1;
             }
         } catch (ArgumentParsingError e) {
-            System.err.println(e.getMessage());
-            System.err.println(argsParser.toUsageString());
+            _err.println(e.getMessage());
+            _err.println(argsParser.toUsageString());
             return -1;
         }
 
@@ -293,12 +313,17 @@ public class YajSyncServer
                 _executor.submit(c);                                            // NOTE: result discarded
             }
         } finally {
-            System.err.println("shutting down");
+            if (_log.isLoggable(Level.INFO)) {
+                _log.info("shutting down...");
+            }
             _executor.shutdown();
             _moduleProvider.close();
             while (!_executor.awaitTermination(5, TimeUnit.MINUTES)) {
-                System.err.println("some sessions are still running, waiting " +
-                                   "for them to finish before exiting");
+                _log.info("some sessions are still running, waiting for them " +
+                          "to finish before exiting");
+            }
+            if (_log.isLoggable(Level.INFO)) {
+                _log.info("done");
             }
         }
     }

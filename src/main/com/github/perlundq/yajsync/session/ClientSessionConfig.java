@@ -19,6 +19,7 @@
  */
 package com.github.perlundq.yajsync.session;
 
+import java.io.PrintStream;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
@@ -42,15 +43,20 @@ public class ClientSessionConfig extends SessionConfig
         Logger.getLogger(ClientSessionConfig.class.getName());
     private final boolean _isRecursive;
     private boolean _isSafeFileList;
+    private final PrintStream _out;
+    private final PrintStream _err;
 
     /**
      * @throws IllegalArgumentException if charset is not supported
      */
-    private ClientSessionConfig(ReadableByteChannel in, WritableByteChannel out,
-                                Charset charset, boolean isRecursive)
+    public ClientSessionConfig(ReadableByteChannel in, WritableByteChannel out,
+                               Charset charset, boolean isRecursive,
+                               PrintStream stdout, PrintStream stderr)
     {
         super(in, out, charset);
         _isRecursive = isRecursive;
+        _out = stdout;
+        _err = stderr;
     }
 
     /**
@@ -60,33 +66,24 @@ public class ClientSessionConfig extends SessionConfig
      * @throws RsyncProtocolException if failing to encode/decode characters
      *         correctly
      */
-    public static ClientSessionConfig handshake(ReadableByteChannel in,
-                                                WritableByteChannel out,
-                                                Charset charset,
-                                                boolean isRecursive,
-                                                String moduleName,
-                                                Iterable<String> args,
-                                                AuthProvider authProvider)
+    public SessionStatus handshake(String moduleName,
+                                   Iterable<String> args,
+                                   AuthProvider authProvider)
         throws ChannelException
     {
         try {
-            ClientSessionConfig instance = new ClientSessionConfig(in,
-                                                                   out,
-                                                                   charset,
-                                                                   isRecursive);
-
-            instance.exchangeProtocolVersion();
-            instance.sendModule(moduleName);
-            instance.printLinesAndGetReplyStatus(authProvider);
-            if (instance.status() != SessionStatus.OK) {
-                return instance;
+            exchangeProtocolVersion();
+            sendModule(moduleName);
+            printLinesAndGetReplyStatus(authProvider);
+            if (_status != SessionStatus.OK) {
+                return _status;
             }
 
             assert !moduleName.isEmpty();
-            instance.sendArguments(args);
-            instance.receiveCompatibilities();
-            instance.receiveChecksumSeed();
-            return instance;
+            sendArguments(args);
+            receiveCompatibilities();
+            receiveChecksumSeed();
+            return _status;
         } catch (TextConversionException e) {
             throw new RsyncProtocolException(e);
         }
@@ -116,7 +113,7 @@ public class ClientSessionConfig extends SessionConfig
                 _status = SessionStatus.EXIT;
                 return;
             } else if (line.startsWith(SessionStatus.ERROR.toString())) {
-                System.err.println(line);
+                _err.println(line);
                 _status = SessionStatus.ERROR;
                 return;
             } else if (line.startsWith(SessionStatus.AUTHREQ.toString())) {
@@ -124,7 +121,7 @@ public class ClientSessionConfig extends SessionConfig
                     line.substring(SessionStatus.AUTHREQ.toString().length());
                 sendAuthResponse(authProvider, challenge);
             } else {
-                System.out.println(line); // FIXME: don't hardcode System.out
+                _out.println(line);
             }
         }
     }

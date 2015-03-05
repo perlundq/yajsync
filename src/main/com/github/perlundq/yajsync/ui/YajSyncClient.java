@@ -23,6 +23,7 @@ import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.net.UnknownHostException;
 import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.Charset;
@@ -255,6 +256,25 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     private boolean _isTLS;
     private boolean _isTransferDirs = false;
     private boolean _readStdin = false;
+    private PrintStream _out = System.out;
+    private PrintStream _err = System.err;
+
+    public YajSyncClient setStandardOut(PrintStream out)
+    {
+        _out = out;
+        return this;
+    }
+
+    public YajSyncClient setStandardErr(PrintStream err)
+    {
+        _err = err;
+        return this;
+    }
+
+    public Statistics statistics()
+    {
+        return _statistics;
+    }
 
     @Override
     public String getUser()
@@ -509,7 +529,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
 
     private void showStatistics(Statistics stats)
     {
-        System.out.format("Number of files: %d%n" +
+        _out.format("Number of files: %d%n" +
             "Number of files transferred: %d%n" +
             "Total file size: %d bytes%n" +
             "Total transferred file size: %d bytes%n" +
@@ -538,7 +558,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         ArgumentParser argsParser =
             ArgumentParser.newWithUnnamed(getClass().getSimpleName(),
                                           "files...");
-        argsParser.addHelpTextDestination(System.out);
+        argsParser.addHelpTextDestination(_out);
         try {
             for (Option o : options()) {
                 argsParser.add(o);
@@ -564,11 +584,11 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                 parseUnnamedArgs(argsParser.getUnnamedArguments());
             }
         } catch (ArgumentParsingError e) {
-            System.err.println(e.getMessage());
-            System.err.println(argsParser.toUsageString());
+            _err.println(e.getMessage());
+            _err.println(argsParser.toUsageString());
             return -1;
         } catch (IOException e) {
-            System.err.println(e.getMessage());
+            _err.println(e.getMessage());
             return -1;
         }
 
@@ -629,7 +649,9 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                                         _dstArg,
                                         this,           // ClientSessionConfig.AuthProvider
                                         _moduleName,
-                                        isInterruptible);
+                                        isInterruptible,
+                                        _out,
+                                        _err);
         } catch (UnknownHostException | UnresolvedAddressException e) {
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe(String.format("Error: failed to resolve %s (%s)",
@@ -685,7 +707,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         }
 
         try {
-            return localTransfer.transfer(executor, srcPaths, _dstArg);
+            return localTransfer.transfer(executor, _out, srcPaths, _dstArg);
         } catch (ChannelException e) {
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe("Error: communication closed with peer: " +
