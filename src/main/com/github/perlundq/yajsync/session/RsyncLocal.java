@@ -35,6 +35,7 @@ public class RsyncLocal
     private boolean _isPreservePermissions;
     private boolean _isPreserveTimes;
     private boolean _isPreserveUser;
+    private boolean _isIgnoreTimes;
     private boolean _isDeferredWrite;
     private Charset _charset = Charset.forName(Text.UTF8_NAME);
     private Statistics _statistics = new Statistics();
@@ -76,6 +77,11 @@ public class RsyncLocal
     public void setIsPreserveUser(boolean isPreserveUser)
     {
         _isPreserveUser = isPreserveUser;
+    }
+
+    public void setIsIgnoreTimes(boolean isIgnoreTimes)
+    {
+        _isIgnoreTimes = isIgnoreTimes;
     }
 
     public void setIsDeferredWrite(boolean isDeferredWrite)
@@ -127,6 +133,7 @@ public class RsyncLocal
             setIsPreservePermissions(_isPreservePermissions).
             setIsPreserveTimes(_isPreserveTimes).
             setIsPreserveUser(_isPreserveUser).
+            setIsIgnoreTimes(_isIgnoreTimes).
             setIsListOnly(_isModuleListing).
             setIsAlwaysItemize(_verbosity > 1);
         Receiver receiver = new Receiver(generator,

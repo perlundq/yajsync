@@ -89,6 +89,7 @@ public class Generator implements RsyncTask
     private boolean _isPreservePermissions;
     private boolean _isPreserveTimes;
     private boolean _isPreserveUser;
+    private boolean _isIgnoreTimes;
     private boolean _isListOnly;
     private Filelist _fileList;  // effectively final
     private int _returnStatus ;
@@ -156,6 +157,12 @@ public class Generator implements RsyncTask
     public Generator setIsPreserveUser(boolean isPreserveUser)
     {
         _isPreserveUser = isPreserveUser;
+        return this;
+    }
+
+    public Generator setIsIgnoreTimes(boolean isIgnoreTimes)
+    {
+        _isIgnoreTimes = isIgnoreTimes;
         return this;
     }
 
@@ -859,7 +866,7 @@ public class Generator implements RsyncTask
         throws ChannelException
     {
         // NOTE: native opens the file first though even if its file size is zero
-        if (isDataModified(fileInfo.attrs(), curAttrs)) {
+        if (isDataModified(fileInfo.attrs(), curAttrs) || _isIgnoreTimes) {
             if (curAttrs == null) {
                 sendItemizeInfo(index, curAttrs, fileInfo.attrs(),
                                 Item.TRANSFER);
