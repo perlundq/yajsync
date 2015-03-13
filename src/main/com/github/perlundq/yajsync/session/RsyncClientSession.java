@@ -44,6 +44,7 @@ public class RsyncClientSession
     private Statistics _statistics = new Statistics();
     private boolean _isPreservePermissions;
     private boolean _isPreserveUser;
+    private boolean _isIgnoreTimes;
     private boolean _isTransferDirs;
 
     public RsyncClientSession() {}
@@ -63,6 +64,12 @@ public class RsyncClientSession
     public RsyncClientSession setIsPreserveUser(boolean isPreservedUser)
     {
         _isPreserveUser = isPreservedUser;
+        return this;
+    }
+
+    public RsyncClientSession setIsIgnoreTimes(boolean isIgnoreTimes)
+    {
+        _isIgnoreTimes = isIgnoreTimes;
         return this;
     }
 
@@ -131,6 +138,9 @@ public class RsyncClientSession
         }
         if (_isPreserveUser) {
             sb.append("o");
+        }
+        if (_isIgnoreTimes) {
+            sb.append("I");
         }
         if (_isRecursiveTransfer) {
             sb.append("r");
@@ -221,6 +231,7 @@ public class RsyncClientSession
                     setIsPreservePermissions(_isPreservePermissions).
                     setIsPreserveTimes(_isPreserveTimes).
                     setIsPreserveUser(_isPreserveUser).
+                    setIsIgnoreTimes(_isIgnoreTimes).
                     setIsAlwaysItemize(_verbosity > 1).
                     setIsListOnly(_isModuleListing).
                     setIsInterruptible(isChannelsInterruptible);

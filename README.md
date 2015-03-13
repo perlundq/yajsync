@@ -18,6 +18,8 @@ Currently implemented rsync options:
 
 - Transfer directories (-d, --dirs)
 
+- Don't skip files that match size and time (-I, --ignore-times)
+
 - Module file listings
 
 yajsync is compliant with at least rsync version 3.0.9.

@@ -81,6 +81,7 @@ public class RsyncServerSession
                     setIsPreservePermissions(cfg.isPreservePermissions()).
                     setIsPreserveTimes(cfg.isPreserveTimes()).
                     setIsPreserveUser(cfg.isPreserveUser()).
+                    setIsIgnoreTimes(cfg.isIgnoreTimes()).
                     setIsAlwaysItemize(cfg.verbosity() > 1).
                     setIsInterruptible(isChannelsInterruptible);
             Receiver receiver =

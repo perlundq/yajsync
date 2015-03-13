@@ -240,13 +240,14 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     private boolean _isPreservePermissions;
     private boolean _isPreserveTimes;
     private boolean _isPreserveUser;
+    private boolean _isIgnoreTimes;
     private boolean _isRecursiveTransfer;
     private boolean _isRemote;
     private boolean _isSender;
     private boolean _isShowStatistics;
     private int _remotePort = Consts.DEFAULT_LISTEN_PORT;
     private int _verbosity = 0;
-    private List<String> _srcArgs = new LinkedList<>();
+    private final List<String> _srcArgs = new LinkedList<>();
     private Statistics _statistics;
     private String _address;
     private Charset _charset = Charset.forName(Text.UTF8_NAME);
@@ -391,6 +392,17 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                 @Override public void handleAndContinue(Option option) {
                     _isPreserveUser  = true;
                 }}));
+
+        options.add(
+                Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                          "ignore-times", "I",
+                                          String.format("don't skip files that match size and time " +
+                                                        "(default %s)",
+                                                        _isIgnoreTimes),
+                new Option.ContinuingHandler() {
+                    @Override public void handleAndContinue(Option option) {
+                        _isIgnoreTimes  = true;
+                    }}));
 
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
@@ -629,6 +641,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         session.setIsPreservePermissions(_isPreservePermissions);
         session.setIsPreserveTimes(_isPreserveTimes);
         session.setIsPreserveUser(_isPreserveUser);
+        session.setIsIgnoreTimes(_isIgnoreTimes);
         session.setIsRecursiveTransfer(_isRecursiveTransfer);
         session.setIsSender(_isSender);
         session.setIsTransferDirs(_isTransferDirs);
@@ -699,6 +712,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         localTransfer.setIsPreservePermissions(_isPreservePermissions);
         localTransfer.setIsPreserveTimes(_isPreserveTimes);
         localTransfer.setIsPreserveUser(_isPreserveUser);
+        localTransfer.setIsIgnoreTimes(_isIgnoreTimes);
         localTransfer.setIsDeferredWrite(_isDeferredWrite);
         localTransfer.setIsTransferDirs(_isTransferDirs);
         List<Path> srcPaths = new LinkedList<>();

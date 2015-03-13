@@ -59,6 +59,7 @@ public class ServerSessionConfig extends SessionConfig
     private boolean _isPreservePermissions = false;
     private boolean _isPreserveTimes = false;
     private boolean _isPreserveUser = false;
+    private boolean _isIgnoreTimes = false;
     private Module _module;
     private int _verbosity = 0;
     private boolean _isSafeFileList;
@@ -278,6 +279,14 @@ public class ServerSessionConfig extends SessionConfig
                 }}));
 
         argsParser.add(Option.newWithoutArgument(
+                Option.Policy.OPTIONAL,
+                "ignore-times", "I", "",
+                new Option.ContinuingHandler() {
+                    @Override public void handleAndContinue(Option option) {
+                        setIsIgnoreTimes();
+                    }}));
+
+        argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
             "verbose", "v", "",
             new Option.ContinuingHandler() {
@@ -448,6 +457,11 @@ public class ServerSessionConfig extends SessionConfig
         _isPreserveUser = true;
     }
 
+    private void setIsIgnoreTimes()
+    {
+        _isIgnoreTimes = true;
+    }
+
     public boolean isSender()
     {
         return _isSender;
@@ -476,6 +490,11 @@ public class ServerSessionConfig extends SessionConfig
     public boolean isPreserveUser()
     {
         return _isPreserveUser;
+    }
+
+    public boolean isIgnoreTimes()
+    {
+        return _isIgnoreTimes;
     }
 
     public boolean isSafeFileList()
