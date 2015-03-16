@@ -1470,7 +1470,7 @@ public class Receiver implements RsyncTask,MessageHandler
         ByteBuffer replicaBuf =
             ByteBuffer.allocate(sizeForChecksumBlock(blockIndex,
                                                      checksumHeader));
-        long fileOffset = blockIndex * checksumHeader.blockLength();
+        long fileOffset = (long) blockIndex * checksumHeader.blockLength();
         int bytesRead = replica.read(replicaBuf, fileOffset);
         if (replicaBuf.hasRemaining()) {
             throw new IllegalStateException(String.format(
