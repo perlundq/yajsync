@@ -22,20 +22,29 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
+import com.github.perlundq.yajsync.security.RsyncAuthContext;
 import com.github.perlundq.yajsync.session.Module;
 import com.github.perlundq.yajsync.session.ModuleException;
 import com.github.perlundq.yajsync.session.ModuleProvider;
+import com.github.perlundq.yajsync.session.ModuleSecurityException;
 import com.github.perlundq.yajsync.session.Modules;
+import com.github.perlundq.yajsync.session.RestrictedModule;
 import com.github.perlundq.yajsync.session.RestrictedPath;
 import com.github.perlundq.yajsync.session.Statistics;
 import com.github.perlundq.yajsync.ui.YajSyncClient;
 import com.github.perlundq.yajsync.ui.YajSyncServer;
+import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.Option;
 
@@ -173,7 +182,41 @@ class FileUtil
     }
 }
 
+class SimpleRestrictedModule extends RestrictedModule
+{
+    private final String _authToken;
+    private final Module _module;
+    private final String _name;
+    private final String _comment;
 
+    public SimpleRestrictedModule(String authToken, Module module, String name, String comment) {
+        _authToken = authToken;
+        _module = module;
+        _name = name;
+        _comment = comment;
+    }
+
+    @Override
+    public String authenticate(RsyncAuthContext authContext, String userName)
+            throws ModuleSecurityException {
+        return authContext.response(_authToken.toCharArray());
+    }
+
+    @Override
+    public Module toModule() {
+        return _module;
+    }
+
+    @Override
+    public String name() {
+        return _name;
+    }
+
+    @Override
+    public String comment() {
+        return _comment;
+    }
+}
 
 class SimpleModule implements Module
 {
@@ -685,4 +728,44 @@ public class SystemTest
 //            assertTrue(isShutdown);
 //        }
 //    }
+
+  // FIXME: latch might not get decreased if exception occurs
+  // FIXME: port might be unavailable, open it here and inject it
+  @Test(timeout=100)
+  public void testProtectedServerConnection() throws InterruptedException, IOException
+  {
+      final CountDownLatch isListeningLatch = new CountDownLatch(1);
+      final String restrictedModuleName = "Restricted";
+      final String authToken = "testAuthToken";
+
+      Callable<Integer> serverTask = new Callable<Integer>() {
+          @Override
+          public Integer call() throws Exception
+          {
+              Path modulePath = _tempDir.newFolder().toPath();
+              Module m = new SimpleModule(Paths.get(restrictedModuleName), modulePath,
+                                          "a test module", true, false);
+              RestrictedModule rm = new SimpleRestrictedModule(authToken, m, restrictedModuleName, "a restricted module");
+              int rc = newServer(new TestModules(rm)).setIsListeningLatch(isListeningLatch).start(new String[] { "--port=14415" });
+              return rc;
+          }
+      };
+      ExecutorService service = Executors.newCachedThreadPool();
+      try {
+          try {
+              service.submit(serverTask);
+              isListeningLatch.await();
+              YajSyncClient client = newClient().setStandardOut(_nullOut);
+              System.setProperty(Environment.PROPERTY_RSYNC_PASSWORD, authToken);
+              int rc = client.start(new String[] { "--port=14415",
+                                                   "localhost::"+restrictedModuleName });
+              assertTrue(rc == 0);
+          } finally {
+              service.shutdownNow();
+          }
+      } finally {
+          boolean isShutdown = service.awaitTermination(1, TimeUnit.SECONDS);
+          assertTrue(isShutdown);
+      }
+  }
 }

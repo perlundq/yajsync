@@ -50,6 +50,7 @@ import com.github.perlundq.yajsync.session.ClientSessionConfig;
 import com.github.perlundq.yajsync.session.RsyncClientSession;
 import com.github.perlundq.yajsync.session.RsyncException;
 import com.github.perlundq.yajsync.session.RsyncLocal;
+import com.github.perlundq.yajsync.session.RsyncSecurityException;
 import com.github.perlundq.yajsync.session.Statistics;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.util.ArgumentParser;
@@ -257,6 +258,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     private boolean _isTLS;
     private boolean _isTransferDirs = false;
     private boolean _readStdin = false;
+    private Path _passwordFile;
     private PrintStream _out = System.out;
     private PrintStream _err = System.err;
 
@@ -283,15 +285,31 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         return _userName;
     }
 
-    // TODO: add support for reading password from other sources than the console
     @Override
     public char[] getPassword()
     {
+        // read password from --password-file option
+        if (_passwordFile!=null)
+        {
+            try {
+                return (new String(java.nio.file.Files.readAllBytes(_passwordFile))).toCharArray();
+            } catch (IOException e) {
+                throw new RsyncSecurityException(e);
+            }
+        }
+
+        // read password from environment variable RSYNC_PASSWORD
+        char[] password = Environment.getRsyncPassword();
+        if (password!=null) {
+            return password;
+        }
+
+        // read password from console
         Console console = System.console();
         if (console == null) {
             return "".toCharArray();
         }
-        char[] password = console.readPassword("Password: ");
+        password = console.readPassword("Password: ");
         return password;
     }
 
@@ -412,6 +430,16 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                 @Override public void handleAndContinue(Option option) {
                     _isShowStatistics = true;
                 }}));
+
+        options.add(
+                Option.newPathOption(Option.Policy.OPTIONAL,
+                                     "password-file=FILE", "",
+                                     "read daemon-access password from FILE",
+                new Option.ContinuingHandler() {
+                    @Override public void handleAndContinue(Option option) {
+                        _passwordFile = (Path) option.getValue();
+                        // TODO: check path is not world readable
+                    }}));
 
         options.add(
             Option.newIntegerOption(Option.Policy.OPTIONAL,

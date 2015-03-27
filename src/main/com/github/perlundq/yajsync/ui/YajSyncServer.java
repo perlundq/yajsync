@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -70,6 +71,7 @@ public class YajSyncServer
     private InetAddress _address = InetAddress.getLoopbackAddress();
     private ModuleProvider _moduleProvider = ModuleProvider.getDefault();
     private ExecutorService _executor;
+    private CountDownLatch _isListeningLatch;
     private PrintStream _out = System.out;
     private PrintStream _err = System.err;
 
@@ -84,6 +86,11 @@ public class YajSyncServer
     public YajSyncServer setStandardErr(PrintStream err)
     {
         _err = err;
+        return this;
+    }
+
+    public YajSyncServer setIsListeningLatch(CountDownLatch isListeningLatch) {
+        _isListeningLatch = isListeningLatch;
         return this;
     }
 
@@ -307,6 +314,11 @@ public class YajSyncServer
         _executor = Executors.newFixedThreadPool(_numThreads);
 
         try (ServerChannel listenSock = socketFactory.open(_address, _port)) {  // throws IOException
+
+            if (_isListeningLatch!=null) {
+                _isListeningLatch.countDown();
+            }
+
             while (true) {
                 DuplexByteChannel sock = listenSock.accept();                   // throws IOException
                 Callable<Boolean> c = createCallable(sock, isInterruptible);
