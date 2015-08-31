@@ -19,11 +19,16 @@
  */
 package com.github.perlundq.yajsync.ui;
 
-import java.io.BufferedReader;
-import java.io.Console;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintStream;
+import com.github.perlundq.yajsync.channels.ChannelException;
+import com.github.perlundq.yajsync.channels.net.ChannelFactory;
+import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
+import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
+import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
+import com.github.perlundq.yajsync.session.*;
+import com.github.perlundq.yajsync.text.Text;
+import com.github.perlundq.yajsync.util.*;
+
+import java.io.*;
 import java.net.UnknownHostException;
 import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.Charset;
@@ -40,25 +45,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.github.perlundq.yajsync.channels.ChannelException;
-import com.github.perlundq.yajsync.channels.net.ChannelFactory;
-import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
-import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
-import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
-import com.github.perlundq.yajsync.session.ClientSessionConfig;
-import com.github.perlundq.yajsync.session.RsyncClientSession;
-import com.github.perlundq.yajsync.session.RsyncException;
-import com.github.perlundq.yajsync.session.RsyncLocal;
-import com.github.perlundq.yajsync.session.Statistics;
-import com.github.perlundq.yajsync.text.Text;
-import com.github.perlundq.yajsync.util.ArgumentParser;
-import com.github.perlundq.yajsync.util.ArgumentParsingError;
-import com.github.perlundq.yajsync.util.Consts;
-import com.github.perlundq.yajsync.util.Environment;
-import com.github.perlundq.yajsync.util.Option;
-import com.github.perlundq.yajsync.util.PathOps;
-import com.github.perlundq.yajsync.util.Util;
 
 public class YajSyncClient implements ClientSessionConfig.AuthProvider
 {
@@ -109,7 +95,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                 (port < PORT_MIN || port > PORT_MAX)) {
                 throw new ArgumentParsingError(
                     String.format("illegal port %d - must be within the range" +
-                                  " [%d, %d]", PORT_MIN, PORT_MAX));
+                                  " [%d, %d]", port, PORT_MIN, PORT_MAX));
             }
             if (!address.isEmpty() &&
                 moduleName.isEmpty() && !pathName.isEmpty()) {
@@ -123,8 +109,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             _moduleName = moduleName;
 
             if (address.isEmpty()) {
-                assert userName.isEmpty() && moduleName.isEmpty() &&
-                       port == PORT_UNDEFINED;
+                assert moduleName.isEmpty();
                 _pathName = toLocalPathName(pathName);
             } else {
                 _pathName = toRemotePathName(moduleName, pathName);
@@ -291,8 +276,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         if (console == null) {
             return "".toCharArray();
         }
-        char[] password = console.readPassword("Password: ");
-        return password;
+        return console.readPassword("Password: ");
     }
 
     private Iterable<Option> options()
@@ -498,7 +482,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             if (prevArg != null && !arg.isSameUserHostPortAs(prevArg)) {
                 throw new ArgumentParsingError(
                     String.format("remote source arguments %s and %s are " +
-                                  "incompatble", prevArg, arg));
+                                  "incompatible", prevArg, arg));
             }
             if (!arg._pathName.isEmpty()) {
                 _srcArgs.add(arg._pathName);
@@ -533,10 +517,9 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
             _remotePort = remoteArg._port;
         }
 
-        String userName = remoteArg._userName.isEmpty()
+        _userName = remoteArg._userName.isEmpty()
                               ? Environment.getUserName()
                               : remoteArg._userName;
-        _userName = userName;
     }
 
     private void showStatistics(Statistics stats)

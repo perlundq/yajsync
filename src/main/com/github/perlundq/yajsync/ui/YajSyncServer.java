@@ -19,6 +19,15 @@
  */
 package com.github.perlundq.yajsync.ui;
 
+import com.github.perlundq.yajsync.channels.ChannelException;
+import com.github.perlundq.yajsync.channels.net.*;
+import com.github.perlundq.yajsync.session.ModuleException;
+import com.github.perlundq.yajsync.session.ModuleProvider;
+import com.github.perlundq.yajsync.session.Modules;
+import com.github.perlundq.yajsync.session.RsyncServerSession;
+import com.github.perlundq.yajsync.text.Text;
+import com.github.perlundq.yajsync.util.*;
+
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.InetAddress;
@@ -35,24 +44,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import com.github.perlundq.yajsync.channels.ChannelException;
-import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
-import com.github.perlundq.yajsync.channels.net.SSLServerChannelFactory;
-import com.github.perlundq.yajsync.channels.net.ServerChannel;
-import com.github.perlundq.yajsync.channels.net.ServerChannelFactory;
-import com.github.perlundq.yajsync.channels.net.StandardServerChannelFactory;
-import com.github.perlundq.yajsync.session.ModuleException;
-import com.github.perlundq.yajsync.session.ModuleProvider;
-import com.github.perlundq.yajsync.session.Modules;
-import com.github.perlundq.yajsync.session.RsyncServerSession;
-import com.github.perlundq.yajsync.text.Text;
-import com.github.perlundq.yajsync.util.ArgumentParser;
-import com.github.perlundq.yajsync.util.ArgumentParsingError;
-import com.github.perlundq.yajsync.util.Consts;
-import com.github.perlundq.yajsync.util.Environment;
-import com.github.perlundq.yajsync.util.Option;
-import com.github.perlundq.yajsync.util.Util;
 
 public class YajSyncServer
 {
@@ -240,7 +231,7 @@ public class YajSyncServer
                         _log.severe(String.format(
                             "Error: failed to initialise modules for " +
                             "principal %s using ModuleProvider %s: %s%n",
-                            _moduleProvider, e));
+                                sock.peerPrincipal(), _moduleProvider, e));
                     }
                 } catch (ChannelException e) {
                     if (_log.isLoggable(Level.SEVERE)) {
