@@ -19,10 +19,10 @@
  */
 package com.github.perlundq.yajsync.filelist;
 
+import com.github.perlundq.yajsync.text.Text;
+
 import java.nio.file.Path;
 import java.util.Objects;
-
-import com.github.perlundq.yajsync.text.Text;
 
 /**
  * a class for rsync file information, we must keep the path name as a string
