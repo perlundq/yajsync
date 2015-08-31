@@ -4,4 +4,7 @@
 /misc/
 /build/
 /doc/
-*~
+*~*~
+
+*.iml
+.idea
