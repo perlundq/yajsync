@@ -19,6 +19,7 @@
  */
 package com.github.perlundq.yajsync.session;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
@@ -35,8 +36,8 @@ import com.github.perlundq.yajsync.util.BitOps;
 public class ClientSessionConfig extends SessionConfig
 {
     public interface AuthProvider {
-        String getUser();
-        char[] getPassword();
+        String getUser() throws IOException;
+        char[] getPassword() throws IOException;
     }
 
     private static final Logger _log =
@@ -69,7 +70,7 @@ public class ClientSessionConfig extends SessionConfig
     public SessionStatus handshake(String moduleName,
                                    Iterable<String> args,
                                    AuthProvider authProvider)
-        throws ChannelException
+        throws RsyncException
     {
         try {
             exchangeProtocolVersion();
@@ -102,7 +103,7 @@ public class ClientSessionConfig extends SessionConfig
     }
 
     private void printLinesAndGetReplyStatus(AuthProvider authProvider)
-        throws ChannelException
+        throws RsyncException
     {
         while (true) {
             String line = readLine();
@@ -127,20 +128,27 @@ public class ClientSessionConfig extends SessionConfig
     }
 
     /**
+     * @throws ChannelException
+     * @throws RsyncException if failing to provide a username and/or password
      * @throws TextConversionException
      */
     private void sendAuthResponse(AuthProvider authProvider, String challenge)
-        throws ChannelException
+        throws RsyncException
     {
-        String user = authProvider.getUser();
-        char[] password = authProvider.getPassword();
         try {
-            RsyncAuthContext authContext =
-                RsyncAuthContext.fromChallenge(_characterEncoder, challenge);
-            String response = authContext.response(password);
-            writeString(String.format("%s %s\n", user, response));
-        } finally {
-            Arrays.fill(password, (char) 0);
+            String user = authProvider.getUser();
+            char[] password = authProvider.getPassword();
+            try {
+                RsyncAuthContext authContext =
+                        RsyncAuthContext.fromChallenge(_characterEncoder,
+                                                       challenge);
+                String response = authContext.response(password);
+                writeString(String.format("%s %s\n", user, response));
+            } finally {
+                Arrays.fill(password, (char) 0);
+            }
+        } catch (IOException e) {
+            throw new RsyncException(e);
         }
     }
 

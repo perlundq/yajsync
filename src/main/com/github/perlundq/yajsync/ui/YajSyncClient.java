@@ -19,16 +19,12 @@
  */
 package com.github.perlundq.yajsync.ui;
 
-import com.github.perlundq.yajsync.channels.ChannelException;
-import com.github.perlundq.yajsync.channels.net.ChannelFactory;
-import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
-import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
-import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
-import com.github.perlundq.yajsync.session.*;
-import com.github.perlundq.yajsync.text.Text;
-import com.github.perlundq.yajsync.util.*;
-
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.Console;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.net.UnknownHostException;
 import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.Charset;
@@ -45,6 +41,27 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.github.perlundq.yajsync.channels.ChannelException;
+import com.github.perlundq.yajsync.channels.net.ChannelFactory;
+import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
+import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
+import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
+import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
+import com.github.perlundq.yajsync.session.ClientSessionConfig;
+import com.github.perlundq.yajsync.session.RsyncClientSession;
+import com.github.perlundq.yajsync.session.RsyncException;
+import com.github.perlundq.yajsync.session.RsyncLocal;
+import com.github.perlundq.yajsync.session.Statistics;
+import com.github.perlundq.yajsync.text.Text;
+import com.github.perlundq.yajsync.util.ArgumentParser;
+import com.github.perlundq.yajsync.util.ArgumentParsingError;
+import com.github.perlundq.yajsync.util.Consts;
+import com.github.perlundq.yajsync.util.Environment;
+import com.github.perlundq.yajsync.util.FileOps;
+import com.github.perlundq.yajsync.util.Option;
+import com.github.perlundq.yajsync.util.PathOps;
+import com.github.perlundq.yajsync.util.Util;
 
 public class YajSyncClient implements ClientSessionConfig.AuthProvider
 {
@@ -242,6 +259,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     private boolean _isTLS;
     private boolean _isTransferDirs = false;
     private boolean _readStdin = false;
+    private String _passwordFile;
     private PrintStream _out = System.out;
     private PrintStream _err = System.err;
 
@@ -268,13 +286,35 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
         return _userName;
     }
 
-    // TODO: add support for reading password from other sources than the console
     @Override
-    public char[] getPassword()
+    public char[] getPassword() throws IOException
     {
+        if (_passwordFile != null) {
+            if (!_passwordFile.equals("-")) {
+                RsyncFileAttributes attrs =
+                    RsyncFileAttributes.stat(Paths.get(_passwordFile));
+                if ((attrs.mode() & (FileOps.S_IROTH | FileOps.S_IWOTH)) != 0) {
+                    throw new IOException(String.format(
+                            "insecure permissions on %s: %s",
+                            _passwordFile, attrs));
+                }
+            }
+            try (BufferedReader br = new BufferedReader(
+                    _passwordFile.equals("-")
+                    ? new InputStreamReader(System.in)
+                    : new FileReader(_passwordFile))) {
+                return br.readLine().toCharArray();
+            }
+        }
+
+        String passwordStr = Environment.getRsyncPasswordOrNull();
+        if (passwordStr != null) {
+            return passwordStr.toCharArray();
+        }
+
         Console console = System.console();
         if (console == null) {
-            return "".toCharArray();
+            throw new IOException("no console available");
         }
         return console.readPassword("Password: ");
     }
@@ -396,6 +436,16 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                 @Override public void handleAndContinue(Option option) {
                     _isShowStatistics = true;
                 }}));
+
+        options.add(
+                Option.newStringOption(Option.Policy.OPTIONAL,
+                                       "password-file", "",
+                                       "read daemon-access password from " +
+                                       "specified file (where `-' is stdin)",
+                new Option.ContinuingHandler() {
+                    @Override public void handleAndContinue(Option option) {
+                        _passwordFile = (String) option.getValue();
+                    }}));
 
         options.add(
             Option.newIntegerOption(Option.Policy.OPTIONAL,

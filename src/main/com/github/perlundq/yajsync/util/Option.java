@@ -27,6 +27,7 @@ public class Option
 
     public static abstract class ContinuingHandler implements Handler
     {
+        @Override
         public ArgumentParser.Status handle(Option option)
             throws ArgumentParsingError
         {

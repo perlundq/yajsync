@@ -31,6 +31,7 @@ import com.github.perlundq.yajsync.text.Text;
 
 public final class Environment
 {
+    private static final String ENV_RSYNC_PASSWORD = "RSYNC_PASSWORD";
     private static final String PROPERTY_KEY_ALLOCATE_DIRECT = "allocate.direct";  // not present unless manually defined
     private static final String PROPERTY_KEY_USER_UID = "user.uid";     // not present unless manually defined
     private static final String PROPERTY_KEY_GROUP_UID = "user.gid";    // not present unless manually defined
@@ -161,5 +162,10 @@ public final class Environment
     public static boolean hasAllocateDirectArray()
     {
         return ByteBuffer.allocateDirect(1).hasArray();
+    }
+
+    public static String getRsyncPasswordOrNull()
+    {
+        return System.getenv(ENV_RSYNC_PASSWORD);
     }
 }

@@ -20,6 +20,8 @@ Currently implemented rsync options:
 
 - Don't skip files that match size and time (-I, --ignore-times)
 
+- Read daemon-access password from FILE (--password-file=FILE) or environment variable RSYNC_PASSWORD
+
 - Module file listings
 
 yajsync is compliant with at least rsync version 3.0.9.

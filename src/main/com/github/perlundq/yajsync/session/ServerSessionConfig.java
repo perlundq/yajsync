@@ -134,7 +134,7 @@ public class ServerSessionConfig extends SessionConfig
             if (_log.isLoggable(Level.WARNING)) {
                 _log.warning(e.getMessage());
             }
-            instance.writeString(String.format("Error: %s%n", e.getMessage()));
+            instance.sendErrorStatus(e.getMessage());
             instance._status = SessionStatus.ERROR;
             return instance;
         } finally {
@@ -197,6 +197,12 @@ public class ServerSessionConfig extends SessionConfig
     private void sendStatus(SessionStatus status) throws ChannelException
     {
         writeString(status.toString() + "\n");
+    }
+
+    private void sendErrorStatus(String msg) throws ChannelException
+    {
+        writeString(String.format("%s: %s\n",
+                                  SessionStatus.ERROR.toString(), msg));
     }
 
     private void setModule(Module module)
