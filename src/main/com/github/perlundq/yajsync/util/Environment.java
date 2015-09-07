@@ -31,6 +31,7 @@ import com.github.perlundq.yajsync.text.Text;
 
 public final class Environment
 {
+    private static final String ENV_RSYNC_PASSWORD = "RSYNC_PASSWORD";
     private static final String PROPERTY_KEY_ALLOCATE_DIRECT = "allocate.direct";  // not present unless manually defined
     private static final String PROPERTY_KEY_USER_UID = "user.uid";     // not present unless manually defined
     private static final String PROPERTY_KEY_GROUP_UID = "user.gid";    // not present unless manually defined
@@ -41,7 +42,6 @@ public final class Environment
     private static final String PROPERTY_SERVER_CONFIG = "rsync.cfg";
     private static final String WINDOWS_NAME = "Windows";
     private static final String PROPERTY_OS_NAME = "os.name";
-    public static final String PROPERTY_RSYNC_PASSWORD = "RSYNC_PASSWORD";	// not present unless manually defined; public for global reference
 
     public static final int UMASK = umask();
     public static final int DEFAULT_DIR_PERMS = 0777 & ~ UMASK;
@@ -115,16 +115,6 @@ public final class Environment
         return getPropertyOrDefault(PROPERTY_SERVER_CONFIG, defName);
     }
 
-    public static char[] getRsyncPassword()
-    {
-        String password = System.getProperty(PROPERTY_RSYNC_PASSWORD);
-        if (password==null)
-        {
-            return null;
-        }
-        return password.toCharArray();
-    }
-
     private static String getNonNullProperty(String key)
     {
         String value = System.getProperty(key);
@@ -172,5 +162,10 @@ public final class Environment
     public static boolean hasAllocateDirectArray()
     {
         return ByteBuffer.allocateDirect(1).hasArray();
+    }
+
+    public static String getRsyncPasswordOrNull()
+    {
+        return System.getenv(ENV_RSYNC_PASSWORD);
     }
 }

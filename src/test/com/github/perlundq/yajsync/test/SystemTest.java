@@ -3,6 +3,7 @@ package com.github.perlundq.yajsync.test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,8 +27,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -44,7 +46,6 @@ import com.github.perlundq.yajsync.session.RestrictedPath;
 import com.github.perlundq.yajsync.session.Statistics;
 import com.github.perlundq.yajsync.ui.YajSyncClient;
 import com.github.perlundq.yajsync.ui.YajSyncServer;
-import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.Option;
 
@@ -189,7 +190,9 @@ class SimpleRestrictedModule extends RestrictedModule
     private final String _name;
     private final String _comment;
 
-    public SimpleRestrictedModule(String authToken, Module module, String name, String comment) {
+    public SimpleRestrictedModule(String authToken, Module module, String name,
+                                  String comment)
+    {
         _authToken = authToken;
         _module = module;
         _name = name;
@@ -198,22 +201,26 @@ class SimpleRestrictedModule extends RestrictedModule
 
     @Override
     public String authenticate(RsyncAuthContext authContext, String userName)
-            throws ModuleSecurityException {
+            throws ModuleSecurityException
+    {
         return authContext.response(_authToken.toCharArray());
     }
 
     @Override
-    public Module toModule() {
+    public Module toModule()
+    {
         return _module;
     }
 
     @Override
-    public String name() {
+    public String name()
+    {
         return _name;
     }
 
     @Override
-    public String comment() {
+    public String comment()
+    {
         return _comment;
     }
 }
@@ -352,6 +359,8 @@ public class SystemTest
         }
     );
 
+    private ExecutorService _service;
+
     private YajSyncClient newClient()
     {
         return new YajSyncClient().
@@ -388,6 +397,18 @@ public class SystemTest
                                              src.toString() + "/",
                                              dst.toString() });
         return new ReturnStatus(rc, client.statistics());
+    }
+
+    @Before
+    public void setup()
+    {
+        _service = Executors.newCachedThreadPool();
+    }
+
+    @After
+    public void teardown()
+    {
+        _service.shutdownNow();
     }
 
     @Rule
@@ -693,79 +714,103 @@ public class SystemTest
         assertTrue(rc == 0);
     }
 
-//    // FIXME: latch might not get decreased if exception occurs
-//    // FIXME: port might be unavailable, open it here and inject it
-//    @Test(timeout=100)
-//    public void testServerConnection() throws InterruptedException, IOException
-//    {
-//        final CountDownLatch isListeningLatch = new CountDownLatch(1);
-//
-//        Callable<Integer> serverTask = new Callable<Integer>() {
-//            @Override
-//            public Integer call() throws Exception
-//            {
-//                Path modulePath = _tempDir.newFolder().toPath();
-//                Module m = new SimpleModule(Paths.get("test"), modulePath,
-//                                            "a test module", true, false);
-//                int rc = newServer(new TestModules(m)).setIsListeningLatch(isListeningLatch).start(new String[] { "--port=14415" });
-//                return rc;
-//            }
-//        };
-//        ExecutorService service = Executors.newCachedThreadPool();
-//        try {
-//            try {
-//                service.submit(serverTask);
-//                isListeningLatch.await();
-//                YajSyncClient client = newClient().setStandardOut(_nullOut);
-//                int rc = client.start(new String[] { "--port=14415",
-//                                                     "localhost::" });
-//                assertTrue(rc == 0);
-//            } finally {
-//                service.shutdownNow();
-//            }
-//        } finally {
-//            boolean isShutdown = service.awaitTermination(1, TimeUnit.SECONDS);
-//            assertTrue(isShutdown);
-//        }
-//    }
+    // FIXME: latch might not get decreased if exception occurs
+    // FIXME: port might be unavailable, open it here and inject it
+    @Test(timeout=100)
+    public void testServerConnection() throws InterruptedException, IOException
+    {
+        final CountDownLatch isListeningLatch = new CountDownLatch(1);
 
-  // FIXME: latch might not get decreased if exception occurs
-  // FIXME: port might be unavailable, open it here and inject it
-  @Test(timeout=100)
-  public void testProtectedServerConnection() throws InterruptedException, IOException
-  {
-      final CountDownLatch isListeningLatch = new CountDownLatch(1);
-      final String restrictedModuleName = "Restricted";
-      final String authToken = "testAuthToken";
+        Callable<Integer> serverTask = new Callable<Integer>() {
+            @Override
+            public Integer call() throws Exception
+            {
+                Path modulePath = _tempDir.newFolder().toPath();
+                Module m = new SimpleModule(Paths.get("test"), modulePath,
+                                            "a test module", true, false);
+                int rc = newServer(new TestModules(m)).
+                        setIsListeningLatch(isListeningLatch).
+                        start(new String[] { "--port=14415" });
+                return rc;
+            }
+        };
+        _service.submit(serverTask);
+        isListeningLatch.await();
+        YajSyncClient client = newClient().setStandardOut(_nullOut);
+        int rc = client.start(new String[] { "--port=14415", "localhost::" });
+        assertTrue(rc == 0);
+    }
 
-      Callable<Integer> serverTask = new Callable<Integer>() {
-          @Override
-          public Integer call() throws Exception
-          {
-              Path modulePath = _tempDir.newFolder().toPath();
-              Module m = new SimpleModule(Paths.get(restrictedModuleName), modulePath,
-                                          "a test module", true, false);
-              RestrictedModule rm = new SimpleRestrictedModule(authToken, m, restrictedModuleName, "a restricted module");
-              int rc = newServer(new TestModules(rm)).setIsListeningLatch(isListeningLatch).start(new String[] { "--port=14415" });
-              return rc;
-          }
-      };
-      ExecutorService service = Executors.newCachedThreadPool();
-      try {
-          try {
-              service.submit(serverTask);
-              isListeningLatch.await();
-              YajSyncClient client = newClient().setStandardOut(_nullOut);
-              System.setProperty(Environment.PROPERTY_RSYNC_PASSWORD, authToken);
-              int rc = client.start(new String[] { "--port=14415",
-                                                   "localhost::"+restrictedModuleName });
-              assertTrue(rc == 0);
-          } finally {
-              service.shutdownNow();
-          }
-      } finally {
-          boolean isShutdown = service.awaitTermination(1, TimeUnit.SECONDS);
-          assertTrue(isShutdown);
-      }
-  }
+    @Test(timeout=1000)
+    public void testProtectedServerConnection()
+            throws InterruptedException, IOException
+    {
+        final CountDownLatch isListeningLatch = new CountDownLatch(1);
+        final String restrictedModuleName = "Restricted";
+        final String authToken = "ëẗÿåäöüﭏ사غ";
+        Callable<Integer> serverTask = new Callable<Integer>() {
+            @Override
+            public Integer call() throws Exception
+            {
+                Path modulePath = _tempDir.newFolder().toPath();
+                Module m = new SimpleModule(Paths.get(restrictedModuleName),
+                                            modulePath,
+                                            "a test module", true, false);
+                RestrictedModule rm = new SimpleRestrictedModule(
+                                                 authToken,
+                                                 m,
+                                                 restrictedModuleName,
+                                                 "a restricted module");
+                int rc = newServer(new TestModules(rm)).
+                        setIsListeningLatch(isListeningLatch).
+                        start(new String[] { "--port=14415" });
+                return rc;
+            }
+        };
+        _service.submit(serverTask);
+        isListeningLatch.await();
+        YajSyncClient client = newClient().setStandardOut(_nullOut);
+        System.setIn(new ByteArrayInputStream(authToken.getBytes()));
+        int rc = client.start(new String[] {
+                "--port=14415", "--password-file=-",
+                "localhost::" + restrictedModuleName });
+        assertTrue(rc == 0);
+    }
+
+    @Test(timeout=1000)
+    public void testInvalidPassword()
+            throws InterruptedException, IOException
+    {
+        final CountDownLatch isListeningLatch = new CountDownLatch(1);
+        final String restrictedModuleName = "Restricted";
+        final String authToken = "testAuthToken";
+
+        Callable<Integer> serverTask = new Callable<Integer>() {
+            @Override
+            public Integer call() throws Exception
+            {
+                Path modulePath = _tempDir.newFolder().toPath();
+                Module m = new SimpleModule(Paths.get(restrictedModuleName),
+                                            modulePath,
+                                            "a test module", true, false);
+                RestrictedModule rm = new SimpleRestrictedModule(
+                                                 authToken,
+                                                 m,
+                                                 restrictedModuleName,
+                                                 "a restricted module");
+                int rc = newServer(new TestModules(rm)).
+                        setIsListeningLatch(isListeningLatch).
+                        start(new String[] { "--port=14415" });
+                return rc;
+            }
+        };
+        _service.submit(serverTask);
+        isListeningLatch.await();
+        YajSyncClient client = newClient().setStandardOut(_nullOut);
+        System.setIn(new ByteArrayInputStream((authToken + "fail").getBytes()));
+        int rc = client.start(new String[] {
+                "--port=14415", "--password-file=-",
+                "localhost::" + restrictedModuleName });
+        assertTrue(rc != 0);
+    }
 }

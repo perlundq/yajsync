@@ -18,10 +18,6 @@
  */
 package com.github.perlundq.yajsync.util;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
 public class Option
 {
     public interface Handler
@@ -104,14 +100,6 @@ public class Option
                           handler);
     }
 
-    public static Option newPathOption(Policy policy,
-                                       String longName, String shortName,
-                                       String shortHelp, Handler handler)
-    {
-        return new Option(Path.class, policy, longName, shortName, shortHelp,
-                          handler);
-    }
-
     public static Option newHelpOption(Handler handler)
     {
         return Option.newWithoutArgument(Option.Policy.OPTIONAL,
@@ -139,19 +127,6 @@ public class Option
                         name(), exampleUsageToString()));
                 }
                 _value = str;
-            } else if (_type == Path.class) {
-                if (str.isEmpty()) {
-                    throw new ArgumentParsingError(String.format(
-                        "%s expects an argument%nExample: %s",
-                        name(), exampleUsageToString()));
-                }
-                Path path = Paths.get(str);
-                if (!Files.exists(path)) {
-                    throw new ArgumentParsingError(String.format(
-                            "%s expects an existing path",
-                            name()));
-                }
-                _value = path;
             } else {
                 throw new IllegalStateException(String.format(
                     "BUG: %s is of an unsupported type to %s%nExample: %s",

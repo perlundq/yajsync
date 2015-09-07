@@ -21,6 +21,7 @@ package com.github.perlundq.yajsync.ui;
 
 import java.io.BufferedReader;
 import java.io.Console;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
@@ -46,17 +47,18 @@ import com.github.perlundq.yajsync.channels.net.ChannelFactory;
 import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
 import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
 import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
+import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
 import com.github.perlundq.yajsync.session.ClientSessionConfig;
 import com.github.perlundq.yajsync.session.RsyncClientSession;
 import com.github.perlundq.yajsync.session.RsyncException;
 import com.github.perlundq.yajsync.session.RsyncLocal;
-import com.github.perlundq.yajsync.session.RsyncSecurityException;
 import com.github.perlundq.yajsync.session.Statistics;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.util.ArgumentParser;
 import com.github.perlundq.yajsync.util.ArgumentParsingError;
 import com.github.perlundq.yajsync.util.Consts;
 import com.github.perlundq.yajsync.util.Environment;
+import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.Option;
 import com.github.perlundq.yajsync.util.PathOps;
 import com.github.perlundq.yajsync.util.Util;
@@ -258,7 +260,7 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     private boolean _isTLS;
     private boolean _isTransferDirs = false;
     private boolean _readStdin = false;
-    private Path _passwordFile;
+    private String _passwordFile;
     private PrintStream _out = System.out;
     private PrintStream _err = System.err;
 
@@ -286,31 +288,36 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
     }
 
     @Override
-    public char[] getPassword()
+    public char[] getPassword() throws IOException
     {
-        // read password from --password-file option
-        if (_passwordFile!=null)
-        {
-            try {
-                return (new String(java.nio.file.Files.readAllBytes(_passwordFile))).toCharArray();
-            } catch (IOException e) {
-                throw new RsyncSecurityException(e);
+        if (_passwordFile != null) {
+            if (!_passwordFile.equals("-")) {
+                RsyncFileAttributes attrs =
+                    RsyncFileAttributes.stat(Paths.get(_passwordFile));
+                if ((attrs.mode() & (FileOps.S_IROTH | FileOps.S_IWOTH)) != 0) {
+                    throw new IOException(String.format(
+                            "insecure permissions on %s: %s",
+                            _passwordFile, attrs));
+                }
+            }
+            try (BufferedReader br = new BufferedReader(
+                    _passwordFile.equals("-")
+                    ? new InputStreamReader(System.in)
+                    : new FileReader(_passwordFile))) {
+                return br.readLine().toCharArray();
             }
         }
 
-        // read password from environment variable RSYNC_PASSWORD
-        char[] password = Environment.getRsyncPassword();
-        if (password!=null) {
-            return password;
+        String passwordStr = Environment.getRsyncPasswordOrNull();
+        if (passwordStr != null) {
+            return passwordStr.toCharArray();
         }
 
-        // read password from console
         Console console = System.console();
         if (console == null) {
-            return "".toCharArray();
+            throw new IOException("no console available");
         }
-        password = console.readPassword("Password: ");
-        return password;
+        return console.readPassword("Password: ");
     }
 
     private Iterable<Option> options()
@@ -432,13 +439,13 @@ public class YajSyncClient implements ClientSessionConfig.AuthProvider
                 }}));
 
         options.add(
-                Option.newPathOption(Option.Policy.OPTIONAL,
-                                     "password-file=FILE", "",
-                                     "read daemon-access password from FILE",
+                Option.newStringOption(Option.Policy.OPTIONAL,
+                                       "password-file", "",
+                                       "read daemon-access password from " +
+                                       "specified file (where `-' is stdin)",
                 new Option.ContinuingHandler() {
                     @Override public void handleAndContinue(Option option) {
-                        _passwordFile = (Path) option.getValue();
-                        // TODO: check path is not world readable
+                        _passwordFile = (String) option.getValue();
                     }}));
 
         options.add(

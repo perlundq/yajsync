@@ -89,7 +89,8 @@ public class YajSyncServer
         return this;
     }
 
-    public YajSyncServer setIsListeningLatch(CountDownLatch isListeningLatch) {
+    public YajSyncServer setIsListeningLatch(CountDownLatch isListeningLatch)
+    {
         _isListeningLatch = isListeningLatch;
         return this;
     }
@@ -314,11 +315,9 @@ public class YajSyncServer
         _executor = Executors.newFixedThreadPool(_numThreads);
 
         try (ServerChannel listenSock = socketFactory.open(_address, _port)) {  // throws IOException
-
-            if (_isListeningLatch!=null) {
+            if (_isListeningLatch != null) {
                 _isListeningLatch.countDown();
             }
-
             while (true) {
                 DuplexByteChannel sock = listenSock.accept();                   // throws IOException
                 Callable<Boolean> c = createCallable(sock, isInterruptible);
