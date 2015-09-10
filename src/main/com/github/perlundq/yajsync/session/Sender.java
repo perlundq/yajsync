@@ -31,8 +31,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -61,6 +64,7 @@ import com.github.perlundq.yajsync.util.MD5;
 import com.github.perlundq.yajsync.util.PathOps;
 import com.github.perlundq.yajsync.util.Rolling;
 import com.github.perlundq.yajsync.util.RuntimeInterruptException;
+import com.github.perlundq.yajsync.util.StatusResult;
 
 public class Sender implements RsyncTask,MessageHandler
 {
@@ -221,8 +225,11 @@ public class Sender implements RsyncTask,MessageHandler
             }
 
             long t1 = System.currentTimeMillis();
+
+            StatusResult<Set<FileInfo>> expandResult = initialExpand(_sourceFiles);
+            boolean isInitialListOK = expandResult.isOK();
             Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
-            boolean isInitialListOK = initialExpand(builder, _sourceFiles);
+            builder.addAll(expandResult.value());
 
             Filelist.Segment initialSegment = fileList.newSegment(builder);
 
@@ -625,10 +632,10 @@ public class Sender implements RsyncTask,MessageHandler
 
     // NOTE: doesn't do any check of the validity of files or normalization -
     // it's up to the caller to do so, e.g. ServerSessionConfig.parseArguments
-    private boolean initialExpand(Filelist.SegmentBuilder builder,
-                                  Iterable<Path> files)
+    private StatusResult<Set<FileInfo>> initialExpand(Iterable<Path> files)
     {
         boolean isOK = true;
+        Set<FileInfo> fileset = new HashSet<>();
 
         for (Path p : files) {
             try {
@@ -641,29 +648,45 @@ public class Sender implements RsyncTask,MessageHandler
                     _characterEncoder.encode(p.getFileName().toString());       // throws TextConversionException
 
                 FileInfo fileInfo = new FileInfo(p, p.getFileName(), nameBytes, attrs);          // throws IllegalArgumentException but that cannot happen
-                if (builder.contains(fileInfo)) { // O(n) not a problem unless a really large initial list of files
-                    if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning("pruning duplicate " + fileInfo);
-                    }
-                    isOK = false;  // should we possibly not treat this as an error? (if so also change print statement to debug)
-                    continue;
-                }
                 if (!_isRecursive && !_isTransferDirs &&
                     fileInfo.attrs().isDirectory())
                 {
                     if (_log.isLoggable(Level.INFO)) {
                         _log.info("skipping directory " + fileInfo);
                     }
-                    continue;
-                }
-                if (_log.isLoggable(Level.FINE)) {
-                    _log.fine(String.format("adding %s to segment", fileInfo));
-                }
-                builder.add(fileInfo);
-                if (fileInfo.isDotDir()) {
-                    boolean isExpandOK = expand(builder, fileInfo);
-                    isOK = isOK && isExpandOK;
-                    _nextSegmentIndex++; // we have to add it to be compliant with native, but don't try expanding it again later
+                } else {
+                    boolean isAdded = fileset.add(fileInfo);
+                    if (isAdded) {
+                        if (_log.isLoggable(Level.FINE)) {
+                            _log.fine(String.format("adding %s to segment",
+                                                    fileInfo));
+                        }
+                        if (fileInfo.isDotDir()) {
+                            if (_log.isLoggable(Level.FINE)) {
+                                _log.fine(String.format("expanding dot dir %s",
+                                                        fileInfo));
+                            }
+
+                            StatusResult<List<FileInfo>> expandResult =
+                                    expand(fileInfo);
+                            isOK = isOK && expandResult.isOK();
+                            for (FileInfo f2 : expandResult.value()) {
+                                boolean isAdded2 = fileset.add(f2);
+                                if (!isAdded2) {
+                                    if (_log.isLoggable(Level.WARNING)) {
+                                        _log.warning("pruning duplicate " + f2);
+                                    }
+                                    isOK = false;
+                                }
+                            }
+                            _nextSegmentIndex++; // we have to add it to be compliant with native, but don't try expanding it again later
+                        }
+                    } else {
+                        if (_log.isLoggable(Level.WARNING)) {
+                            _log.warning("pruning duplicate " + fileInfo);
+                        }
+                        isOK = false;  // should we possibly not treat this as an error? (if so also change print statement to debug)
+                    }
                 }
             } catch (IOException e) {
                 if (_log.isLoggable(Level.WARNING)) {
@@ -681,14 +704,14 @@ public class Sender implements RsyncTask,MessageHandler
             }
         }
 
-        return isOK;
+        return new StatusResult<Set<FileInfo>>(isOK, fileset);
     }
 
-    private boolean expand(Filelist.SegmentBuilder builder, FileInfo directory)
+    private StatusResult<List<FileInfo>> expand(FileInfo directory)
     {
-        assert builder != null;
         assert directory != null;
 
+        List<FileInfo> fileset = new ArrayList<>();
         boolean isOK = true;
         final Path localPart = getLocalPathOf(directory);                       // throws RuntimeException if unable to get local path prefix of directory, but that should never happen
 
@@ -726,9 +749,9 @@ public class Sender implements RsyncTask,MessageHandler
                 byte[] pathNameBytes =
                     _characterEncoder.encodeOrNull(relativePathName);
                 if (pathNameBytes != null) {
-                    FileInfo fi = new FileInfo(entry, relativePath,
-                                               pathNameBytes, attrs);    // throws IllegalArgumentException but that cannot happen
-                    builder.add(fi);
+                    FileInfo f = new FileInfo(entry, relativePath,
+                                              pathNameBytes, attrs);    // throws IllegalArgumentException but that cannot happen
+                    fileset.add(f);
                 } else {
                     if (_log.isLoggable(Level.WARNING)) {
                         _log.warning(String.format(
@@ -746,7 +769,7 @@ public class Sender implements RsyncTask,MessageHandler
             }
             isOK = false;
         }
-        return isOK;
+        return new StatusResult<List<FileInfo>>(isOK, fileset);
     }
 
     // TODO: FEATURE: (if possible in native) implement suspend/resume such that
@@ -782,13 +805,15 @@ public class Sender implements RsyncTask,MessageHandler
                 continue;
             }
 
-            Filelist.SegmentBuilder builder =
-                new Filelist.SegmentBuilder(directory);
-            boolean isExpandOK = expand(builder, directory);
+            StatusResult<List<FileInfo>> expandResult = expand(directory);
+            boolean isExpandOK = expandResult.isOK();
             if (!isExpandOK && _log.isLoggable(Level.WARNING)) {
                 _log.warning("initial file list expansion returned an error");
             }
 
+            Filelist.SegmentBuilder builder =
+                new Filelist.SegmentBuilder(directory);
+            builder.addAll(expandResult.value());
             Filelist.Segment segment = fileList.newSegment(builder);
 
             if (_log.isLoggable(Level.FINE)) {

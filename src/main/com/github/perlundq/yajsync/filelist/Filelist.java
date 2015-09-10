@@ -82,15 +82,11 @@ public class Filelist
             }
         }
 
-        public int size()
+        public void addAll(Iterable<FileInfo> fileset)
         {
-            return _files.size();
-        }
-
-        // O(n)
-        public boolean contains(FileInfo fileInfo)
-        {
-            return _files.contains(fileInfo);
+            for (FileInfo f : fileset) {
+                add(f);
+            }
         }
 
         private void clear()
