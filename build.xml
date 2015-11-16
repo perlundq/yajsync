@@ -9,6 +9,7 @@
 
     <property name="build.dir" value="build"/>
     <property name="jar.dir" value="${build.dir}/jar"/>
+    <property name="doc.dir" value="doc"/>
     <property name="main.class.dir" value="${build.dir}/main"/>
     <property name="test.out.dir" value="${build.dir}/test"/>
     <property name="test.class.dir" value="${test.out.dir}"/>
@@ -21,12 +22,14 @@
         <delete dir="${jar.dir}"/>
         <delete dir="${test.out.dir}"/>
         <delete dir="${test.class.dir}"/>
+        <delete dir="${doc.dir}"/>
     </target>
 
     <target name="init">
         <mkdir dir="${build.dir}"/>
         <mkdir dir="${main.class.dir}"/>
         <mkdir dir="${jar.dir}"/>
+        <mkdir dir="${doc.dir}"/>
     </target>
 
     <target name="build" depends="init">
@@ -52,6 +55,11 @@
     </target>
 
     <target name="jar" depends="client-jar,server-jar"/>
+
+    <target name="doc" depends="init">
+        <javadoc sourcepath="${main.src.dir}" destdir="${doc.dir}"/>
+    </target>
+
 
     <!-- test -->
 
