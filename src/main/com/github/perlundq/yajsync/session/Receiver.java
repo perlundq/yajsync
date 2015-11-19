@@ -2,7 +2,7 @@
  * Processing of incoming file lists and file data from Sender
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013-2015 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.LinkOption;
@@ -47,7 +46,6 @@ import com.github.perlundq.yajsync.channels.Message;
 import com.github.perlundq.yajsync.channels.MessageCode;
 import com.github.perlundq.yajsync.channels.MessageHandler;
 import com.github.perlundq.yajsync.channels.RsyncInChannel;
-import com.github.perlundq.yajsync.filelist.ConcurrentFilelist;
 import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
@@ -62,8 +60,95 @@ import com.github.perlundq.yajsync.util.PathOps;
 import com.github.perlundq.yajsync.util.RuntimeInterruptException;
 import com.github.perlundq.yajsync.util.Util;
 
-public class Receiver implements RsyncTask,MessageHandler
+public class Receiver implements RsyncTask, MessageHandler
 {
+    public static class Builder
+    {
+        private final Generator _generator;
+        private final ReadableByteChannel _in;
+        private final String _targetPathName;
+        private boolean _isDeferredWrite;
+        private boolean _isExitAfterEOF;
+        private boolean _isExitEarlyIfEmptyList;
+        private boolean _isReceiveStatistics;
+        private boolean _isSafeFileList = true;
+        private boolean _isSendFilterRules;
+
+        public Builder(Generator generator, ReadableByteChannel in,
+                       String targetPathName)
+        {
+            assert generator != null;
+            assert in != null;
+            assert targetPathName != null;
+            assert Paths.get(targetPathName).isAbsolute() : targetPathName;
+            _generator = generator;
+            _in = in;
+            _targetPathName = targetPathName;
+        }
+
+        public static Builder newServer(Generator generator,
+                                        ReadableByteChannel in,
+                                        String targetPathName)
+        {
+            return new Builder(generator, in, targetPathName).
+                    isSendFilterRules(false).
+                    isReceiveStatistics(false).
+                    isExitEarlyIfEmptyList(false);
+        }
+
+        public static Builder newClient(Generator generator,
+                                        ReadableByteChannel in,
+                                        String targetPathName)
+        {
+            return new Builder(generator, in, targetPathName).
+                    isSendFilterRules(true).
+                    isReceiveStatistics(true).
+                    isExitEarlyIfEmptyList(true).
+                    isExitAfterEOF(true);
+        }
+
+        public Builder isDeferredWrite(boolean isDeferredWrite)
+        {
+            _isDeferredWrite = isDeferredWrite;
+            return this;
+        }
+
+        public Builder isExitAfterEOF(boolean isExitAfterEOF)
+        {
+            _isExitAfterEOF = isExitAfterEOF;
+            return this;
+        }
+
+        public Builder isExitEarlyIfEmptyList(boolean isExitEarlyIfEmptyList)
+        {
+            _isExitEarlyIfEmptyList = isExitEarlyIfEmptyList;
+            return this;
+        }
+
+        public Builder isReceiveStatistics(boolean isReceiveStatistics)
+        {
+            _isReceiveStatistics = isReceiveStatistics;
+            return this;
+        }
+
+        public Builder isSafeFileList(boolean isSafeFileList)
+        {
+            _isSafeFileList = isSafeFileList;
+            return this;
+        }
+
+        public Builder isSendFilterRules(boolean isSendFilterRules)
+        {
+            _isSendFilterRules = isSendFilterRules;
+            return this;
+        }
+
+        public Receiver build()
+        {
+            return new Receiver(this);
+        }
+    }
+
     @SuppressWarnings("serial")
     private class PathResolverException extends Exception {
         public PathResolverException(String msg) {
@@ -104,139 +189,53 @@ public class Receiver implements RsyncTask,MessageHandler
         Path fullPathOf(Path relativePath);
     }
 
+    private static final int INPUT_CHANNEL_BUF_SIZE = 8 * 1024;
     private static final Logger _log =
         Logger.getLogger(Receiver.class.getName());
 
-    private static final int INPUT_CHANNEL_BUF_SIZE = 8 * 1024;
+    private final boolean _isDeferredWrite;
+    private final boolean _isExitAfterEOF;
+    private final boolean _isExitEarlyIfEmptyList;
+    private final boolean _isInterruptible;
+    private final boolean _isListOnly;
+    private final boolean _isPreservePermissions;
+    private final boolean _isPreserveTimes;
+    private final boolean _isPreserveUser;
+    private final boolean _isReceiveStatistics;
+    private final boolean _isSafeFileList;
+    private final boolean _isSendFilterRules;
     private final FileInfoCache _fileInfoCache = new FileInfoCache();
-    private final Map<Integer, User> _uidUserMap = new HashMap<>();
+    private final FileSelection _fileSelection;
     private final Generator _generator;
+    private final Map<Integer, User> _uidUserMap = new HashMap<>();
     private final RsyncInChannel _senderInChannel;
     private final Statistics _stats = new Statistics();
-    private final TextDecoder _characterDecoder;
     private final String _targetPathName;
-    private boolean _isSendFilterRules;
-    private boolean _isReceiveStatistics;
-    private boolean _isExitEarlyIfEmptyList;
-    private boolean _isRecursive;
-    private boolean _isListOnly;
-    private boolean _isPreservePermissions;
-    private boolean _isPreserveTimes;
-    private boolean _isPreserveUser;
-    private boolean _isDeferredWrite;
-    private boolean _isInterruptible = true;
-    private boolean _isExitAfterEOF;
-    private boolean _isSafeFileList = true;
+    private final TextDecoder _characterDecoder;
+
     private int _ioError;
     private PathResolver _pathResolver;
 
-    public Receiver(Generator generator,
-                    ReadableByteChannel in,
-                    Charset charset,
-                    String targetPathName)
+    private Receiver(Builder builder)
     {
-        _senderInChannel = new RsyncInChannel(in,
+        _isDeferredWrite = builder._isDeferredWrite;
+        _isExitAfterEOF = builder._isExitAfterEOF;
+        _isExitEarlyIfEmptyList = builder._isExitEarlyIfEmptyList;
+        _isReceiveStatistics = builder._isReceiveStatistics;
+        _isSafeFileList = builder._isSafeFileList;
+        _isSendFilterRules = builder._isSendFilterRules;
+        _generator = builder._generator;
+        _isInterruptible = _generator.isInterruptible();
+        _isListOnly = _generator.isListOnly();
+        _isPreservePermissions = _generator.isPreservePermissions();
+        _isPreserveTimes = _generator.isPreserveTimes();
+        _isPreserveUser = _generator.isPreserveUser();
+        _fileSelection = _generator.fileSelection();
+        _senderInChannel = new RsyncInChannel(builder._in,
                                               this,
                                               INPUT_CHANNEL_BUF_SIZE);
-        _characterDecoder = TextDecoder.newStrict(charset);
-        _generator = generator;
-        _targetPathName = targetPathName;
-    }
-
-    public static Receiver newServerInstance(Generator generator,
-                                             ReadableByteChannel in,
-                                             Charset charset,
-                                             String targetPathName)
-    {
-        return new Receiver(generator, in, charset, targetPathName).
-            setIsSendFilterRules(false).
-            setIsReceiveStatistics(false).
-            setIsExitEarlyIfEmptyList(false).
-            setIsListOnly(false);
-    }
-
-    public static Receiver newClientInstance(Generator generator,
-                                             ReadableByteChannel in,
-                                             Charset charset,
-                                             String targetPathName)
-    {
-        return new Receiver(generator, in, charset, targetPathName).
-            setIsSendFilterRules(true).
-            setIsReceiveStatistics(true).
-            setIsExitEarlyIfEmptyList(true).
-            setIsExitAfterEOF(true);
-    }
-
-    public Receiver setIsRecursive(boolean isRecursive)
-    {
-        _isRecursive = isRecursive;
-        return this;
-    }
-
-    public Receiver setIsListOnly(boolean isListOnly)
-    {
-        _isListOnly = isListOnly;
-        return this;
-    }
-
-    public Receiver setIsPreservePermissions(boolean isPreservePermissions)
-    {
-        _isPreservePermissions = isPreservePermissions;
-        return this;
-    }
-
-    public Receiver setIsPreserveTimes(boolean isPreserveTimes)
-    {
-        _isPreserveTimes = isPreserveTimes;
-        return this;
-    }
-
-    public Receiver setIsPreserveUser(boolean isPreserveUser)
-    {
-        _isPreserveUser = isPreserveUser;
-        return this;
-    }
-
-    public Receiver setIsDeferredWrite(boolean isDeferredWrite)
-    {
-        _isDeferredWrite = isDeferredWrite;
-        return this;
-    }
-
-    public Receiver setIsExitAfterEOF(boolean isExitAfterEOF)
-    {
-        _isExitAfterEOF = isExitAfterEOF;
-        return this;
-    }
-
-    public Receiver setIsInterruptible(boolean isInterruptible)
-    {
-        _isInterruptible = isInterruptible;
-        return this;
-    }
-
-    public Receiver setIsSendFilterRules(boolean isSendFilterRules)
-    {
-        _isSendFilterRules = isSendFilterRules;
-        return this;
-    }
-
-    public Receiver setIsReceiveStatistics(boolean isReceiveStatistics)
-    {
-        _isReceiveStatistics = isReceiveStatistics;
-        return this;
-    }
-
-    public Receiver setIsExitEarlyIfEmptyList(boolean isExitEarlyIfEmptyList)
-    {
-        _isExitEarlyIfEmptyList = isExitEarlyIfEmptyList;
-        return this;
-    }
-
-    public Receiver setIsSafeFileList(boolean isSafeFileList)
-    {
-        _isSafeFileList = isSafeFileList;
-        return this;
+        _targetPathName = builder._targetPathName;
+        _characterDecoder = TextDecoder.newStrict(_generator.charset());
     }
 
     @Override
@@ -259,12 +258,12 @@ public class Receiver implements RsyncTask,MessageHandler
                 _log.fine(String.format("Receiver.receive(targetPathName=%s, " +
                                         "isDeferredWrite=%s," +
                                         " isListOnly=%s, isPreserveTimes=%s, " +
-                                        "isRecursive=%s, sendFilterRules=%s, " +
+                                        "fileSelection=%s, sendFilterRules=%s, " +
                                         "receiveStatistics=%s, " +
                                         "exitEarlyIfEmptyList=%s",
                                         _targetPathName, _isDeferredWrite,
                                         _isListOnly, _isPreserveTimes,
-                                        _isRecursive, _isSendFilterRules,
+                                        _fileSelection, _isSendFilterRules,
                                         _isReceiveStatistics,
                                         _isExitEarlyIfEmptyList));
             }
@@ -272,14 +271,14 @@ public class Receiver implements RsyncTask,MessageHandler
                 sendEmptyFilterRules();
             }
 
-            if (_isPreserveUser && _isRecursive) {
+            if (_isPreserveUser && _fileSelection == FileSelection.RECURSE) {
                 _uidUserMap.put(User.root().uid(), User.root());
             }
 
             List<FileInfoStub> stubs = new LinkedList<>();
             _ioError |= receiveFileMetaDataInto(stubs);
 
-            if (_isPreserveUser && !_isRecursive) {
+            if (_isPreserveUser && _fileSelection != FileSelection.RECURSE) {
                 Map<Integer, User> uidUserMap = receiveUserList();
                 uidUserMap.put(User.root().uid(), User.root());
                 addUserNameToStubs(uidUserMap, stubs);
@@ -298,11 +297,13 @@ public class Receiver implements RsyncTask,MessageHandler
 
             Path targetPath = PathOps.get(_targetPathName);                     // throws InvalidPathException
             _pathResolver = getPathResolver(targetPath, stubs);                 // throws PathResolverException
+            if (_log.isLoggable(Level.FINER)) {
+                _log.finer("Path Resolver: " + _pathResolver.toString());
+            }
             Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
             _ioError |= extractFileMetadata(stubs, builder);
 
-            Filelist fileList = new ConcurrentFilelist(_isRecursive);           // FIXME: move out
-            _generator.setFileList(fileList);                                   // FIXME: move out
+            Filelist fileList = _generator.fileList();
             Filelist.Segment segment = fileList.newSegment(builder);
             _generator.generateSegment(segment);
             receiveFiles(fileList, segment);
@@ -421,6 +422,18 @@ public class Receiver implements RsyncTask,MessageHandler
             boolean isTargetNonExistingFile =
                 !isTargetExisting && !targetPath.endsWith(PathOps.DOT_DIR);
 
+            if (_log.isLoggable(Level.FINER)) {
+                _log.finer(String.format(
+                        "targetPath=%s attrs=%s isTargetExisting=%s " +
+                        "isSourceSingleFile=%s isTargetNonExistingFile=%s " +
+                        "#stubs=%d",
+                        targetPath, attrs, isTargetExisting, isSourceSingleFile,
+                        isTargetNonExistingFile, stubs.size()));
+            }
+            if (_log.isLoggable(Level.FINEST)) {
+                _log.finest(stubs.toString());
+            }
+
             if (isSourceSingleFile && isTargetNonExistingFile ||
                 isSourceSingleFile && isTargetExistingFile)
             {                                                                       // -> targetPath
@@ -431,10 +444,17 @@ public class Receiver implements RsyncTask,MessageHandler
                     @Override public Path fullPathOf(Path relativePath) {
                         return targetPath;
                     }
+                    @Override public String toString() {
+                        return "PathResolver(Single Source)";
+                    }
                 };
             }
             if (isTargetExistingDir || !isTargetExisting) {                         // -> targetPath/*
                 if (!isTargetExisting) {
+                    if (_log.isLoggable(Level.FINER)) {
+                        _log.finer("creating directory (with parents) " +
+                                   targetPath);
+                    }
                     Files.createDirectories(targetPath);
                 }
                 return new PathResolver() {
@@ -457,6 +477,9 @@ public class Receiver implements RsyncTask,MessageHandler
                                 fullPath, targetPath));
                         }
                         return fullPath;
+                    }
+                    @Override public String toString() {
+                        return "PathResolver(Complex)";
                     }
                 };
             }
@@ -594,7 +617,7 @@ public class Receiver implements RsyncTask,MessageHandler
         Filelist.Segment segment = firstSegment;
         int numSegmentsInProgress = 1;
         ConnectionState connectionState = new ConnectionState();
-        boolean isEOF = !_isRecursive;
+        boolean isEOF = _fileSelection != FileSelection.RECURSE;
 
         while (connectionState.isTransfer()) {
             if (_log.isLoggable(Level.FINE)) {
@@ -608,7 +631,7 @@ public class Receiver implements RsyncTask,MessageHandler
             }
 
             if (index == Filelist.DONE) {
-                if (!_isRecursive && !fileList.isEmpty()) {
+                if (_fileSelection != FileSelection.RECURSE && !fileList.isEmpty()) {
                     throw new IllegalStateException(
                         "received file list DONE when not recursive and file " +
                         "list is not empty: " + fileList);
@@ -636,7 +659,7 @@ public class Receiver implements RsyncTask,MessageHandler
                     throw new IllegalStateException("received duplicate file " +
                                                     "list EOF");
                 }
-                if (!_isRecursive) {
+                if (_fileSelection != FileSelection.RECURSE) {
                     throw new IllegalStateException("Received file list EOF" +
                                                     " from peer while not " +
                                                     "doing incremental " +
@@ -650,7 +673,7 @@ public class Receiver implements RsyncTask,MessageHandler
                 }
                 isEOF = true;
             } else if (index < 0) {
-                if (!_isRecursive) {
+                if (_fileSelection != FileSelection.RECURSE) {
                     throw new IllegalStateException("Received negative file " +
                                                     "index from peer while " +
                                                     "not doing incremental " +
@@ -705,7 +728,7 @@ public class Receiver implements RsyncTask,MessageHandler
 
                 FileInfo fileInfo = segment.getFileWithIndexOrNull(index);
                 if (fileInfo == null) {
-                    if (!_isRecursive) {
+                    if (_fileSelection != FileSelection.RECURSE) {
                         throw new RsyncProtocolException(String.format(
                             "Received invalid file index %d from peer",
                             index));
@@ -1009,6 +1032,11 @@ public class Receiver implements RsyncTask,MessageHandler
             RsyncFileAttributes attrs = stub._attrs;
             FileInfo fileInfo = null;
 
+            if (_log.isLoggable(Level.FINER)) {
+                _log.finer(String.format("Extracting FileInfo stub: " +
+                                         "pathName=%s %s", pathName, attrs));
+            }
+
             if (pathName == null) {
                 ioError |= IoError.GENERAL;
                 try {
@@ -1047,6 +1075,11 @@ public class Receiver implements RsyncTask,MessageHandler
                     Path relativePath = _pathResolver.relativePathOf(pathName);
                     Path fullPath = _pathResolver.fullPathOf(relativePath);
 
+                    if (_log.isLoggable(Level.FINER)) {
+                        _log.finer(String.format(
+                                "relative path: %s, full path: %s",
+                                relativePath, fullPath));
+                    }
                     if (PathOps.isPathPreservable(fullPath)) {
                         fileInfo = new FileInfo(fullPath,
                                                 relativePath,
@@ -1148,21 +1181,21 @@ public class Receiver implements RsyncTask,MessageHandler
             }
             boolean isReceiveUserName =
                 (xflags & TransmitFlags.USER_NAME_FOLLOWS) != 0;
-            if (isReceiveUserName && !_isRecursive) {
+            if (isReceiveUserName && _fileSelection != FileSelection.RECURSE) {
                 throw new RsyncProtocolException("got user name mapping when " +
                                                  "not doing incremental " +
                                                  "recursion");
             }
-            if (_isRecursive && isReceiveUserName) {
+            if (_fileSelection == FileSelection.RECURSE && isReceiveUserName) {
                 user = receiveUser();
                 _uidUserMap.put(user.uid(), user);
-            } else if (_isRecursive) {  // && !isReceiveUsername where isReceiveUserName is only true once for every new mapping, old ones have been sent previously
+            } else if (_fileSelection == FileSelection.RECURSE) {  // && !isReceiveUsername where isReceiveUserName is only true once for every new mapping, old ones have been sent previously
                 int uid = receiveUserId();
                 user = _uidUserMap.get(uid);  // Note: _uidUserMap contains a predefined mapping for root
                 if (user == null) {
                     user = new User("", uid);
                 }
-            } else { // if (!_isRecursive) {
+            } else { // if (_fileSelection != FileSelection.RECURSE) {
                 user = receiveIncompleteUser();  // User with uid but no user name. User name mappings are sent in batch after initial file list
             }
             _fileInfoCache.setPrevUser(user);

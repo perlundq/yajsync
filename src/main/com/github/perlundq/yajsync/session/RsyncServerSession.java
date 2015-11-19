@@ -2,7 +2,7 @@
  * Rsync server -> client session creation
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013-2015 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -62,39 +62,31 @@ public class RsyncServerSession
         }
 
         if (cfg.isSender()) {
-            Sender sender = Sender.newServerInstance(in,
-                                                     out,
+            Sender sender = Sender.Builder.newServer(in, out,
                                                      cfg.sourceFiles(),
-                                                     cfg.charset(),
                                                      cfg.checksumSeed()).
-                setIsRecursive(cfg.isRecursive()).
-                setIsPreserveUser(cfg.isPreserveUser()).
-                setIsInterruptible(isChannelsInterruptible).
-                setIsSafeFileList(cfg.isSafeFileList()).
-                setIsTransferDirs(cfg.isTransferDirs());
+                    charset(cfg.charset()).
+                    fileSelection(cfg.fileSelection()).
+                    isPreserveUser(cfg.isPreserveUser()).
+                    isInterruptible(isChannelsInterruptible).
+                    isSafeFileList(cfg.isSafeFileList()).build();
             return RsyncTaskExecutor.exec(executor, sender);
         } else {
-            Generator generator =
-                Generator.newServerInstance(out, cfg.charset(),
-                                            cfg.checksumSeed()).
-                    setIsRecursive(cfg.isRecursive()).
-                    setIsPreservePermissions(cfg.isPreservePermissions()).
-                    setIsPreserveTimes(cfg.isPreserveTimes()).
-                    setIsPreserveUser(cfg.isPreserveUser()).
-                    setIsIgnoreTimes(cfg.isIgnoreTimes()).
-                    setIsAlwaysItemize(cfg.verbosity() > 1).
-                    setIsInterruptible(isChannelsInterruptible);
-            Receiver receiver =
-                Receiver.newServerInstance(generator, in, cfg.charset(),
-                                           cfg.getReceiverDestination().toString()).
-                    setIsRecursive(cfg.isRecursive()).
-                    setIsPreservePermissions(cfg.isPreservePermissions()).
-                    setIsPreserveTimes(cfg.isPreserveTimes()).
-                    setIsPreserveUser(cfg.isPreserveUser()).
-                    setIsDeferredWrite(_isDeferredWrite).
-                    setIsInterruptible(isChannelsInterruptible).
-                    setIsSafeFileList(cfg.isSafeFileList());
-
+            Generator generator = new Generator.Builder(out,
+                                                        cfg.checksumSeed()).
+                    charset(cfg.charset()).
+                    fileSelection(cfg.fileSelection()).
+                    isPreservePermissions(cfg.isPreservePermissions()).
+                    isPreserveTimes(cfg.isPreserveTimes()).
+                    isPreserveUser(cfg.isPreserveUser()).
+                    isIgnoreTimes(cfg.isIgnoreTimes()).
+                    isAlwaysItemize(cfg.verbosity() > 1).
+                    isInterruptible(isChannelsInterruptible).build();
+            Receiver receiver = Receiver.Builder.newServer(generator,
+                                                           in,
+                                                           cfg.getReceiverDestination().toString()).
+                    isDeferredWrite(_isDeferredWrite).
+                    isSafeFileList(cfg.isSafeFileList()).build();
             return RsyncTaskExecutor.exec(executor, generator,
                                                     receiver);
         }

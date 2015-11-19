@@ -3,7 +3,7 @@
  * Generator and sending of file lists and file data to peer Receiver
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013-2015 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -68,129 +68,155 @@ import com.github.perlundq.yajsync.util.StatusResult;
 
 public class Sender implements RsyncTask,MessageHandler
 {
+    public static class Builder
+    {
+        private final ReadableByteChannel _in;
+        private final WritableByteChannel _out;
+        private final Iterable<Path> _sourceFiles;
+        private final byte[] _checksumSeed;
+        private boolean _isExitAfterEOF;
+        private boolean _isExitEarlyIfEmptyList;
+        private boolean _isInterruptible = true;
+        private boolean _isPreserveUser;
+        private boolean _isReceiveFilterRules;
+        private boolean _isSafeFileList = true;
+        private boolean _isSendStatistics;
+        private Charset _charset = Charset.forName(Text.UTF8_NAME);
+        private FileSelection _fileSelection = FileSelection.EXACT;
+
+        public Builder(ReadableByteChannel in,
+                       WritableByteChannel out,
+                       Iterable<Path> sourceFiles,
+                       byte[] checksumSeed)
+        {
+            assert in != null;
+            assert out != null;
+            assert sourceFiles != null;
+            assert checksumSeed != null;
+            _in = in;
+            _out = out;
+            _sourceFiles = sourceFiles;
+            _checksumSeed = checksumSeed;
+        }
+
+        public static Builder newServer(ReadableByteChannel in,
+                                        WritableByteChannel out,
+                                        Iterable<Path> sourceFiles,
+                                        byte[] checksumSeed)
+        {
+            Builder builder = new Builder(in, out, sourceFiles, checksumSeed);
+            builder._isReceiveFilterRules = true;
+            builder._isSendStatistics = true;
+            builder._isExitEarlyIfEmptyList = true;
+            builder._isExitAfterEOF = false;
+            return builder;
+        }
+
+        public static Builder newClient(ReadableByteChannel in,
+                                        WritableByteChannel out,
+                                        Iterable<Path> sourceFiles,
+                                        byte[] checksumSeed)
+        {
+            Builder builder = new Builder(in, out, sourceFiles, checksumSeed);
+            builder._isReceiveFilterRules = false;
+            builder._isSendStatistics = false;
+            builder._isExitEarlyIfEmptyList = false;
+            builder._isExitAfterEOF = true;
+            return builder;
+
+        }
+
+        public Builder fileSelection(FileSelection fileSelection)
+        {
+            assert fileSelection != null;
+            _fileSelection = fileSelection;
+            return this;
+        }
+
+        public Builder isPreserveUser(boolean isPreserveUser)
+        {
+            _isPreserveUser = isPreserveUser;
+            return this;
+        }
+
+        public Builder charset(Charset charset)
+        {
+            assert charset != null;
+            _charset = charset;
+            return this;
+        }
+
+        public Builder isExitEarlyIfEmptyList(boolean isExitEarlyIfEmptyList)
+        {
+            _isExitEarlyIfEmptyList = isExitEarlyIfEmptyList;
+            return this;
+        }
+
+        public Builder isInterruptible(boolean isInterruptible)
+        {
+            _isInterruptible = isInterruptible;
+            return this;
+        }
+
+        public Builder isSafeFileList(boolean isSafeFileList)
+        {
+            _isSafeFileList = isSafeFileList;
+            return this;
+        }
+
+        public Sender build()
+        {
+            return new Sender(this);
+        }
+    }
+
     private static final Logger _log =
         Logger.getLogger(Sender.class.getName());
-
     private static final int INPUT_CHANNEL_BUF_SIZE = 8 * 1024;
     private static final int OUTPUT_CHANNEL_BUF_SIZE = 8 * 1024;
     private static final int PARTIAL_FILE_LIST_SIZE = 500;
     private static final int CHUNK_SIZE = 8 * 1024;
+
+    private final AutoFlushableRsyncDuplexChannel _duplexChannel;
+    private final boolean _isExitAfterEOF;
+    private final boolean _isExitEarlyIfEmptyList;
+    private final boolean _isInterruptible;
+    private final boolean _isPreserveUser;
+    private final boolean _isReceiveFilterRules;
+    private final boolean _isSafeFileList;
+    private final boolean _isSendStatistics;
     private final byte[] _checksumSeed;
     private final FileInfoCache _fileInfoCache = new FileInfoCache();
-    private final AutoFlushableRsyncDuplexChannel _duplexChannel;
+    private final FileSelection _fileSelection;
     private final Iterable<Path> _sourceFiles;
+    private final Set<User> _transferredUserNames = new LinkedHashSet<>();
+    private final Statistics _stats = new Statistics();
     private final TextDecoder _characterDecoder;
     private final TextEncoder _characterEncoder;
-    private final Set<User> _transferredUserNames = new LinkedHashSet<>();
-    private boolean _isReceiveFilterRules;
-    private boolean _isSendStatistics;
-    private boolean _isExitEarlyIfEmptyList;
-    private boolean _isRecursive;
-    private boolean _isPreserveUser;
-    private boolean _isSafeFileList = true;
+
     private int _nextSegmentIndex;
-    private Statistics _stats = new Statistics();
-    private boolean _isInterruptible = true;
-    private boolean _isExitAfterEOF = false;
-    private boolean _isTransferDirs = false;
     private int _ioError;
 
-    public Sender(ReadableByteChannel in,
-                  WritableByteChannel out,
-                  Iterable<Path> sourceFiles,
-                  Charset charset,
-                  byte[] checksumSeed)
+    private Sender(Builder builder)
     {
         _duplexChannel = new AutoFlushableRsyncDuplexChannel(
-                             new RsyncInChannel(in,
+                             new RsyncInChannel(builder._in,
                                                 this,
                                                 INPUT_CHANNEL_BUF_SIZE),
-                             new RsyncOutChannel(out,
+                             new RsyncOutChannel(builder._out,
                                                  OUTPUT_CHANNEL_BUF_SIZE));
-        _sourceFiles = sourceFiles;
-        _characterEncoder = TextEncoder.newStrict(charset);
-        _characterDecoder = TextDecoder.newStrict(charset);
-        _checksumSeed = checksumSeed;
-    }
-
-    public static Sender newServerInstance(ReadableByteChannel in,
-                                           WritableByteChannel out,
-                                           Iterable<Path> sourceFiles,
-                                           Charset charset,
-                                           byte[] checksumSeed)
-    {
-        return new Sender(in, out, sourceFiles, charset, checksumSeed).
-            setIsReceiveFilterRules(true).
-            setIsSendStatistics(true).
-            setIsExitEarlyIfEmptyList(true).
-            setIsExitAfterEOF(false);
-    }
-
-    public static Sender newClientInstance(ReadableByteChannel in,
-                                           WritableByteChannel out,
-                                           Iterable<Path> sourceFiles,
-                                           Charset charset,
-                                           byte[] checksumSeed)
-    {
-        return new Sender(in, out, sourceFiles, charset, checksumSeed).
-            setIsReceiveFilterRules(false).
-            setIsSendStatistics(false).
-            setIsExitEarlyIfEmptyList(false).
-            setIsExitAfterEOF(true);
-    }
-
-    public Sender setIsRecursive(boolean isRecursive)
-    {
-        _isRecursive = isRecursive;
-        return this;
-    }
-
-    public Sender setIsPreserveUser(boolean isPreserveUser)
-    {
-        _isPreserveUser = isPreserveUser;
-        return this;
-    }
-
-    public Sender setIsExitAfterEOF(boolean isExitAfterEOF)
-    {
-        _isExitAfterEOF = isExitAfterEOF;
-        return this;
-    }
-
-    public Sender setIsInterruptible(boolean isInterruptible)
-    {
-        _isInterruptible = isInterruptible;
-        return this;
-    }
-
-    public Sender setIsReceiveFilterRules(boolean isReceiveFilterRules)
-    {
-        _isReceiveFilterRules = isReceiveFilterRules;
-        return this;
-    }
-
-    public Sender setIsSendStatistics(boolean isSendStatistics)
-    {
-        _isSendStatistics = isSendStatistics;
-        return this;
-    }
-
-    public Sender setIsExitEarlyIfEmptyList(boolean isExitEarlyIfEmptyList)
-    {
-        _isExitEarlyIfEmptyList = isExitEarlyIfEmptyList;
-        return this;
-    }
-
-    public Sender setIsSafeFileList(boolean isSafeFileList)
-    {
-        _isSafeFileList = isSafeFileList;
-        return this;
-    }
-
-    public Sender setIsTransferDirs(boolean isTransferDirs)
-    {
-        _isTransferDirs = isTransferDirs;
-        return this;
+        _isExitAfterEOF = builder._isExitAfterEOF;
+        _isExitEarlyIfEmptyList = builder._isExitEarlyIfEmptyList;
+        _isInterruptible = builder._isInterruptible;
+        _isPreserveUser = builder._isPreserveUser;
+        _isReceiveFilterRules = builder._isReceiveFilterRules;
+        _isSafeFileList = builder._isSafeFileList;
+        _isSendStatistics = builder._isSendStatistics;
+        _checksumSeed = builder._checksumSeed;
+        _fileSelection = builder._fileSelection;
+        _sourceFiles = builder._sourceFiles;
+        _characterDecoder = TextDecoder.newStrict(builder._charset);
+        _characterEncoder = TextEncoder.newStrict(builder._charset);
     }
 
     @Override
@@ -198,7 +224,6 @@ public class Sender implements RsyncTask,MessageHandler
     {
         return _isInterruptible;
     }
-
 
     @Override
     public void closeChannel() throws ChannelException
@@ -209,7 +234,7 @@ public class Sender implements RsyncTask,MessageHandler
     @Override
     public Boolean call() throws ChannelException, InterruptedException
     {
-        Filelist fileList = new Filelist(_isRecursive);
+        Filelist fileList = new Filelist(_fileSelection == FileSelection.RECURSE);
         try {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("Sender.transfer:");
@@ -248,7 +273,7 @@ public class Sender implements RsyncTask,MessageHandler
             }
             long t3 = System.currentTimeMillis();
 
-            if (_isPreserveUser && !_isRecursive) {
+            if (_isPreserveUser && _fileSelection != FileSelection.RECURSE) {
                 sendUserList();
             }
 
@@ -425,7 +450,9 @@ public class Sender implements RsyncTask,MessageHandler
             if (fileList.isExpandable()) {
                 isOK = expandAndSendSegments(fileList);
             }
-            if (_isRecursive && !fileList.isExpandable() && !sentEOF) {
+            if (_fileSelection == FileSelection.RECURSE &&
+                !fileList.isExpandable() && !sentEOF)
+            {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("sending file list EOF");
                 }
@@ -455,7 +482,8 @@ public class Sender implements RsyncTask,MessageHandler
             }
 
             if (index == Filelist.DONE) {
-                if (_isRecursive && !fileList.isEmpty()) {
+                if (_fileSelection == FileSelection.RECURSE &&
+                    !fileList.isEmpty()) {
 
                     // we're unable to delete the segment opportunistically
                     // because we're not being notified about all files that
@@ -471,7 +499,7 @@ public class Sender implements RsyncTask,MessageHandler
                         _duplexChannel.encodeIndex(Filelist.DONE);
                     }
                 }
-                if (!_isRecursive || fileList.isEmpty()) {
+                if (_fileSelection != FileSelection.RECURSE || fileList.isEmpty()) {
                     connectionState.doTearDownStep();
                     if (connectionState.isTransfer()) {
                         _duplexChannel.encodeIndex(Filelist.DONE);
@@ -490,7 +518,9 @@ public class Sender implements RsyncTask,MessageHandler
                         segment = fileList.getSegmentWith(index);
                     }
                     assert segment != null;
-                    if (_isRecursive && segment == null) {
+                    if (_fileSelection == FileSelection.RECURSE &&
+                        segment == null)
+                    {
                         throw new RsyncProtocolException(String.format(
                             "Received invalid file/directory index %d from " +
                             "peer",
@@ -648,7 +678,8 @@ public class Sender implements RsyncTask,MessageHandler
                     _characterEncoder.encode(p.getFileName().toString());       // throws TextConversionException
 
                 FileInfo fileInfo = new FileInfo(p, p.getFileName(), nameBytes, attrs);          // throws IllegalArgumentException but that cannot happen
-                if (!_isRecursive && !_isTransferDirs &&
+
+                if (_fileSelection == FileSelection.EXACT &&
                     fileInfo.attrs().isDirectory())
                 {
                     if (_log.isLoggable(Level.INFO)) {
@@ -879,7 +910,9 @@ public class Sender implements RsyncTask,MessageHandler
         {
             _fileInfoCache.setPrevUser(user);
             if (!user.equals(User.root())) {
-                if (_isRecursive && !_transferredUserNames.contains(user)) {
+                if (_fileSelection == FileSelection.RECURSE &&
+                    !_transferredUserNames.contains(user))
+                {
                     xflags |= TransmitFlags.USER_NAME_FOLLOWS;
                 } // else send in batch later
                 _transferredUserNames.add(user);

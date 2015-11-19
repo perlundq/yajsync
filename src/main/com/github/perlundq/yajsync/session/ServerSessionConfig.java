@@ -2,7 +2,7 @@
  * Rsync server -> client handshaking protocol
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013-2015 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -54,16 +54,15 @@ public class ServerSessionConfig extends SessionConfig
     private final List<Path> _sourceFiles = new LinkedList<>();
     private Path _receiverDestination;
     private boolean _isIncrementalRecurse = false;
-    private boolean _isRecursiveTransfer = false;
     private boolean _isSender = false;
     private boolean _isPreservePermissions = false;
     private boolean _isPreserveTimes = false;
     private boolean _isPreserveUser = false;
     private boolean _isIgnoreTimes = false;
+    private FileSelection _fileSelection = FileSelection.EXACT;
     private Module _module;
     private int _verbosity = 0;
     private boolean _isSafeFileList;
-    private boolean _isTransferDirs = false;
 
 
     /**
@@ -273,7 +272,7 @@ public class ServerSessionConfig extends SessionConfig
             "recursive", "r", "",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
-                    enableRecursiveTransfer();
+                    _fileSelection = FileSelection.RECURSE;
                 }}));
 
         argsParser.add(Option.newStringOption(
@@ -330,7 +329,7 @@ public class ServerSessionConfig extends SessionConfig
             "dirs", "d", "",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
-                _isTransferDirs = true;
+                    _fileSelection = FileSelection.TRANSFER_DIRS;
                 }}));
 
         // FIXME: let ModuleProvider mutate this argsParser instance before
@@ -338,7 +337,7 @@ public class ServerSessionConfig extends SessionConfig
 
         ArgumentParser.Status rc = argsParser.parse(receivedArguments);
         assert rc == ArgumentParser.Status.CONTINUE;
-        assert !_isRecursiveTransfer || _isIncrementalRecurse :
+        assert _fileSelection != FileSelection.RECURSE || _isIncrementalRecurse :
                "We support only incremental recursive transfers for now";
 
         if (!isSender() && !_module.isWritable()) {
@@ -398,17 +397,12 @@ public class ServerSessionConfig extends SessionConfig
         _verbosity++;
     }
 
-    private void enableRecursiveTransfer()
-    {
-        _isRecursiveTransfer = true;
-    }
-
     // @throws RsyncProtocolException
     private void parsePeerCompatibilites(String str)
     {
         if (str.startsWith(Text.DOT)) {
             if (str.contains("i")) { // CF_INC_RECURSE
-                assert _isRecursiveTransfer;
+                assert _fileSelection == FileSelection.RECURSE;
                 _isIncrementalRecurse = true; // only set by client on --recursive or -r, but can also be disabled, we require it however (as a start)
             }
             if (str.contains("L")) { // CF_SYMLINK_TIMES
@@ -478,11 +472,6 @@ public class ServerSessionConfig extends SessionConfig
         return _sourceFiles;
     }
 
-    public boolean isRecursive()
-    {
-        return _isRecursiveTransfer;
-    }
-
     public boolean isPreservePermissions()
     {
         return _isPreservePermissions;
@@ -524,8 +513,8 @@ public class ServerSessionConfig extends SessionConfig
         return readLine();
     }
 
-    public boolean isTransferDirs()
+    public FileSelection fileSelection()
     {
-        return _isTransferDirs;
+        return _fileSelection;
     }
 }

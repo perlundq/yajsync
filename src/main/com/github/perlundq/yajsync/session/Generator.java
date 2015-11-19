@@ -3,7 +3,7 @@
  * checksum info to peer Sender
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013-2015 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,6 +47,7 @@ import com.github.perlundq.yajsync.channels.ChannelException;
 import com.github.perlundq.yajsync.channels.Message;
 import com.github.perlundq.yajsync.channels.MessageCode;
 import com.github.perlundq.yajsync.channels.RsyncOutChannel;
+import com.github.perlundq.yajsync.filelist.ConcurrentFilelist;
 import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
@@ -64,37 +65,130 @@ import com.github.perlundq.yajsync.util.Util;
 
 public class Generator implements RsyncTask
 {
+    public static class Builder
+    {
+        private final WritableByteChannel _out;
+        private final byte[] _checksumSeed;
+        private boolean _isAlwaysItemize;
+        private boolean _isIgnoreTimes;
+        private boolean _isInterruptible = true;
+        private boolean _isListOnly;
+        private boolean _isPreservePermissions;
+        private boolean _isPreserveTimes;
+        private boolean _isPreserveUser;
+        private Charset _charset;
+        private FileSelection _fileSelection = FileSelection.EXACT;
+        private PrintStream _stdout = System.out;
+
+        public Builder(WritableByteChannel out, byte[] checksumSeed)
+        {
+            assert out != null;
+            assert checksumSeed != null;
+            _out = out;
+            _checksumSeed = checksumSeed;
+        }
+
+        public Builder isAlwaysItemize(boolean isAlwaysItemize)
+        {
+            _isAlwaysItemize = isAlwaysItemize;
+            return this;
+        }
+
+        public Builder isIgnoreTimes(boolean isIgnoreTimes)
+        {
+            _isIgnoreTimes = isIgnoreTimes;
+            return this;
+        }
+
+        public Builder isInterruptible(boolean isInterruptible)
+        {
+            _isInterruptible = isInterruptible;
+            return this;
+        }
+
+        public Builder isListOnly(boolean isListOnly)
+        {
+            _isListOnly = isListOnly;
+            return this;
+        }
+
+        public Builder isPreservePermissions(boolean isPreservePermissions)
+        {
+            _isPreservePermissions = isPreservePermissions;
+            return this;
+        }
+
+        public Builder isPreserveTimes(boolean isPreserveTimes)
+        {
+            _isPreserveTimes = isPreserveTimes;
+            return this;
+        }
+
+        public Builder isPreserveUser(boolean isPreserveUser)
+        {
+            _isPreserveUser = isPreserveUser;
+            return this;
+        }
+
+        public Builder charset(Charset charset)
+        {
+            assert charset != null;
+            _charset = charset;
+            return this;
+        }
+
+        public Builder fileSelection(FileSelection fileSelection)
+        {
+            assert fileSelection != null;
+            _fileSelection = fileSelection;
+            return this;
+        }
+
+        public Builder stdout(PrintStream stdout)
+        {
+            assert stdout != null;
+            _stdout = stdout;
+            return this;
+        }
+
+        public Generator build()
+        {
+            return new Generator(this);
+        }
+    }
+
     private interface Job {
         void process() throws ChannelException;
     }
 
-    private static final Logger _log =
-        Logger.getLogger(Generator.class.getName());
-    private static final int OUTPUT_CHANNEL_BUF_SIZE = 8 * 1024;
     private static final Checksum.Header ZERO_SUM;
     private static final int MIN_BLOCK_SIZE = 512;                              // TODO: make block size configurable
-    private final RsyncOutChannel _senderOutChannel;
-    private final byte[] _checksumSeed;
+    private static final int OUTPUT_CHANNEL_BUF_SIZE = 8 * 1024;
+    private static final Logger _log =
+        Logger.getLogger(Generator.class.getName());
 
+    private final boolean _isAlwaysItemize;
+    private final boolean _isIgnoreTimes;
+    private final boolean _isInterruptible;
+    private final boolean _isListOnly;
+    private final boolean _isPreservePermissions;
+    private final boolean _isPreserveTimes;
+    private final boolean _isPreserveUser;
+    private final byte[] _checksumSeed;
+    private final Deque<Runnable> _deferredFileAttrUpdates = new ArrayDeque<>();
+    private final Filelist _fileList;
+    private final FileSelection _fileSelection;
     private final LinkedBlockingQueue<Job> _jobs = new LinkedBlockingQueue<>();
-    private Deque<Runnable> _deferredFileAttrUpdates = new ArrayDeque<>();
-    private final TextEncoder _characterEncoder;
-    private final TextDecoder _characterDecoder;
+    private final List<Filelist.Segment> _generated = new LinkedList<>();
+    private final PrintStream _stdout;
+    private final RsyncOutChannel _senderOutChannel;
     private final SimpleDateFormat _compatibleTimeFormatter =
         new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-    private final List<Filelist.Segment> _generated = new LinkedList<>();
-    private final PrintStream _out;
-    private boolean _isAlwaysItemize;
-    private boolean _isRecursive;
-    private boolean _isPreservePermissions;
-    private boolean _isPreserveTimes;
-    private boolean _isPreserveUser;
-    private boolean _isIgnoreTimes;
-    private boolean _isListOnly;
-    private Filelist _fileList;  // effectively final
-    private int _returnStatus ;
+    private final TextDecoder _characterDecoder;
+    private final TextEncoder _characterEncoder;
+
     private boolean _isRunning = true;
-    private boolean _isInterruptible = true;
+    private int _returnStatus;
 
     static {
         try {
@@ -104,78 +198,23 @@ public class Generator implements RsyncTask
         }
     }
 
-    public Generator(WritableByteChannel out, Charset charset,
-                     byte[] checksumSeed, PrintStream stdout)
+    private Generator(Builder builder)
     {
-
-        _senderOutChannel = new RsyncOutChannel(out, OUTPUT_CHANNEL_BUF_SIZE);
-        _checksumSeed = checksumSeed;
-        _characterDecoder = TextDecoder.newStrict(charset);
-        _characterEncoder = TextEncoder.newStrict(charset);
-        _out = stdout;
-    }
-
-    public static Generator newServerInstance(WritableByteChannel out,
-                                              Charset charset,
-                                              byte[] checksumSeed)
-    {
-        return new Generator(out, charset, checksumSeed, null).setIsListOnly(false);
-    }
-
-    public static Generator newClientInstance(WritableByteChannel out,
-                                              Charset charset,
-                                              byte[] checksumSeed,
-                                              PrintStream stdout)
-    {
-        return new Generator(out, charset, checksumSeed, stdout);
-    }
-
-    public Generator setIsRecursive(boolean isRecursive)
-    {
-        _isRecursive = isRecursive;
-        return this;
-    }
-
-    public Generator setIsListOnly(boolean isListOnly)
-    {
-        _isListOnly = isListOnly;
-        return this;
-    }
-
-    public Generator setIsPreservePermissions(boolean isPreservePermissions)
-    {
-        _isPreservePermissions = isPreservePermissions;
-        return this;
-    }
-
-    public Generator setIsPreserveTimes(boolean isPreserveTimes)
-    {
-        _isPreserveTimes = isPreserveTimes;
-        return this;
-    }
-
-    public Generator setIsPreserveUser(boolean isPreserveUser)
-    {
-        _isPreserveUser = isPreserveUser;
-        return this;
-    }
-
-    public Generator setIsIgnoreTimes(boolean isIgnoreTimes)
-    {
-        _isIgnoreTimes = isIgnoreTimes;
-        return this;
-    }
-
-    public Generator setIsAlwaysItemize(boolean isAlwaysItemize)
-    {
-        _isAlwaysItemize = isAlwaysItemize;
-        return this;
-    }
-
-    public Generator setIsInterruptible(boolean isInterruptible)
-    {
-        _isInterruptible = isInterruptible;
-        return this;
+        _checksumSeed = builder._checksumSeed;
+        _fileSelection = builder._fileSelection;
+        _fileList = new ConcurrentFilelist(_fileSelection == FileSelection.RECURSE);
+        _stdout = builder._stdout;
+        _senderOutChannel = new RsyncOutChannel(builder._out,
+                                                OUTPUT_CHANNEL_BUF_SIZE);
+        _characterDecoder = TextDecoder.newStrict(builder._charset);
+        _characterEncoder = TextEncoder.newStrict(builder._charset);
+        _isAlwaysItemize = builder._isAlwaysItemize;
+        _isIgnoreTimes = builder._isIgnoreTimes;
+        _isInterruptible = builder._isInterruptible;
+        _isListOnly = builder._isListOnly;
+        _isPreservePermissions = builder._isPreservePermissions;
+        _isPreserveTimes = builder._isPreserveTimes;
+        _isPreserveUser = builder._isPreserveUser;
     }
 
     @Override
@@ -190,15 +229,40 @@ public class Generator implements RsyncTask
         _senderOutChannel.close();
     }
 
-    /**
-     * @throws IllegalStateException if fileList is already set
-     */
-    public void setFileList(Filelist fileList)
+    public boolean isListOnly()
     {
-        if (_fileList != null) {
-            throw new IllegalStateException("file list may only be set once");
-        }
-        _fileList = fileList;
+        return _isListOnly;
+    }
+
+    public boolean isPreservePermissions()
+    {
+        return _isPreservePermissions;
+    }
+
+    public boolean isPreserveTimes()
+    {
+        return _isPreserveTimes;
+    }
+
+    public boolean isPreserveUser()
+    {
+        return _isPreserveUser;
+    }
+
+    public Charset charset()
+    {
+        return _characterEncoder.charset();
+    }
+
+    public FileSelection fileSelection()
+    {
+        return _fileSelection;
+    }
+
+
+    public Filelist fileList()
+    {
+        return _fileList;
     }
 
     public void processJobQueueImmediate()
@@ -378,7 +442,7 @@ public class Generator implements RsyncTask
             @Override
             public void process() throws ChannelException {
                 if (_isListOnly) {
-                    if (!_isRecursive) {
+                    if (_fileSelection != FileSelection.RECURSE) {
                         listFullSegment(segment);
                     } else if (segment.directory() == null) {
                         listInitialSegmentRecursive(segment);
@@ -491,7 +555,8 @@ public class Generator implements RsyncTask
                                          index,
                                          f,
                                          Checksum.MIN_DIGEST_LENGTH);
-                    } else if (!_isRecursive && f.attrs().isDirectory()) {
+                    } else if (_fileSelection != FileSelection.RECURSE &&
+                               f.attrs().isDirectory()) {
                         sendDirectoryMetadata(index, f);
                     } else {
                         if (_log.isLoggable(Level.FINE)) {
@@ -542,24 +607,24 @@ public class Generator implements RsyncTask
 
     private void listFullSegment(Filelist.Segment segment)
     {
-        assert !_isRecursive;
+        assert _fileSelection != FileSelection.RECURSE;
         assert segment.directory() == null;
         for (FileInfo f : segment.files()) {
-            _out.println(listFileInfo(f));
+            _stdout.println(listFileInfo(f));
         }
     }
 
     private void listInitialSegmentRecursive(Filelist.Segment segment)
     {
-        assert _isRecursive;
+        assert _fileSelection == FileSelection.RECURSE;
         assert segment.directory() == null;
         boolean listFirstDotDir = true;
         for (FileInfo f : segment.files()) {
             if (!f.attrs().isDirectory()) {
-                _out.println(listFileInfo(f));
+                _stdout.println(listFileInfo(f));
             } else if (listFirstDotDir) {
                 if (f.isDotDir()) {
-                    _out.println(listFileInfo(f));
+                    _stdout.println(listFileInfo(f));
                 }
                 listFirstDotDir = false;
             }
@@ -568,12 +633,12 @@ public class Generator implements RsyncTask
 
     private void listSegmentRecursive(Filelist.Segment segment)
     {
-        assert _isRecursive;
+        assert _fileSelection == FileSelection.RECURSE;
         assert segment.directory() != null;
-        _out.println(listFileInfo(segment.directory()));
+        _stdout.println(listFileInfo(segment.directory()));
         for (FileInfo f : segment.files()) {
             if (!f.attrs().isDirectory()) {
-                _out.println(listFileInfo(f));
+                _stdout.println(listFileInfo(f));
             }
         }
     }
