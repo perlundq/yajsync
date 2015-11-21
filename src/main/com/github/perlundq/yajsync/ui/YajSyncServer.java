@@ -167,7 +167,7 @@ public final class YajSyncServer
                                               deferredWriteHelp,
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
-                    _serverBuilder.isDeferredWrite(true);
+                    _serverBuilder.isDeferWrite(true);
                 }}));
 
         options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,

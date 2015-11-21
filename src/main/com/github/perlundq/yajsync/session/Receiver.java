@@ -67,7 +67,7 @@ public class Receiver implements RsyncTask, MessageHandler
         private final Generator _generator;
         private final ReadableByteChannel _in;
         private final String _targetPathName;
-        private boolean _isDeferredWrite;
+        private boolean _isDeferWrite;
         private boolean _isExitAfterEOF;
         private boolean _isExitEarlyIfEmptyList;
         private boolean _isReceiveStatistics;
@@ -107,9 +107,9 @@ public class Receiver implements RsyncTask, MessageHandler
                     isExitAfterEOF(true);
         }
 
-        public Builder isDeferredWrite(boolean isDeferredWrite)
+        public Builder isDeferWrite(boolean isDeferWrite)
         {
-            _isDeferredWrite = isDeferredWrite;
+            _isDeferWrite = isDeferWrite;
             return this;
         }
 
@@ -193,7 +193,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private static final Logger _log =
         Logger.getLogger(Receiver.class.getName());
 
-    private final boolean _isDeferredWrite;
+    private final boolean _isDeferWrite;
     private final boolean _isExitAfterEOF;
     private final boolean _isExitEarlyIfEmptyList;
     private final boolean _isInterruptible;
@@ -218,7 +218,7 @@ public class Receiver implements RsyncTask, MessageHandler
 
     private Receiver(Builder builder)
     {
-        _isDeferredWrite = builder._isDeferredWrite;
+        _isDeferWrite = builder._isDeferWrite;
         _isExitAfterEOF = builder._isExitAfterEOF;
         _isExitEarlyIfEmptyList = builder._isExitEarlyIfEmptyList;
         _isReceiveStatistics = builder._isReceiveStatistics;
@@ -256,12 +256,12 @@ public class Receiver implements RsyncTask, MessageHandler
         try {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("Receiver.receive(targetPathName=%s, " +
-                                        "isDeferredWrite=%s," +
+                                        "isDeferWrite=%s," +
                                         " isListOnly=%s, isPreserveTimes=%s, " +
                                         "fileSelection=%s, sendFilterRules=%s, " +
                                         "receiveStatistics=%s, " +
                                         "exitEarlyIfEmptyList=%s",
-                                        _targetPathName, _isDeferredWrite,
+                                        _targetPathName, _isDeferWrite,
                                         _isListOnly, _isPreserveTimes,
                                         _fileSelection, _isSendFilterRules,
                                         _isReceiveStatistics,
@@ -913,7 +913,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 {
                     updateAttrsIfDiffer(resultFile, fileInfo.attrs());
                 }
-                if (!_isDeferredWrite || !resultFile.equals(fileInfo.path())) {
+                if (!_isDeferWrite || !resultFile.equals(fileInfo.path())) {
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine(String.format("moving %s -> %s",
                                                 resultFile, fileInfo.path()));
@@ -1348,7 +1348,7 @@ public class Receiver implements RsyncTask, MessageHandler
         assert checksumHeader != null;
         assert md != null;
 
-        boolean isIntact = _isDeferredWrite && replica != null;
+        boolean isIntact = _isDeferWrite && replica != null;
         long sizeLiteral = 0;
         long sizeMatch = 0;
         int expectedIndex = 0;
@@ -1437,7 +1437,7 @@ public class Receiver implements RsyncTask, MessageHandler
         }
 
         if (_log.isLoggable(Level.FINE)) {
-            if (_isDeferredWrite && replica != null && !isIntact) {
+            if (_isDeferWrite && replica != null && !isIntact) {
                 _log.fine("deferred write disabled");
             }
             _log.fine(String.format("total bytes = %d, num matched bytes = " +

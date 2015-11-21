@@ -42,13 +42,13 @@ public class RsyncServer
 
     public static class Builder
     {
-        private boolean _isDeferredWrite;
+        private boolean _isDeferWrite;
         private Charset _charset = Charset.forName(Text.UTF8_NAME);
         private ExecutorService _executorService;
 
-        public Builder isDeferredWrite(boolean isDeferredWrite)
+        public Builder isDeferWrite(boolean isDeferWrite)
         {
-            _isDeferredWrite = isDeferredWrite;
+            _isDeferWrite = isDeferWrite;
             return this;
         }
 
@@ -72,13 +72,13 @@ public class RsyncServer
         }
     }
 
-    private final boolean _isDeferredWrite;
+    private final boolean _isDeferWrite;
     private final Charset _charset;
     private final RsyncTaskExecutor _rsyncTaskExecutor;
 
     private RsyncServer(Builder builder)
     {
-        _isDeferredWrite = builder._isDeferredWrite;
+        _isDeferWrite = builder._isDeferWrite;
         _charset = builder._charset;
         _rsyncTaskExecutor = new RsyncTaskExecutor(builder._executorService);
     }
@@ -126,7 +126,7 @@ public class RsyncServer
             Receiver receiver = Receiver.Builder.newServer(generator,
                     in,
                     cfg.getReceiverDestination().toString()).
-                    isDeferredWrite(_isDeferredWrite).
+                    isDeferWrite(_isDeferWrite).
                     isSafeFileList(cfg.isSafeFileList()).build();
             return _rsyncTaskExecutor.exec(generator, receiver);
         }

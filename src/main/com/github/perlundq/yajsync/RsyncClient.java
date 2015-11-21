@@ -203,7 +203,7 @@ public final class RsyncClient
                                                      toReceiver.source(),
                                                      dstPathName).
                     isExitEarlyIfEmptyList(true).
-                    isDeferredWrite(_isDeferWrite).build();
+                    isDeferWrite(_isDeferWrite).build();
             try {
                 boolean isOK = _rsyncTaskExecutor.exec(sender, generator,
                                                        receiver);
@@ -446,7 +446,7 @@ public final class RsyncClient
                             isInterruptible(_isInterruptible).build();
                     Receiver receiver = new Receiver.Builder(generator, _in,
                                                              dstPathName).
-                            isDeferredWrite(_isDeferWrite).
+                            isDeferWrite(_isDeferWrite).
                             isExitAfterEOF(true).
                             isExitEarlyIfEmptyList(true).
                             isReceiveStatistics(true).
