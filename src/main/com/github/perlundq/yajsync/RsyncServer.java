@@ -17,44 +17,77 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.github.perlundq.yajsync.session;
+package com.github.perlundq.yajsync;
 
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
 
+import com.github.perlundq.yajsync.session.Generator;
+import com.github.perlundq.yajsync.session.Modules;
+import com.github.perlundq.yajsync.session.Receiver;
+import com.github.perlundq.yajsync.session.RsyncException;
+import com.github.perlundq.yajsync.session.RsyncTaskExecutor;
+import com.github.perlundq.yajsync.session.Sender;
+import com.github.perlundq.yajsync.session.ServerSessionConfig;
+import com.github.perlundq.yajsync.session.SessionStatus;
 import com.github.perlundq.yajsync.text.Text;
 
-public class RsyncServerSession
+
+public class RsyncServer
 {
-    private Charset _charset = Charset.forName(Text.UTF8_NAME);
-    private boolean _isDeferredWrite;
-
-    public RsyncServerSession() {}
-
-    public void setCharset(Charset charset)
+    public static class Builder
     {
-        _charset = charset;
+        private boolean _isDeferredWrite;
+        private Charset _charset = Charset.forName(Text.UTF8_NAME);
+        private ExecutorService _executorService;
+
+        public Builder isDeferredWrite(boolean isDeferredWrite)
+        {
+            _isDeferredWrite = isDeferredWrite;
+            return this;
+        }
+
+        public Builder charset(Charset charset)
+        {
+            assert charset != null;
+            _charset = charset;
+            return this;
+        }
+
+        public RsyncServer build(ExecutorService executorService)
+        {
+            assert executorService != null;
+            _executorService = executorService;
+            return new RsyncServer(this);
+        }
     }
 
-    public void setIsDeferredWrite(boolean isDeferredWrite)
+    private final boolean _isDeferredWrite;
+    private final Charset _charset;
+    private final ExecutorService _executorService;
+
+    private RsyncServer(Builder builder)
     {
-        _isDeferredWrite = isDeferredWrite;
+        _isDeferredWrite = builder._isDeferredWrite;
+        _charset = builder._charset;
+        _executorService = builder._executorService;
     }
 
-    public boolean transfer(ExecutorService executor,
-                            ReadableByteChannel in,
-                            WritableByteChannel out,
-                            Modules modules,
-                            boolean isChannelsInterruptible)
+    public boolean serve(Modules modules,
+                         ReadableByteChannel in,
+                         WritableByteChannel out,
+                         boolean isChannelsInterruptible)
         throws RsyncException, InterruptedException
     {
+        assert modules != null;
+        assert in != null;
+        assert out != null;
         ServerSessionConfig cfg = ServerSessionConfig.handshake(_charset,       // throws IllegalArgumentException if _charset is not supported
                                                                 in,
                                                                 out,
                                                                 modules);
-
         if (cfg.status() == SessionStatus.ERROR) {
             return false;
         } else if (cfg.status() == SessionStatus.EXIT) {
@@ -63,17 +96,17 @@ public class RsyncServerSession
 
         if (cfg.isSender()) {
             Sender sender = Sender.Builder.newServer(in, out,
-                                                     cfg.sourceFiles(),
-                                                     cfg.checksumSeed()).
+                    cfg.sourceFiles(),
+                    cfg.checksumSeed()).
                     charset(cfg.charset()).
                     fileSelection(cfg.fileSelection()).
                     isPreserveUser(cfg.isPreserveUser()).
                     isInterruptible(isChannelsInterruptible).
                     isSafeFileList(cfg.isSafeFileList()).build();
-            return RsyncTaskExecutor.exec(executor, sender);
+            return RsyncTaskExecutor.exec(_executorService, sender);
         } else {
             Generator generator = new Generator.Builder(out,
-                                                        cfg.checksumSeed()).
+                    cfg.checksumSeed()).
                     charset(cfg.charset()).
                     fileSelection(cfg.fileSelection()).
                     isPreservePermissions(cfg.isPreservePermissions()).
@@ -83,12 +116,11 @@ public class RsyncServerSession
                     isAlwaysItemize(cfg.verbosity() > 1).
                     isInterruptible(isChannelsInterruptible).build();
             Receiver receiver = Receiver.Builder.newServer(generator,
-                                                           in,
-                                                           cfg.getReceiverDestination().toString()).
+                    in,
+                    cfg.getReceiverDestination().toString()).
                     isDeferredWrite(_isDeferredWrite).
                     isSafeFileList(cfg.isSafeFileList()).build();
-            return RsyncTaskExecutor.exec(executor, generator,
-                                                    receiver);
+            return RsyncTaskExecutor.exec(_executorService, generator, receiver);
         }
     }
 }

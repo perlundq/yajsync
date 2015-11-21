@@ -2,7 +2,7 @@
  * A simple rsync command line server implementation
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013-2015 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,8 +24,7 @@ import com.github.perlundq.yajsync.channels.net.*;
 import com.github.perlundq.yajsync.session.ModuleException;
 import com.github.perlundq.yajsync.session.ModuleProvider;
 import com.github.perlundq.yajsync.session.Modules;
-import com.github.perlundq.yajsync.session.RsyncServerSession;
-import com.github.perlundq.yajsync.text.Text;
+import com.github.perlundq.yajsync.RsyncServer;
 import com.github.perlundq.yajsync.util.*;
 
 import java.io.IOException;
@@ -46,25 +45,24 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class YajSyncServer
+
+public final class YajSyncServer
 {
     private static final Logger _log =
         Logger.getLogger(YajSyncServer.class.getName());
     private static final int THREAD_FACTOR = 4;
-
-    private boolean _isDeferredWrite;
     private boolean _isTLS;
-    private Charset _charset = Charset.forName(Text.UTF8_NAME);
+    private CountDownLatch _isListeningLatch;
     private int _numThreads = Runtime.getRuntime().availableProcessors() *
                               THREAD_FACTOR;
     private int _port = Consts.DEFAULT_LISTEN_PORT;
     private int _verbosity;
     private InetAddress _address = InetAddress.getLoopbackAddress();
     private ModuleProvider _moduleProvider = ModuleProvider.getDefault();
-    private ExecutorService _executor;
-    private CountDownLatch _isListeningLatch;
     private PrintStream _out = System.out;
     private PrintStream _err = System.err;
+    private RsyncServer.Builder _serverBuilder = new RsyncServer.Builder();
+
 
     public YajSyncServer() {}
 
@@ -96,27 +94,30 @@ public class YajSyncServer
         List<Option> options = new LinkedList<>();
         options.add(Option.newStringOption(Option.Policy.OPTIONAL,
                                            "charset", "",
-                                           String.format("which charset to " +
-                                                         "use (default %s)",
-                                                         _charset),
+                                           "which charset to use (default " +
+                                           "UTF-8)",
             new Option.ContinuingHandler() {
                 @Override
-                public void handleAndContinue(Option option) throws ArgumentParsingError {
+                public void handleAndContinue(Option option)
+                        throws ArgumentParsingError
+                {
                     String charsetName = (String) option.getValue();
                     try {
-                        _charset = Charset.forName(charsetName);
+                        Charset charset = Charset.forName(charsetName);
+                        if (!Util.isValidCharset(charset)) {
+                            throw new ArgumentParsingError(String.format(
+                                    "character set %s is not supported - " +
+                                    "cannot encode SLASH (/), DOT (.), " +
+                                    "NEWLINE (\n), CARRIAGE RETURN (\r) and " +
+                                    "NULL (\0) to their ASCII counterparts " +
+                                    "and vice versa", charsetName));
+                        }
+                        _serverBuilder.charset(charset);
                     } catch (IllegalCharsetNameException |
                              UnsupportedCharsetException e) {
-                        throw new ArgumentParsingError(String.format(
-                            "failed to set character set to %s: %s",
-                            charsetName, e.getMessage()));
-                    }
-                    if (!Util.isValidCharset(_charset)) {
-                        throw new ArgumentParsingError(String.format(
-                            "character set %s is not supported - cannot " +
-                            "encode SLASH (/), DOT (.), NEWLINE (\n), " +
-                            "CARRIAGE RETURN (\r) and NULL (\0) to their " +
-                            "ASCII counterparts and vice versa", charsetName));
+                        throw new ArgumentParsingError(
+                            String.format("failed to set character set to %s:" +
+                                          " %s", charsetName, e));
                     }
                 }}));
 
@@ -164,18 +165,17 @@ public class YajSyncServer
                     _numThreads = (int) option.getValue();
                 }}));
 
-        String deferredWriteHelp = String.format(
-            "receiver defers writing into target tempfile as long as " +
-            "possible to reduce I/O, at the cost of highly increased risk of the " +
-            "file being modified by a process already having it opened " +
-            "(default %s)",
-            _isDeferredWrite);
+        String deferredWriteHelp = "receiver defers writing into target " +
+                "tempfile as long as possible to reduce I/O, at the cost of " +
+                "highly increased risk of the file being modified by a " +
+                "process already having it opened (default false)";
+
         options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                               "defer-write", "",
                                               deferredWriteHelp,
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
-                    _isDeferredWrite = true;
+                    _serverBuilder.isDeferredWrite(true);
                 }}));
 
         options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
@@ -199,7 +199,8 @@ public class YajSyncServer
         return options;
     }
 
-    private Callable<Boolean> createCallable(final DuplexByteChannel sock,
+    private Callable<Boolean> createCallable(final RsyncServer server,
+                                             final DuplexByteChannel sock,
                                              final boolean isInterruptible)
     {
         return new Callable<Boolean>() {
@@ -225,15 +226,7 @@ public class YajSyncServer
                         modules = _moduleProvider.newAnonymous(
                                                         sock.peerAddress());
                     }
-                    RsyncServerSession session = new RsyncServerSession();
-                    session.setCharset(_charset);
-                    session.setIsDeferredWrite(_isDeferredWrite);
-                    isOK = session.transfer(_executor,
-                                                sock,    // in
-                                                sock,    // out
-                                                modules,
-                                                isInterruptible);
-//                    showStatistics(session.statistics());
+                    isOK = server.serve(modules, sock, sock, isInterruptible);
                 } catch (ModuleException e) {
                     if (_log.isLoggable(Level.SEVERE)) {
                         _log.severe(String.format(
@@ -303,7 +296,8 @@ public class YajSyncServer
         socketFactory.setReuseAddress(true);
         //socketFactory.setKeepAlive(true);
         boolean isInterruptible = !_isTLS;
-        _executor = Executors.newFixedThreadPool(_numThreads);
+        ExecutorService executor = Executors.newFixedThreadPool(_numThreads);
+        RsyncServer server = _serverBuilder.build(executor);
 
         try (ServerChannel listenSock = socketFactory.open(_address, _port)) {  // throws IOException
             if (_isListeningLatch != null) {
@@ -311,16 +305,17 @@ public class YajSyncServer
             }
             while (true) {
                 DuplexByteChannel sock = listenSock.accept();                   // throws IOException
-                Callable<Boolean> c = createCallable(sock, isInterruptible);
-                _executor.submit(c);                                            // NOTE: result discarded
+                Callable<Boolean> c = createCallable(server, sock,
+                                                     isInterruptible);
+                executor.submit(c);                                             // NOTE: result discarded
             }
         } finally {
             if (_log.isLoggable(Level.INFO)) {
                 _log.info("shutting down...");
             }
-            _executor.shutdown();
+            executor.shutdown();
             _moduleProvider.close();
-            while (!_executor.awaitTermination(5, TimeUnit.MINUTES)) {
+            while (!executor.awaitTermination(5, TimeUnit.MINUTES)) {
                 _log.info("some sessions are still running, waiting for them " +
                           "to finish before exiting");
             }
