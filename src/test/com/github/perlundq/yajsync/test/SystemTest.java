@@ -48,6 +48,7 @@ import com.github.perlundq.yajsync.ui.YajSyncClient;
 import com.github.perlundq.yajsync.ui.YajSyncServer;
 import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.Option;
+import com.github.perlundq.yajsync.util.PathOps;
 
 
 
@@ -504,6 +505,26 @@ public class SystemTest
         int numFiles = 1;
         long fileSize = Files.size(src);
         ReturnStatus status = fileCopy(src, dst);
+        assertTrue(status.rc == 0);
+        assertTrue(FileUtil.isContentIdentical(src, dst));
+        assertTrue(status.stats.numFiles() == numFiles);
+        assertTrue(status.stats.numTransferredFiles() == numFiles);
+        assertTrue(status.stats.totalLiteralSize() == fileSize);
+        assertTrue(status.stats.totalMatchedSize() == 0);
+    }
+
+    @Test
+    public void testClientDotDotSrcArg() throws IOException
+    {
+        Path src = _tempDir.newFile().toPath();
+        Path srcDotDot = _tempDir.newFolder().toPath().
+                resolve(PathOps.DOT_DOT_DIR).
+                resolve(src.getFileName());
+        Path dst = _tempDir.newFile().toPath();
+        FileUtil.writeToFiles(0, src);
+        int numFiles = 1;
+        long fileSize = Files.size(src);
+        ReturnStatus status = fileCopy(srcDotDot, dst);
         assertTrue(status.rc == 0);
         assertTrue(FileUtil.isContentIdentical(src, dst));
         assertTrue(status.stats.numFiles() == numFiles);

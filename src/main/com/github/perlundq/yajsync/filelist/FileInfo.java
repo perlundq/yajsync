@@ -43,16 +43,12 @@ public class FileInfo implements Comparable<FileInfo>
     private boolean _isTransferred = false;     // used by receiver (and sender)
 
     /**
-     * NOTE: path must either be null or not contain a .. subdir
      * @throws IllegalArgumentException if file has a trailing slash but is not
      *         a directory
      */
     public FileInfo(Path path, Path normalizedPath, byte[] pathNameBytes,
                     RsyncFileAttributes attrs)
     {
-        assert path == null ||
-               (path.isAbsolute() &&
-                !PathOps.contains(path, PathOps.DOT_DOT_DIR)) : path;
         assert pathNameBytes != null && pathNameBytes.length > 0;
         assert attrs != null;
 
