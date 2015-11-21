@@ -32,14 +32,19 @@ public final class RsyncTaskExecutor
 {
     private static final Logger _log =
         Logger.getLogger(RsyncTaskExecutor.class.getName());
+    private final Executor _executor;
 
-    private RsyncTaskExecutor() {}
+    public RsyncTaskExecutor(Executor executor)
+    {
+        assert executor != null;
+        _executor = executor;
+    }
 
-    public static boolean exec(Executor executor, RsyncTask... tasks)
+    public boolean exec(RsyncTask... tasks)
         throws RsyncException,InterruptedException
     {
         CompletionService<Boolean> ecs =
-            new ExecutorCompletionService<>(executor);
+            new ExecutorCompletionService<>(_executor);
 
         List<Future<Boolean>> futures = new LinkedList<>();
         for (RsyncTask task : tasks) {

@@ -66,13 +66,13 @@ public class RsyncServer
 
     private final boolean _isDeferredWrite;
     private final Charset _charset;
-    private final ExecutorService _executorService;
+    private final RsyncTaskExecutor _rsyncTaskExecutor;
 
     private RsyncServer(Builder builder)
     {
         _isDeferredWrite = builder._isDeferredWrite;
         _charset = builder._charset;
-        _executorService = builder._executorService;
+        _rsyncTaskExecutor = new RsyncTaskExecutor(builder._executorService);
     }
 
     public boolean serve(Modules modules,
@@ -103,7 +103,7 @@ public class RsyncServer
                     isPreserveUser(cfg.isPreserveUser()).
                     isInterruptible(isChannelsInterruptible).
                     isSafeFileList(cfg.isSafeFileList()).build();
-            return RsyncTaskExecutor.exec(_executorService, sender);
+            return _rsyncTaskExecutor.exec(sender);
         } else {
             Generator generator = new Generator.Builder(out,
                     cfg.checksumSeed()).
@@ -120,7 +120,7 @@ public class RsyncServer
                     cfg.getReceiverDestination().toString()).
                     isDeferredWrite(_isDeferredWrite).
                     isSafeFileList(cfg.isSafeFileList()).build();
-            return RsyncTaskExecutor.exec(_executorService, generator, receiver);
+            return _rsyncTaskExecutor.exec(generator, receiver);
         }
     }
 }

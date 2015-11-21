@@ -205,8 +205,8 @@ public final class RsyncClient
                     isExitEarlyIfEmptyList(true).
                     isDeferredWrite(_isDeferWrite).build();
             try {
-                boolean isOK = RsyncTaskExecutor.exec(_executorService, sender,
-                                                      generator, receiver);
+                boolean isOK = _rsyncTaskExecutor.exec(sender, generator,
+                                                       receiver);
                 return new Result(isOK, receiver.statistics());
             } finally {
                 if (_isOwnerOfExecutorService) {
@@ -452,9 +452,7 @@ public final class RsyncClient
                             isReceiveStatistics(true).
                             isSafeFileList(cfg.isSafeFileList()).
                             isSendFilterRules(true).build();
-                    boolean isOK = RsyncTaskExecutor.exec(_executorService,
-                                                          generator,
-                                                          receiver);
+                    boolean isOK = _rsyncTaskExecutor.exec(generator, receiver);
                     return new Result(isOK, receiver.statistics());
                 case REMOTE_SEND:
                     List<Path> srcPaths = toListOfPaths(srcPathNames);
@@ -467,7 +465,7 @@ public final class RsyncClient
                             isPreserveUser(_isPreserveUser).
                             isInterruptible(_isInterruptible).
                             isSafeFileList(cfg.isSafeFileList()).build();
-                    isOK = RsyncTaskExecutor.exec(_executorService, sender);
+                    isOK = _rsyncTaskExecutor.exec(sender);
                     return new Result(isOK, sender.statistics());
                 default:
                     throw new IllegalStateException();
@@ -632,6 +630,7 @@ public final class RsyncClient
     private final int _verbosity;
     private final PrintStream _stdout;
     private final PrintStream _stderr;
+    private final RsyncTaskExecutor _rsyncTaskExecutor;
 
     private RsyncClient(Builder builder)
     {
@@ -651,6 +650,7 @@ public final class RsyncClient
             _executorService = builder._executorService;
             _isOwnerOfExecutorService = false;
         }
+        _rsyncTaskExecutor = new RsyncTaskExecutor(_executorService);
         _fileSelectionOrNull = builder._fileSelection;
         _verbosity = builder._verbosity;
         _stdout = builder._stdout;
