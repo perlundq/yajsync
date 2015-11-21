@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.UnknownHostException;
-import java.nio.channels.InterruptibleChannel;
 import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
@@ -136,12 +135,14 @@ public class YajSyncClient
     public YajSyncClient setStandardOut(PrintStream out)
     {
         _stdout = out;
+        _clientBuilder.stdout(_stdout);
         return this;
     }
 
     public YajSyncClient setStandardErr(PrintStream err)
     {
         _stderr = err;
+        _clientBuilder.stderr(_stderr);
         return this;
     }
 
