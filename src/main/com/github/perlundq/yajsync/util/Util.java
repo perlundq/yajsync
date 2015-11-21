@@ -21,6 +21,7 @@ package com.github.perlundq.yajsync.util;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.UnsupportedCharsetException;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.logging.Handler;
@@ -37,9 +38,9 @@ public final class Util
     public final static int WARNING_LOG_LEVEL_NUM = 1;
     public final static int INFO_LOG_LEVEL_NUM = 2;
     public final static int DEBUG1_LOG_LEVEL_NUM = 3;
-    public final static int DEBUG2_LOG_LEVEL_NUM = 4;  
-    public final static int DEBUG3_LOG_LEVEL_NUM = 5;  
-    public final static int DEBUG4_LOG_LEVEL_NUM = 6;  
+    public final static int DEBUG2_LOG_LEVEL_NUM = 4;
+    public final static int DEBUG3_LOG_LEVEL_NUM = 5;
+    public final static int DEBUG4_LOG_LEVEL_NUM = 6;
     private Util() {}
 
     public static <T> T defaultIfNull(T arg, T defaultValue)
@@ -98,7 +99,7 @@ public final class Util
         assert percentage >= 0 && percentage <= 1;
         return new Random().nextDouble() <= percentage;
     }
-    
+
     public static ByteBuffer slice(ByteBuffer src, int start, int end)
     {
         assert src != null;
@@ -122,7 +123,7 @@ public final class Util
             throw new OverflowException(String.format(
                 "allocation limit exceeded max is %d", maxSize));
         }
-    
+
         CharBuffer result = CharBuffer.allocate(nextSize);
         src.flip();
         result.put(src);
@@ -146,7 +147,7 @@ public final class Util
             throw new OverflowException(String.format(
                 "allocation limit exceeded max is %d", maxSize));
         }
-        
+
         ByteBuffer result = ByteBuffer.allocate(nextSize);
         src.flip();
         result.put(src);
@@ -172,7 +173,7 @@ public final class Util
                     buf.arrayOffset() + buf.limit(),
                     (char) 0);
     }
-    
+
     /**
      * NOTE: we don't use Level.CONFIG at all
      */
@@ -182,7 +183,7 @@ public final class Util
                               Level.FINE, Level.FINER, Level.FINEST };
         return logLevels[Math.min(logLevels.length - 1, level)];
     }
-         
+
     public static void setRootLogLevel(Level level)
     {
         Logger rootLogger = Logger.getLogger("");
@@ -191,10 +192,21 @@ public final class Util
         }
         rootLogger.setLevel(level);
     }
-    
+
+    public static void validateCharset(Charset charset)
+    {
+        if (!Util.isValidCharset(charset)) {
+            throw new UnsupportedCharsetException(String.format(
+                    "character set %s is not supported. The charset must be " +
+                    "able to encode SLASH (/), DOT (.), NEWLINE (\n), " +
+                    "CARRIAGE RETURN (\r) and NULL (\0) to their ASCII " +
+                    "counterparts and vice versa", charset));
+        }
+    }
+
     /**
-     * @returns false if chosen character set cannot encode 
-     *          SLASH (/), DOT (.), NEWLINE (\n), CARRIAGE RETURN (\r) and 
+     * @returns false if chosen character set cannot encode
+     *          SLASH (/), DOT (.), NEWLINE (\n), CARRIAGE RETURN (\r) and
      *          NULL (\0) to their ASCII counterparts and vice versa.
      */
     public static boolean isValidCharset(Charset charset)
@@ -202,7 +214,7 @@ public final class Util
         assert charset != null;
         TextEncoder encoder = TextEncoder.newFallback(charset);
         TextDecoder decoder = TextDecoder.newFallback(charset);
-                                                                                                                              
+
         // TODO: add '.' also
         final String testString = Text.SLASH + Text.DOT + '\n' + '\r' + '\0';
         final byte[] expected = { Text.ASCII_SLASH, Text.ASCII_DOT,
@@ -219,7 +231,7 @@ public final class Util
         if (decodeResult == null || !decodeResult.equals(testString)) {
             return false;
         }
-        
+
         return true;
     }
 }

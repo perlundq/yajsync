@@ -166,14 +166,6 @@ public class YajSyncClient
                     String charsetName = (String) option.getValue();
                     try {
                         Charset charset = Charset.forName(charsetName);
-                        if (!Util.isValidCharset(charset)) {
-                            throw new ArgumentParsingError(String.format(
-                                    "character set %s is not supported - " +
-                                    "cannot encode SLASH (/), DOT (.), " +
-                                    "NEWLINE (\n), CARRIAGE RETURN (\r) and " +
-                                    "NULL (\0) to their ASCII counterparts " +
-                                    "and vice versa", charsetName));
-                        }
                         _clientBuilder.charset(charset);
                     } catch (IllegalCharsetNameException |
                              UnsupportedCharsetException e) {

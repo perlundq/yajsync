@@ -33,6 +33,7 @@ import com.github.perlundq.yajsync.session.Sender;
 import com.github.perlundq.yajsync.session.ServerSessionConfig;
 import com.github.perlundq.yajsync.session.SessionStatus;
 import com.github.perlundq.yajsync.text.Text;
+import com.github.perlundq.yajsync.util.Util;
 
 
 public class RsyncServer
@@ -49,9 +50,14 @@ public class RsyncServer
             return this;
         }
 
+        /**
+         *
+         * @throws UnsupportedCharsetException if charset is not supported
+         */
         public Builder charset(Charset charset)
         {
             assert charset != null;
+            Util.validateCharset(charset);
             _charset = charset;
             return this;
         }

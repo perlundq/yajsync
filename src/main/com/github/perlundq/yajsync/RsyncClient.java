@@ -575,8 +575,13 @@ public final class RsyncClient
             return this;
         }
 
+        /**
+         *
+         * @throws UnsupportedCharsetException if charset is not supported
+         */
         public Builder charset(Charset charset)
         {
+            Util.validateCharset(charset);
             _charset = charset;
             return this;
         }
