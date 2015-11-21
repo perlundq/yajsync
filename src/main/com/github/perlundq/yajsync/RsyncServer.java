@@ -38,6 +38,8 @@ import com.github.perlundq.yajsync.util.Util;
 
 public class RsyncServer
 {
+    public static final int DEFAULT_LISTEN_PORT = 873;
+
     public static class Builder
     {
         private boolean _isDeferredWrite;

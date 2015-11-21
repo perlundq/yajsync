@@ -18,6 +18,7 @@ package com.github.perlundq.yajsync.ui;
 
 import java.util.Objects;
 
+import com.github.perlundq.yajsync.RsyncServer;
 import com.github.perlundq.yajsync.util.Consts;
 import com.github.perlundq.yajsync.util.Environment;
 
@@ -86,7 +87,7 @@ final class ConnInfo
     {
         private final String _address;
         private String _userName = Environment.getUserName();
-        private int _portNumber = Consts.DEFAULT_LISTEN_PORT;
+        private int _portNumber = RsyncServer.DEFAULT_LISTEN_PORT;
 
         public Builder(String address) throws IllegalUrlException
         {

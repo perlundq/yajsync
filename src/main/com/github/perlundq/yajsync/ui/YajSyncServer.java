@@ -55,7 +55,7 @@ public final class YajSyncServer
     private CountDownLatch _isListeningLatch;
     private int _numThreads = Runtime.getRuntime().availableProcessors() *
                               THREAD_FACTOR;
-    private int _port = Consts.DEFAULT_LISTEN_PORT;
+    private int _port = RsyncServer.DEFAULT_LISTEN_PORT;
     private int _verbosity;
     private InetAddress _address = InetAddress.getLoopbackAddress();
     private ModuleProvider _moduleProvider = ModuleProvider.getDefault();

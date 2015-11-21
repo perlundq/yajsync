@@ -38,6 +38,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.RsyncClient;
+import com.github.perlundq.yajsync.RsyncServer;
 import com.github.perlundq.yajsync.channels.ChannelException;
 import com.github.perlundq.yajsync.channels.net.ChannelFactory;
 import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
@@ -291,7 +292,7 @@ public class YajSyncClient
                                     "port", "",
                                     String.format("server port number " +
                                                   "(default %d)",
-                                                  Consts.DEFAULT_LISTEN_PORT),
+                                                  RsyncServer.DEFAULT_LISTEN_PORT),
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option)
                         throws ArgumentParsingError
@@ -593,7 +594,7 @@ public class YajSyncClient
                     ? srcArgs.connInfoOrNull() : dstArgOrNull.connInfoOrNull();
             // Note: won't detect ambiguous ports if explicitly specifying 873
             // in rsync:// url + something else in --port=
-            if (connInfo.portNumber() != Consts.DEFAULT_LISTEN_PORT &&
+            if (connInfo.portNumber() != RsyncServer.DEFAULT_LISTEN_PORT &&
                 newPortNumber != connInfo.portNumber())
             {
                 throw new ArgumentParsingError(String.format(

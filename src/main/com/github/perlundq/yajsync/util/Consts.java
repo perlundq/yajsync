@@ -1,7 +1,7 @@
 /*
  * Constants
  *
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013-2015 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@ package com.github.perlundq.yajsync.util;
 
 public final class Consts
 {
-    public static final int DEFAULT_LISTEN_PORT = 873; // TODO: move out
     public static final int DEFAULT_UMASK = 0022;
     public static final int MAX_BUF_SIZE = 1024;
     public static final int SIZE_BYTE = 1;
