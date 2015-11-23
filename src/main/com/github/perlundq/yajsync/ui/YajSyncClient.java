@@ -454,7 +454,7 @@ public class YajSyncClient
         try (DuplexByteChannel sock = socketFactory.open(connInfo.address(),
                                                          connInfo.portNumber())) {  // throws IOException
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format("connected to %s"));
+                _log.fine("connected to" + sock);
             }
             _userName = connInfo.userName();
 
