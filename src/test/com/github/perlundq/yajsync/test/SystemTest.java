@@ -202,7 +202,6 @@ class SimpleRestrictedModule extends RestrictedModule
 
     @Override
     public String authenticate(RsyncAuthContext authContext, String userName)
-            throws ModuleSecurityException
     {
         return authContext.response(_authToken.toCharArray());
     }
@@ -327,13 +326,12 @@ class TestModuleProvider extends ModuleProvider
 
     @Override
     public Modules newAuthenticated(InetAddress address, Principal principal)
-        throws ModuleException
     {
         return _modules;
     }
 
     @Override
-    public Modules newAnonymous(InetAddress address) throws ModuleException
+    public Modules newAnonymous(InetAddress address)
     {
         return _modules;
     }
@@ -356,7 +354,7 @@ public class SystemTest
     private final PrintStream _nullOut =
         new PrintStream(new OutputStream() {
             @Override
-            public void write(int b) throws IOException { /* nop */};
+            public void write(int b) { /* nop */}
         }
     );
 
@@ -738,7 +736,7 @@ public class SystemTest
     // FIXME: latch might not get decreased if exception occurs
     // FIXME: port might be unavailable, open it here and inject it
     @Test(timeout=100)
-    public void testServerConnection() throws InterruptedException, IOException
+    public void testServerConnection() throws InterruptedException
     {
         final CountDownLatch isListeningLatch = new CountDownLatch(1);
 
@@ -764,7 +762,7 @@ public class SystemTest
 
     @Test(timeout=1000)
     public void testProtectedServerConnection()
-            throws InterruptedException, IOException
+            throws InterruptedException
     {
         final CountDownLatch isListeningLatch = new CountDownLatch(1);
         final String restrictedModuleName = "Restricted";
@@ -800,7 +798,7 @@ public class SystemTest
 
     @Test(timeout=1000)
     public void testInvalidPassword()
-            throws InterruptedException, IOException
+            throws InterruptedException
     {
         final CountDownLatch isListeningLatch = new CountDownLatch(1);
         final String restrictedModuleName = "Restricted";

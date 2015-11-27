@@ -23,7 +23,7 @@ public class StandardServerChannel implements ServerChannel
 {
     private final ServerSocketChannel _sock;
 
-    public StandardServerChannel(ServerSocketChannel sock) throws IOException
+    public StandardServerChannel(ServerSocketChannel sock)
     {
         _sock = sock;
     }

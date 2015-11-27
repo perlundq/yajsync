@@ -31,37 +31,37 @@ public class ReadableByteBuffer implements Readable
     }
 
     @Override
-    public void get(byte[] dst, int offset, int length) throws ChannelException
+    public void get(byte[] dst, int offset, int length)
     {
         _buf.get(dst, offset, length);
     }
 
     @Override
-    public ByteBuffer get(int numBytes) throws ChannelException
+    public ByteBuffer get(int numBytes)
     {
         return Util.slice(_buf, 0, numBytes);
     }
 
     @Override
-    public byte getByte() throws ChannelException
+    public byte getByte()
     {
         return _buf.get();
     }
 
     @Override
-    public char getChar() throws ChannelException
+    public char getChar()
     {
         return _buf.getChar();
     }
 
     @Override
-    public int getInt() throws ChannelException
+    public int getInt()
     {
         return _buf.getInt();
     }
 
     @Override
-    public void skip(int numBytes) throws ChannelException
+    public void skip(int numBytes)
     {
         _buf.position(_buf.position() + numBytes);
     }

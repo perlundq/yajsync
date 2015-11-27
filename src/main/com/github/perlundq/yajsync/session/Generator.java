@@ -380,7 +380,7 @@ public class Generator implements RsyncTask
     {
         Job j = new Job() {
             @Override
-            public void process() throws ChannelException {
+            public void process() {
                 for (Runnable r : _deferredFileAttrUpdates) {
                     r.run();
                 }
@@ -904,7 +904,6 @@ public class Generator implements RsyncTask
     private void deferUpdateAttrsIfDiffer(final Path path,
                                           final RsyncFileAttributes curAttrs,
                                           final RsyncFileAttributes targetAttrs)
-        throws IOException
     {
         Runnable j = new Runnable() {
             @Override

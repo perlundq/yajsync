@@ -360,7 +360,6 @@ public class Receiver implements RsyncTask, MessageHandler
 
     private void addUserNameToStubs(Map<Integer, User> uidUserMap,
                                     List<FileInfoStub> stubs)
-        throws ChannelException
     {
         for (FileInfoStub stub : stubs) {
             RsyncFileAttributes incompleteAttrs = stub._attrs;

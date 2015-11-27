@@ -25,7 +25,7 @@ public class SSLServerChannel implements ServerChannel
 {
     private final SSLServerSocket _sslSocket;
 
-    public SSLServerChannel(SSLServerSocket sock) throws IOException
+    public SSLServerChannel(SSLServerSocket sock)
     {
         _sslSocket = sock;
     }
