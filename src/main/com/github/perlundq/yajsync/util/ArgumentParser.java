@@ -29,7 +29,7 @@ import java.util.Set;
 
 public class ArgumentParser
 {
-    public enum Status { CONTINUE, EXIT_OK, EXIT_ERROR };
+    public enum Status { CONTINUE, EXIT_OK, EXIT_ERROR }
     private final String _programName;
     private final String _unnamedHelpText;
     private final Map<String, Option> _longOptions = new HashMap<>();
