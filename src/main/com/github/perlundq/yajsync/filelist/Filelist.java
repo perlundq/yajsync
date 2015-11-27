@@ -192,7 +192,7 @@ public class Filelist
         }
 
         // generator sender
-        public Iterable<FileInfo> files()
+        public Collection<FileInfo> files()
         {
             return _files.values();
         }

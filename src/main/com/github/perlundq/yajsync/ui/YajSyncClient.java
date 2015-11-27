@@ -31,9 +31,13 @@ import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -44,11 +48,14 @@ import com.github.perlundq.yajsync.channels.net.ChannelFactory;
 import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
 import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
 import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
+import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
 import com.github.perlundq.yajsync.session.ClientSessionConfig;
 import com.github.perlundq.yajsync.session.FileSelection;
 import com.github.perlundq.yajsync.session.RsyncException;
 import com.github.perlundq.yajsync.session.Statistics;
+import com.github.perlundq.yajsync.text.Text;
+import com.github.perlundq.yajsync.text.TextDecoder;
 import com.github.perlundq.yajsync.util.ArgumentParser;
 import com.github.perlundq.yajsync.util.ArgumentParsingError;
 import com.github.perlundq.yajsync.util.Environment;
@@ -118,6 +125,8 @@ public class YajSyncClient
             return console.readPassword("Password: ");
         }
     };
+    private final SimpleDateFormat _timeFormatter =
+            new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
     private boolean _isShowStatistics;
     private boolean _isTLS;
     private boolean _readStdin = false;
@@ -131,11 +140,12 @@ public class YajSyncClient
     private Statistics _statistics = new Statistics();
     private String _passwordFile;
     private String _userName;
+    private TextDecoder _characterDecoder =
+            TextDecoder.newStrict(Charset.forName(Text.UTF8_NAME));
 
     public YajSyncClient setStandardOut(PrintStream out)
     {
         _stdout = out;
-        _clientBuilder.stdout(_stdout);
         return this;
     }
 
@@ -167,6 +177,7 @@ public class YajSyncClient
                     try {
                         Charset charset = Charset.forName(charsetName);
                         _clientBuilder.charset(charset);
+                        _characterDecoder = TextDecoder.newStrict(charset);
                     } catch (IllegalCharsetNameException |
                              UnsupportedCharsetException e) {
                         throw new ArgumentParsingError(
@@ -473,9 +484,22 @@ public class YajSyncClient
                               to(dstArgOrNull.pathName());
             case REMOTE_LIST:
                 if (srcArgs.moduleName().isEmpty()) {
-                    return client.listModules();
+                    RsyncClient.ModuleListing listing = client.listModules();
+                    for (String m : listing.modules()) {
+                        System.out.println(m);
+                    }
+                    return listing.get();
+                } else {
+                    RsyncClient.FileListing listing =
+                        client.list(srcArgs.moduleName(),
+                                    srcArgs.pathNames());
+                    for (FileInfo f : listing.files()) {
+                        String ls = fileInfoToListingString(f);
+                        System.out.println(ls);
+                    }
+                    return listing.get();
                 }
-                return client.list(srcArgs.moduleName(), srcArgs.pathNames());
+
             default:
                 throw new AssertionError(mode);
             }
@@ -554,7 +578,11 @@ public class YajSyncClient
                                             copy(srcArgs.pathNames()).
                                             to(dstArgOrNull.pathName());
             } else if (mode == Mode.LOCAL_LIST) {
-                result = _clientBuilder.buildLocal().list(srcArgs.pathNames());
+                RsyncClient.FileListing listing = _clientBuilder.buildLocal().list(srcArgs.pathNames());
+                for (FileInfo f : listing.files()) {
+                    System.out.println(fileInfoToListingString(f));
+                }
+                result = listing.get();
             } else {
                 throw new AssertionError();
             }
@@ -617,6 +645,27 @@ public class YajSyncClient
             throw new RuntimeException(e);
         }
     }
+
+    private String fileInfoToListingString(FileInfo f)
+    {
+        RsyncFileAttributes attrs = f.attrs();
+        String pathName = _characterDecoder.decodeOrNull(f.pathNameBytes());
+        if (pathName == null) {
+            pathName = String.format("%s <WARNING filename contains " +
+                                     "undecodable characters (using %s)>",
+                                     new String(f.pathNameBytes(),
+                                                _characterDecoder.charset()),
+                                     _characterDecoder.charset());
+        }
+        Date t = new Date(FileTime.from(attrs.lastModifiedTime(),
+                                        TimeUnit.SECONDS).toMillis());
+        return String.format("%s %11d %s %s",
+                             FileOps.modeToString(attrs.mode()),
+                             attrs.size(),
+                             _timeFormatter.format(t),
+                             pathName);
+    }
+
 
     public static void main(String[] args)
     {

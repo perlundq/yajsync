@@ -21,25 +21,23 @@
 package com.github.perlundq.yajsync.session;
 
 import java.io.IOException;
-import java.io.PrintStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
-import java.text.SimpleDateFormat;
 import java.util.ArrayDeque;
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -55,15 +53,15 @@ import com.github.perlundq.yajsync.io.FileView;
 import com.github.perlundq.yajsync.io.FileViewOpenFailed;
 import com.github.perlundq.yajsync.io.FileViewReadError;
 import com.github.perlundq.yajsync.text.TextConversionException;
-import com.github.perlundq.yajsync.text.TextDecoder;
 import com.github.perlundq.yajsync.text.TextEncoder;
 import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.MD5;
+import com.github.perlundq.yajsync.util.Pair;
 import com.github.perlundq.yajsync.util.Rolling;
 import com.github.perlundq.yajsync.util.RuntimeInterruptException;
 import com.github.perlundq.yajsync.util.Util;
 
-public class Generator implements RsyncTask
+public class Generator implements RsyncTask, Iterable<FileInfo>
 {
     public static class Builder
     {
@@ -78,7 +76,6 @@ public class Generator implements RsyncTask
         private boolean _isPreserveUser;
         private Charset _charset;
         private FileSelection _fileSelection = FileSelection.EXACT;
-        private PrintStream _stdout = System.out;
 
         public Builder(WritableByteChannel out, byte[] checksumSeed)
         {
@@ -144,13 +141,6 @@ public class Generator implements RsyncTask
             return this;
         }
 
-        public Builder stdout(PrintStream stdout)
-        {
-            assert stdout != null;
-            _stdout = stdout;
-            return this;
-        }
-
         public Generator build()
         {
             return new Generator(this);
@@ -179,12 +169,10 @@ public class Generator implements RsyncTask
     private final Filelist _fileList;
     private final FileSelection _fileSelection;
     private final LinkedBlockingQueue<Job> _jobs = new LinkedBlockingQueue<>();
+    private final BlockingQueue<Pair<Boolean, FileInfo>> _listing =
+            new LinkedBlockingQueue<>();
     private final List<Filelist.Segment> _generated = new LinkedList<>();
-    private final PrintStream _stdout;
     private final RsyncOutChannel _senderOutChannel;
-    private final SimpleDateFormat _compatibleTimeFormatter =
-        new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-    private final TextDecoder _characterDecoder;
     private final TextEncoder _characterEncoder;
 
     private boolean _isRunning = true;
@@ -203,10 +191,8 @@ public class Generator implements RsyncTask
         _checksumSeed = builder._checksumSeed;
         _fileSelection = builder._fileSelection;
         _fileList = new ConcurrentFilelist(_fileSelection == FileSelection.RECURSE);
-        _stdout = builder._stdout;
         _senderOutChannel = new RsyncOutChannel(builder._out,
                                                 OUTPUT_CHANNEL_BUF_SIZE);
-        _characterDecoder = TextDecoder.newStrict(builder._charset);
         _characterEncoder = TextEncoder.newStrict(builder._charset);
         _isAlwaysItemize = builder._isAlwaysItemize;
         _isIgnoreTimes = builder._isIgnoreTimes;
@@ -346,6 +332,9 @@ public class Generator implements RsyncTask
             return _returnStatus == 0;
         } catch (RuntimeInterruptException e) {
             throw new InterruptedException();
+        } finally {
+            Pair<Boolean, FileInfo> poisonPill = new Pair<>(false, null);
+            _listing.add(poisonPill);
         }
     }
 
@@ -435,6 +424,15 @@ public class Generator implements RsyncTask
         appendJob(j);
     }
 
+    Collection<Pair<Boolean, FileInfo>> toListingPair(Collection<FileInfo> files)
+    {
+        Collection<Pair<Boolean, FileInfo>> listing = new ArrayList<>(files.size());
+        for (FileInfo f: files) {
+            listing.add(new Pair<>(true, f));
+        }
+        return listing;
+    }
+
     public void generateSegment(final Filelist.Segment segment)
         throws InterruptedException
     {
@@ -443,11 +441,11 @@ public class Generator implements RsyncTask
             public void process() throws ChannelException {
                 if (_isListOnly) {
                     if (_fileSelection != FileSelection.RECURSE) {
-                        listFullSegment(segment);
+                        _listing.addAll(toListingPair(segment.files()));
                     } else if (segment.directory() == null) {
-                        listInitialSegmentRecursive(segment);
+                        _listing.addAll(toListingPair(listInitialSegmentRecursive(segment)));
                     } else {
-                        listSegmentRecursive(segment);
+                        _listing.addAll(toListingPair(listSegmentRecursive(segment)));
                     }
                     segment.removeAll();
                 } else {
@@ -583,64 +581,37 @@ public class Generator implements RsyncTask
         return numErrors;
     }
 
-    // TODO: print symbolic link target
-    private String listFileInfo(FileInfo f)
-    {
-        // mode size date name
-        RsyncFileAttributes attrs = f.attrs();
-        String pathName = _characterDecoder.decodeOrNull(f.pathNameBytes());
-        if (pathName == null) { // or should we just silently skip it?
-            pathName = String.format("%s <WARNING filename contains " +
-                                     "undecodable characters (using %s)>",
-                                     new String(f.pathNameBytes(),
-                                                _characterDecoder.charset()),
-                                     _characterDecoder.charset());
-        }
-        return String.format("%s %11d %s %s",
-                             FileOps.modeToString(attrs.mode()),
-                             attrs.size(),
-                             _compatibleTimeFormatter.format(new Date(FileTime.from(attrs.lastModifiedTime(), TimeUnit.SECONDS).toMillis())),
-                             pathName);
-//                                 FileTime.from(attrs.lastModifiedTime(),
-//                                           TimeUnit.SECONDS),
-    }
-
-    private void listFullSegment(Filelist.Segment segment)
-    {
-        assert _fileSelection != FileSelection.RECURSE;
-        assert segment.directory() == null;
-        for (FileInfo f : segment.files()) {
-            _stdout.println(listFileInfo(f));
-        }
-    }
-
-    private void listInitialSegmentRecursive(Filelist.Segment segment)
+    private Collection<FileInfo> listInitialSegmentRecursive(Filelist.Segment segment)
     {
         assert _fileSelection == FileSelection.RECURSE;
         assert segment.directory() == null;
         boolean listFirstDotDir = true;
+        Collection<FileInfo> res = new ArrayList<>(segment.files().size());
         for (FileInfo f : segment.files()) {
             if (!f.attrs().isDirectory()) {
-                _stdout.println(listFileInfo(f));
+                res.add(f);
             } else if (listFirstDotDir) {
                 if (f.isDotDir()) {
-                    _stdout.println(listFileInfo(f));
+                    res.add(f);
                 }
                 listFirstDotDir = false;
             }
         }
+        return res;
     }
 
-    private void listSegmentRecursive(Filelist.Segment segment)
+    private Collection<FileInfo> listSegmentRecursive(Filelist.Segment segment)
     {
         assert _fileSelection == FileSelection.RECURSE;
         assert segment.directory() != null;
-        _stdout.println(listFileInfo(segment.directory()));
+        Collection<FileInfo> res = new ArrayList<>(segment.files().size());
+        res.add(segment.directory());
         for (FileInfo f : segment.files()) {
             if (!f.attrs().isDirectory()) {
-                _stdout.println(listFileInfo(f));
+                res.add(f);
             }
         }
+        return res;
     }
 
     private void sendChecksumForSegment(Filelist.Segment segment)
@@ -1088,5 +1059,36 @@ public class Generator implements RsyncTask
     public synchronized long numBytesWritten()
     {
         return _senderOutChannel.numBytesWritten();
+    }
+
+    @Override
+    public Iterator<FileInfo> iterator()
+    {
+        return new Iterator<FileInfo>() {
+            private Pair<Boolean, FileInfo> _next;
+
+            @Override
+            public boolean hasNext()
+            {
+                try {
+                    _next = _listing.take();
+                    return _next.first();
+                } catch (InterruptedException e) {
+                    throw new RuntimeInterruptException(e);
+                }
+            }
+
+            @Override
+            public FileInfo next()
+            {
+                return _next.second();
+            }
+
+            @Override
+            public void remove()
+            {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }

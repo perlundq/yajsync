@@ -95,7 +95,7 @@ public final class RsyncTaskExecutor
 
         boolean isException = thrown != null;
         if (isException) {
-            throwCorrectException(thrown);
+            throwUnwrappedException(thrown);
         }
 
         if (_log.isLoggable(Level.FINE)) {
@@ -105,7 +105,7 @@ public final class RsyncTaskExecutor
         return isOK;
     }
 
-    private static void throwCorrectException(Throwable thrown)
+    public static void throwUnwrappedException(Throwable thrown)
         throws InterruptedException,ChannelException,RsyncException
     {
         if (thrown instanceof ExecutionException) {

@@ -25,6 +25,9 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -32,8 +35,11 @@ import com.github.perlundq.yajsync.channels.ChannelException;
 import com.github.perlundq.yajsync.security.RsyncAuthContext;
 import com.github.perlundq.yajsync.text.TextConversionException;
 import com.github.perlundq.yajsync.util.BitOps;
+import com.github.perlundq.yajsync.util.Pair;
+import com.github.perlundq.yajsync.util.RuntimeInterruptException;
 
 public class ClientSessionConfig extends SessionConfig
+                                 implements Iterable<String>
 {
     public interface AuthProvider {
         String getUser() throws IOException;
@@ -43,20 +49,21 @@ public class ClientSessionConfig extends SessionConfig
     private static final Logger _log =
         Logger.getLogger(ClientSessionConfig.class.getName());
     private final boolean _isRecursive;
-    private boolean _isSafeFileList;
-    private final PrintStream _out;
     private final PrintStream _err;
+    private BlockingQueue<Pair<Boolean, String>> _listing =
+            new LinkedBlockingQueue<>();
+    private boolean _isSafeFileList;
+
 
     /**
      * @throws IllegalArgumentException if charset is not supported
      */
     public ClientSessionConfig(ReadableByteChannel in, WritableByteChannel out,
                                Charset charset, boolean isRecursive,
-                               PrintStream stdout, PrintStream stderr)
+                               PrintStream stderr)
     {
         super(in, out, charset);
         _isRecursive = isRecursive;
-        _out = stdout;
         _err = stderr;
     }
 
@@ -87,6 +94,9 @@ public class ClientSessionConfig extends SessionConfig
             return _status;
         } catch (TextConversionException e) {
             throw new RsyncProtocolException(e);
+        } finally {
+            Pair<Boolean, String> poisonPill = new Pair<>(false, null);
+            _listing.add(poisonPill);
         }
     }
 
@@ -122,7 +132,7 @@ public class ClientSessionConfig extends SessionConfig
                     line.substring(SessionStatus.AUTHREQ.toString().length());
                 sendAuthResponse(authProvider, challenge);
             } else {
-                _out.println(line);
+                _listing.add(new Pair<>(true, line));
             }
         }
     }
@@ -186,5 +196,36 @@ public class ClientSessionConfig extends SessionConfig
         if (_log.isLoggable(Level.FINER)) {
             _log.finer("< (checksum seed) " + seedValue);
         }
+    }
+
+    @Override
+    public Iterator<String> iterator()
+    {
+        return new Iterator<String>() {
+            private Pair<Boolean, String>_next;
+
+            @Override
+            public boolean hasNext()
+            {
+                try {
+                    _next = _listing.take();
+                    return _next.first();
+                } catch (InterruptedException e) {
+                    throw new RuntimeInterruptException(e);
+                }
+            }
+
+            @Override
+            public String next()
+            {
+                return _next.second();
+            }
+
+            @Override
+            public void remove()
+            {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }
