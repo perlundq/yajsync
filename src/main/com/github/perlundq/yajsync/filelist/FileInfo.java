@@ -23,7 +23,6 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 import com.github.perlundq.yajsync.text.Text;
-import com.github.perlundq.yajsync.util.PathOps;
 
 /**
  * a class for rsync file information, we must keep the path name as a string

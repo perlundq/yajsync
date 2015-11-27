@@ -51,7 +51,6 @@ import com.github.perlundq.yajsync.session.RsyncException;
 import com.github.perlundq.yajsync.session.Statistics;
 import com.github.perlundq.yajsync.util.ArgumentParser;
 import com.github.perlundq.yajsync.util.ArgumentParsingError;
-import com.github.perlundq.yajsync.util.Consts;
 import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.Option;

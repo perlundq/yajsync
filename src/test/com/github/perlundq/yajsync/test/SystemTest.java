@@ -39,7 +39,6 @@ import com.github.perlundq.yajsync.security.RsyncAuthContext;
 import com.github.perlundq.yajsync.session.Module;
 import com.github.perlundq.yajsync.session.ModuleException;
 import com.github.perlundq.yajsync.session.ModuleProvider;
-import com.github.perlundq.yajsync.session.ModuleSecurityException;
 import com.github.perlundq.yajsync.session.Modules;
 import com.github.perlundq.yajsync.session.RestrictedModule;
 import com.github.perlundq.yajsync.session.RestrictedPath;
