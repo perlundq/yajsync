@@ -2,7 +2,7 @@
  * Rsync file information
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013-2015 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,10 +36,6 @@ public class FileInfo implements Comparable<FileInfo>
     private final Path _normalizedPath;                                         // normalized relative path to receiver destination directory
     private final byte[] _pathNameBytes;                                        // name of relative path to receiver destination (in bytes)
     private final RsyncFileAttributes _attrs;
-
-    // possibly remove and replace with external per thread bitmaps instead?
-    private boolean _isPruned = false;          // used by generator only (and only for directories)
-    private boolean _isTransferred = false;     // used by receiver (and sender)
 
     /**
      * @throws IllegalArgumentException if file has a trailing slash but is not
@@ -139,33 +135,10 @@ public class FileInfo implements Comparable<FileInfo>
         return _pathNameBytes;
     }
 
-    public void setIsTransferred()
-    {
-        assert _attrs.isRegularFile();
-        _isTransferred = true;
-    }
-
-    public boolean isTransferred()
-    {
-        return _isTransferred;
-    }
-
-    public void prune()
-    {
-        assert _attrs.isDirectory();
-        _isPruned = true;
-    }
-
-    public boolean isPruned()
-    {
-        return _isPruned;
-    }
-
     public boolean isTransferrable()
     {
         return _path != null;
     }
-
 
     private static byte[] addSlash(byte[] pathNameBytes)
     {

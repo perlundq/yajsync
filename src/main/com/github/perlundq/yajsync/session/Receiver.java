@@ -33,6 +33,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -193,6 +194,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private static final Logger _log =
         Logger.getLogger(Receiver.class.getName());
 
+    private final BitSet _transferred = new BitSet();
     private final boolean _isDeferWrite;
     private final boolean _isExitAfterEOF;
     private final boolean _isExitEarlyIfEmptyList;
@@ -749,7 +751,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 _stats.setTotalTransferredSize(_stats.totalTransferredSize() +
                                                fileInfo.attrs().size());
 
-                if (fileInfo.isTransferred() && _log.isLoggable(Level.FINE)) {
+                if (isTransferred(index) && _log.isLoggable(Level.FINE)) {
                     _log.fine("Re-receiving " + fileInfo.path());
                 }
 
@@ -928,7 +930,7 @@ public class Receiver implements RsyncTask, MessageHandler
             }
             _generator.purgeFile(segment, index);
         } else {
-            if (fileInfo.isTransferred()) {
+            if (isTransferred(index)) {
                 _ioError |= IoError.GENERAL;
                 try {
                     _generator.sendMessage(MessageCode.ERROR_XFER,
@@ -944,7 +946,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 _generator.purgeFile(segment, index);
             } else {
                 _generator.generateFile(segment, index, fileInfo);
-                fileInfo.setIsTransferred();
+                setIsTransferred(index);
             }
         }
     }
@@ -1561,5 +1563,15 @@ public class Receiver implements RsyncTask, MessageHandler
         } catch (ChannelEOFException e) {
             // It's OK, we expect EOF without having received any data
         }
+    }
+
+    private void setIsTransferred(int index)
+    {
+        _transferred.set(index);
+    }
+
+    private boolean isTransferred(int index)
+    {
+        return _transferred.get(index);
     }
 }

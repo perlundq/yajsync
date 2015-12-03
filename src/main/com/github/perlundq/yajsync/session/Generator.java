@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.Iterator;
@@ -157,6 +158,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private static final Logger _log =
         Logger.getLogger(Generator.class.getName());
 
+    private final BitSet _pruned = new BitSet();
     private final boolean _isAlwaysItemize;
     private final boolean _isIgnoreTimes;
     private final boolean _isInterruptible;
@@ -564,7 +566,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 }
             } catch (IOException e) {
                 if (f.attrs().isDirectory()) {
-                    f.prune(); // we cannot remove the corresponding segment since we may not have received it yet
+                    prune(index); // we cannot remove the corresponding segment since we may not have received it yet
                 }
                 if (_log.isLoggable(Level.WARNING)) {
                     _log.warning(String.format(
@@ -622,7 +624,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
 
         final int dirIndex = segment.directoryIndex();
         FileInfo dir = segment.directory();
-        if (dir != null && (dir.isPruned() || !dir.isTransferrable())) {
+        if (dir != null && (isPruned(dirIndex) || !dir.isTransferrable())) {
             segment.removeAll();
             return;
         }
@@ -1090,5 +1092,15 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 throw new UnsupportedOperationException();
             }
         };
+    }
+
+    public void prune(int index)
+    {
+        _pruned.set(index);
+    }
+
+    public boolean isPruned(int index)
+    {
+        return _pruned.get(index);
     }
 }

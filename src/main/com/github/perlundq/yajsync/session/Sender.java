@@ -33,6 +33,7 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -178,6 +179,7 @@ public class Sender implements RsyncTask,MessageHandler
     private static final int CHUNK_SIZE = 8 * 1024;
 
     private final AutoFlushableRsyncDuplexChannel _duplexChannel;
+    private final BitSet _transferred = new BitSet();
     private final boolean _isExitAfterEOF;
     private final boolean _isExitEarlyIfEmptyList;
     private final boolean _isInterruptible;
@@ -569,7 +571,7 @@ public class Sender implements RsyncTask,MessageHandler
                     }
 
                     if (_log.isLoggable(Level.FINE)) {
-                        if (fileInfo.isTransferred()) {
+                        if (isTransferred(index)) {
                             _log.fine("Re-sending " + fileInfo.path());
                         } else {
                             _log.fine("sending " + fileInfo);
@@ -637,7 +639,7 @@ public class Sender implements RsyncTask,MessageHandler
                             fileInfo.path(), Text.bytesToString(fileMD5sum)));
                     }
                     _duplexChannel.put(fileMD5sum, 0, fileMD5sum.length);
-                    fileInfo.setIsTransferred();
+                    setIsTransferred(index);
 
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine(String.format("sent %s (%d bytes)",
@@ -1287,5 +1289,15 @@ public class Sender implements RsyncTask,MessageHandler
         } catch (ChannelEOFException e) {
             // It's OK, we expect EOF without having received any data
         }
+    }
+
+    private void setIsTransferred(int index)
+    {
+        _transferred.set(index);
+    }
+
+    private boolean isTransferred(int index)
+    {
+        return _transferred.get(index);
     }
 }
