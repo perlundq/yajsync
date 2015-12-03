@@ -406,7 +406,6 @@ public class Receiver implements RsyncTask, MessageHandler
                                          final List<FileInfoStub> stubs)
         throws PathResolverException
     {
-        assert stubs.size() > 0;
         try {
             RsyncFileAttributes attrs =
                 RsyncFileAttributes.statIfExists(targetPath);                   // throws IOException
