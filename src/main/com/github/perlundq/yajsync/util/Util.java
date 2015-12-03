@@ -94,10 +94,17 @@ public final class Util
         }
     }
 
+    public static int randInt(int low, int high)
+    {
+        int r = Math.abs(new Random().nextInt());
+        int range = high - low + 1;
+        return (r % range) + low;
+    }
+
     public static boolean randomChance(double percentage)
     {
         assert percentage >= 0 && percentage <= 1;
-        return new Random().nextDouble() <= percentage;
+        return (randInt(0, 100) / 100.0) < percentage;
     }
 
     public static ByteBuffer slice(ByteBuffer src, int start, int end)
