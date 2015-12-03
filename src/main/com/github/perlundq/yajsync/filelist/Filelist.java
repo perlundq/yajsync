@@ -215,7 +215,13 @@ public class Filelist
         // use bitmap
         public FileInfo remove(int index)
         {
-            return _files.remove(index);
+            FileInfo f = _files.remove(index);
+            if (f == null) {
+                throw new IllegalStateException(String.format(
+                        "%s does not contain key %d (%s)",
+                        _files, index, this));
+            }
+            return f;
         }
 
         // generator
@@ -401,6 +407,11 @@ public class Filelist
         return _stubDirectories != null && _stubDirectories.size() > 0;
     }
 
+    public int expandedSegments()
+    {
+        return _segments.size();
+    }
+
     // sender receiver generator
     public Segment deleteFirstSegment()
     {
@@ -410,7 +421,7 @@ public class Filelist
     // sender receiver
     public boolean isEmpty()
     {
-        return _segments.isEmpty();
+        return _segments.isEmpty() && !isExpandable();
     }
 
     public long totalFileSize()

@@ -445,9 +445,15 @@ public class Sender implements RsyncTask,MessageHandler
         Filelist.Segment segment = firstSegment;
 
         while (connectionState.isTransfer()) {
-            // TODO: make asynchronous (separate indexer thread)
             boolean isOK = true;
-            if (fileList.isExpandable()) {
+            // We must send a new segment when we have one segment active
+            // (rather than none) to avoid deadlocking when talking to rsync
+            if (fileList.isExpandable() && fileList.expandedSegments() == 1) {
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine(String.format(
+                            "expanding %s, %d segments in transit",
+                            fileList, fileList.expandedSegments()));
+                }
                 isOK = expandAndSendSegments(fileList);
             }
             if (_fileSelection == FileSelection.RECURSE &&
@@ -526,8 +532,8 @@ public class Sender implements RsyncTask,MessageHandler
                             "peer",
                             index));
                     }
-                    FileInfo removed = segment.remove(index); // might be a directory, in which case it's null
-                    if (removed != null) {
+                    if (index != segment.directoryIndex()) {
+                        FileInfo removed = segment.remove(index);
                         if (_log.isLoggable(Level.FINE)) {
                             _log.fine(String.format("Deleting file/dir %s %d",
                                                     removed, index));
