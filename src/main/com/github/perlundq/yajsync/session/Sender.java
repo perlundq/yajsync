@@ -447,7 +447,6 @@ public class Sender implements RsyncTask,MessageHandler
         Filelist.Segment segment = firstSegment;
 
         while (connectionState.isTransfer()) {
-            boolean isOK = true;
             // We must send a new segment when we have one segment active
             // (rather than none) to avoid deadlocking when talking to rsync
             if (fileList.isExpandable() && fileList.expandedSegments() == 1) {
@@ -456,7 +455,15 @@ public class Sender implements RsyncTask,MessageHandler
                             "expanding %s, %d segments in transit",
                             fileList, fileList.expandedSegments()));
                 }
-                isOK = expandAndSendSegments(fileList);
+                boolean isOK = expandAndSendSegments(fileList);
+                if (!isOK) {
+                    if (_log.isLoggable(Level.WARNING)) {
+                        _log.warning("got I/O error during file list " +
+                                     "expansion, notifying peer");
+                    }
+                    ioError |= IoError.GENERAL;
+                    sendIntMessage(MessageCode.IO_ERROR, ioError);
+                }
             }
             if (_fileSelection == FileSelection.RECURSE &&
                 !fileList.isExpandable() && !sentEOF)
@@ -466,15 +473,6 @@ public class Sender implements RsyncTask,MessageHandler
                 }
                 _duplexChannel.encodeIndex(Filelist.EOF);
                 sentEOF = true;
-            }
-            if (!isOK) {
-                // TODO: send a more specific error?
-                ioError |= IoError.GENERAL;
-                if (_log.isLoggable(Level.WARNING)) {
-                    _log.warning("got I/O error during file list expansion, " +
-                                 "notifying peer");
-                }
-                sendIntMessage(MessageCode.IO_ERROR, ioError);
             }
 
             if (_log.isLoggable(Level.FINE)) {
