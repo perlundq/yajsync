@@ -253,45 +253,6 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         return _fileList;
     }
 
-    public void processJobQueueImmediate()
-        throws ChannelException, InterruptedException
-    {
-        while (!Thread.currentThread().isInterrupted()) {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("(Generator) awaiting next job...");
-            }
-
-            Job job = _jobs.take();
-
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("(Generator) processing " + job);
-            }
-
-            job.process();
-            _senderOutChannel.flush();
-        }
-    }
-
-    public void processJobQueue() throws ChannelException, InterruptedException
-    {
-        while (!Thread.currentThread().isInterrupted()) {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("(Generator) awaiting next job...");
-            }
-
-            Job job = _jobs.take();
-
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("(Generator) processing " + job);
-            }
-
-            job.process();
-            if (_jobs.isEmpty()) {
-                _senderOutChannel.flush();
-            }
-        }
-    }
-
     public void processJobQueueBatched() throws ChannelException, InterruptedException
     {
         List<Job> jobList = new LinkedList<>();
