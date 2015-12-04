@@ -49,15 +49,13 @@ Warning
 This software is still unstable and there might be data corruption
 bugs hiding. So use it only carefully at your own risk.
 
-If you encounter any problems please create an issue with
-https://github.com/perlundq/yajsync/issues/new
-
 
 Contact
 -------
 
-If you have any questions or want to provide feedback of any type
-please join the [yajsync discussion group](http://groups.google.com/d/forum/yajsync)
+If you encounter any problems or if you have any questions or just
+want to provide feedback of any type, then please create a new github
+[issue](https://github.com/perlundq/yajsync/issues/new) for this.
 
 
 Example
@@ -218,7 +216,7 @@ License
 
 Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
 
-Copyright (C) 2013,2014 Per Lundqvist
+Copyright (C) 2013-2015 Per Lundqvist
 
 yajsync is licensed under GNU General Public License version 3 or
 later. See the file LICENSE or http://www.gnu.org/licenses/gpl.txt for
