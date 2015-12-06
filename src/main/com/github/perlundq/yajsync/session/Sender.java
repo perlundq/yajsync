@@ -299,7 +299,7 @@ public class Sender implements RsyncTask,MessageHandler
                 return isInitialListOK;
             }
 
-            int ioError = sendFiles(fileList, initialSegment);
+            int ioError = sendFiles(fileList);
             if (ioError != 0) {
                 sendIntMessage(MessageCode.IO_ERROR, ioError);
             }
@@ -438,13 +438,13 @@ public class Sender implements RsyncTask,MessageHandler
         }
     }
 
-    private int sendFiles(Filelist fileList, Filelist.Segment firstSegment)
+    private int sendFiles(Filelist fileList)
         throws ChannelException
     {
         boolean sentEOF = false;
         ConnectionState connectionState = new ConnectionState();
         int ioError = 0;
-        Filelist.Segment segment = firstSegment;
+        Filelist.Segment segment = null;
 
         while (connectionState.isTransfer()) {
             // We must send a new segment when we have one segment active
