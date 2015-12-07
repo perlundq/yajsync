@@ -67,7 +67,7 @@ import com.github.perlundq.yajsync.util.Rolling;
 import com.github.perlundq.yajsync.util.RuntimeInterruptException;
 import com.github.perlundq.yajsync.util.StatusResult;
 
-public class Sender implements RsyncTask,MessageHandler
+public final class Sender implements RsyncTask, MessageHandler
 {
     public static class Builder
     {
@@ -196,7 +196,7 @@ public class Sender implements RsyncTask,MessageHandler
     private final TextDecoder _characterDecoder;
     private final TextEncoder _characterEncoder;
 
-    private int _nextSegmentIndex;
+    private int _curSegmentIndex;
     private int _ioError;
 
     private Sender(Builder builder)
@@ -236,7 +236,8 @@ public class Sender implements RsyncTask,MessageHandler
     @Override
     public Boolean call() throws ChannelException, InterruptedException
     {
-        Filelist fileList = new Filelist(_fileSelection == FileSelection.RECURSE);
+        Filelist fileList = new Filelist(_fileSelection ==
+                                         FileSelection.RECURSE);
         try {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("Sender.transfer:");
@@ -244,20 +245,20 @@ public class Sender implements RsyncTask,MessageHandler
             if (_isReceiveFilterRules) {
                 String rules = receiveFilterRules();
                 if (rules.length() > 0) {
-                    throw new RsyncProtocolException(
-                        String.format("Received a list of filter rules of length " +
-                            "%d from peer, this is not yet supported " +
-                            "(%s)", rules.length(), rules));
+                    throw new RsyncProtocolException(String.format(
+                            "Received a list of filter rules of length %d " +
+                            "from peer, this is not yet supported (%s)",
+                            rules.length(), rules));
                 }
             }
 
             long t1 = System.currentTimeMillis();
 
-            StatusResult<Set<FileInfo>> expandResult = initialExpand(_sourceFiles);
+            StatusResult<Set<FileInfo>> expandResult =
+                    initialExpand(_sourceFiles);
             boolean isInitialListOK = expandResult.isOK();
             Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
             builder.addAll(expandResult.value());
-
             Filelist.Segment initialSegment = fileList.newSegment(builder);
 
             long numBytesWritten = _duplexChannel.numBytesWritten();
@@ -281,9 +282,10 @@ public class Sender implements RsyncTask,MessageHandler
 
             _stats.setFileListBuildTime(Math.max(1, t2 - t1));
             _stats.setFileListTransferTime(Math.max(0, t3 - t2));
-            long segmentSize = _duplexChannel.numBytesWritten() - numBytesWritten;
-            _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
-
+            long segmentSize = _duplexChannel.numBytesWritten() -
+                               numBytesWritten;
+            _stats.setTotalFileListSize(_stats.totalFileListSize() +
+                                        segmentSize);
             if (!_isSafeFileList && !isInitialListOK) {
                 sendIntMessage(MessageCode.IO_ERROR, IoError.GENERAL);
             }
@@ -305,13 +307,13 @@ public class Sender implements RsyncTask,MessageHandler
             }
             _duplexChannel.encodeIndex(Filelist.DONE);
 
-            // we do it later on again to guarantee that the statistics are
-            // updated even if there's an error
-            _stats.setTotalFileSize(fileList.totalFileSize());
-            _stats.setTotalRead(_duplexChannel.numBytesRead());
-            _stats.setTotalWritten(_duplexChannel.numBytesWritten());
-            _stats.setNumFiles(fileList.numFiles());
+            // we update the statistics in finally clause to guarantee that the
+            // statistics are updated even if there's an error
             if (_isSendStatistics) {
+                _stats.setTotalFileSize(fileList.totalFileSize());
+                _stats.setTotalRead(_duplexChannel.numBytesRead());
+                _stats.setTotalWritten(_duplexChannel.numBytesWritten());
+                _stats.setNumFiles(fileList.numFiles());
                 sendStatistics(_stats);
             }
 
@@ -348,7 +350,9 @@ public class Sender implements RsyncTask,MessageHandler
             _log.finer("sending user name " + name);
         }
         ByteBuffer buf = ByteBuffer.wrap(_characterEncoder.encode(name));
-        if (buf.remaining() > 0xFF) { // unlikely scenario, we could also recover from this (by truncating or falling back to nobody)
+        // unlikely scenario, we could also recover from this (by truncating or
+        // falling back to nobody)
+        if (buf.remaining() > 0xFF) {
             throw new IllegalStateException(String.format(
                 "encoded length of user name %s is %d, which is larger than " +
                 "what fits in a byte (255)", name, buf.remaining()));
@@ -382,7 +386,8 @@ public class Sender implements RsyncTask,MessageHandler
         case ERROR_XFER:
         case WARNING:
         case LOG:
-            printMessage(message);                                              // throws TextConversionException
+            // throws TextConversionException
+            printMessage(message);
             break;
         default:
             throw new RuntimeException(
@@ -403,9 +408,12 @@ public class Sender implements RsyncTask,MessageHandler
                 _ioError |= IoError.TRANSFER;
             }
             if (_log.isLoggable(message.logLevelOrNull())) {
-                String text = _characterDecoder.decode(message.payload());      // throws TextConversionException
+                // throws TextConversionException
+                String text = _characterDecoder.decode(message.payload());
+                // Receiver here means the opposite of Sender - not the process
+                // (which actually is the Generator)
                 _log.log(message.logLevelOrNull(),
-                         String.format("<RECEIVER> %s: %s",                     // Receiver here means the opposite of Sender, not the process which actually would be Generator...
+                         String.format("<RECEIVER> %s: %s",
                                        msgType, Text.stripLast(text)));
             }
         } catch (TextConversionException e) {
@@ -489,8 +497,8 @@ public class Sender implements RsyncTask,MessageHandler
 
             if (index == Filelist.DONE) {
                 if (_fileSelection == FileSelection.RECURSE &&
-                    !fileList.isEmpty()) {
-
+                    !fileList.isEmpty())
+                {
                     // we're unable to delete the segment opportunistically
                     // because we're not being notified about all files that
                     // the receiver is finished with
@@ -505,7 +513,9 @@ public class Sender implements RsyncTask,MessageHandler
                         _duplexChannel.encodeIndex(Filelist.DONE);
                     }
                 }
-                if (_fileSelection != FileSelection.RECURSE || fileList.isEmpty()) {
+                if (_fileSelection != FileSelection.RECURSE ||
+                    fileList.isEmpty())
+                {
                     connectionState.doTearDownStep();
                     if (connectionState.isTransfer()) {
                         _duplexChannel.encodeIndex(Filelist.DONE);
@@ -628,7 +638,9 @@ public class Sender implements RsyncTask,MessageHandler
                                 "Error: general I/O error on %s (ignored and" +
                                 " skipped): %s", fileInfo, e.getMessage()));
                         }
-                        fileMD5sum[0]++; // is only null for FileViewOpenFailed - not FileViewReadError which is caused by FileView.close()
+                        // is only null for FileViewOpenFailed - not
+                        // FileViewReadError which is caused by FileView.close()
+                        fileMD5sum[0]++;
                     }
 
                     if (_log.isLoggable(Level.FINE)) {
@@ -650,7 +662,8 @@ public class Sender implements RsyncTask,MessageHandler
                                                    + fileInfo.attrs().size());
                 } else {
                     throw new RsyncProtocolException(String.format(
-                        "Error: received index in wrong phase (%s)", connectionState));
+                        "Error: received index in wrong phase (%s)",
+                        connectionState));
                 }
             } else {
                 throw new RsyncProtocolException(
@@ -680,11 +693,12 @@ public class Sender implements RsyncTask,MessageHandler
                 }
 
                 RsyncFileAttributes attrs = RsyncFileAttributes.stat(p);
+                // throws TextConversionException
                 byte[] nameBytes =
-                    _characterEncoder.encode(p.getFileName().toString());       // throws TextConversionException
-
-                FileInfo fileInfo = new FileInfo(p, p.getFileName(), nameBytes, attrs);          // throws IllegalArgumentException but that cannot happen
-
+                        _characterEncoder.encode(p.getFileName().toString());
+                // throws IllegalArgumentException but that cannot happen
+                FileInfo fileInfo = new FileInfo(p, p.getFileName(), nameBytes,
+                                                 attrs);
                 if (_fileSelection == FileSelection.EXACT &&
                     fileInfo.attrs().isDirectory())
                 {
@@ -716,13 +730,13 @@ public class Sender implements RsyncTask,MessageHandler
                                     isOK = false;
                                 }
                             }
-                            _nextSegmentIndex++; // we have to add it to be compliant with native, but don't try expanding it again later
+                            _curSegmentIndex++;
                         }
                     } else {
                         if (_log.isLoggable(Level.WARNING)) {
                             _log.warning("pruning duplicate " + fileInfo);
                         }
-                        isOK = false;  // should we possibly not treat this as an error? (if so also change print statement to debug)
+                        isOK = false;
                     }
                 }
             } catch (IOException e) {
@@ -750,15 +764,15 @@ public class Sender implements RsyncTask,MessageHandler
 
         List<FileInfo> fileset = new ArrayList<>();
         boolean isOK = true;
-        final Path localPart = getLocalPathOf(directory);                       // throws RuntimeException if unable to get local path prefix of directory, but that should never happen
+        // throws RuntimeException if unable to get local path prefix of
+        // directory, but that should never happen
+        final Path localPart = getLocalPathOf(directory);
 
-        // the JVM adds a lot of overhead when doing mostly directory traversals
-        // and reading of file attributes
         try (DirectoryStream<Path> stream =
                 Files.newDirectoryStream(directory.path())) {
 
             for (Path entry : stream) {
-                if (!PathOps.isPathPreservable(entry.getFileName())) {          // TODO: add option to continue anyway
+                if (!PathOps.isPathPreservable(entry.getFileName())) {
                     if (_log.isLoggable(Level.WARNING)) {
                         _log.warning(String.format(
                             "Skipping %s - unable to preserve file name",
@@ -786,8 +800,9 @@ public class Sender implements RsyncTask,MessageHandler
                 byte[] pathNameBytes =
                     _characterEncoder.encodeOrNull(relativePathName);
                 if (pathNameBytes != null) {
+                    // throws IllegalArgumentException but that cannot happen
                     FileInfo f = new FileInfo(entry, relativePath,
-                                              pathNameBytes, attrs);    // throws IllegalArgumentException but that cannot happen
+                                              pathNameBytes, attrs);
                     fileset.add(f);
                 } else {
                     if (_log.isLoggable(Level.WARNING)) {
@@ -809,39 +824,37 @@ public class Sender implements RsyncTask,MessageHandler
         return new StatusResult<List<FileInfo>>(isOK, fileset);
     }
 
-    // TODO: FEATURE: (if possible in native) implement suspend/resume such that
-    // we don't have to send/hold a full segment in memory at once (directories
-    // can be very large).
     private boolean expandAndSendSegments(Filelist fileList)
         throws ChannelException
     {
         boolean isOK = true;
         int numSent = 0;
-
         long numBytesWritten = _duplexChannel.numBytesWritten();
 
         while (fileList.isExpandable() && numSent < PARTIAL_FILE_LIST_SIZE) {
 
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("sending segment index %d (as %d)",
-                    _nextSegmentIndex, Filelist.OFFSET - _nextSegmentIndex));
+                                        _curSegmentIndex,
+                                        Filelist.OFFSET - _curSegmentIndex));
             }
 
-            assert _nextSegmentIndex >= 0;
-            _duplexChannel.encodeIndex(Filelist.OFFSET - _nextSegmentIndex);
-            // FIXME: BUG how do we detect valid segment indicies?
+            assert _curSegmentIndex >= 0;
             FileInfo directory =
-                fileList.getStubDirectoryOrNull(_nextSegmentIndex);
-            if (directory == null) { // duplicates already removed by us, but native keeps them so we have "stored" a null reference for that index instead
+                fileList.getStubDirectoryOrNull(_curSegmentIndex);
+            // duplicates already removed by us, but native keeps them so we
+            // have "stored" a null reference for that index instead
+            if (directory == null) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format("skipping expansion and sending " +
                                             "of segment index %d (duplicate)",
-                                            _nextSegmentIndex));
+                                            _curSegmentIndex));
                 }
-                _nextSegmentIndex++;
+                _curSegmentIndex++;
                 continue;
             }
 
+            _duplexChannel.encodeIndex(Filelist.OFFSET - _curSegmentIndex);
             StatusResult<List<FileInfo>> expandResult = expand(directory);
             boolean isExpandOK = expandResult.isOK();
             if (!isExpandOK && _log.isLoggable(Level.WARNING)) {
@@ -855,7 +868,7 @@ public class Sender implements RsyncTask,MessageHandler
 
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("expanded segment with segment index" +
-                                        " %d", _nextSegmentIndex));
+                                        " %d", _curSegmentIndex));
                 if (_log.isLoggable(Level.FINER)) {
                     _log.finer(segment.toString());
                 }
@@ -875,7 +888,7 @@ public class Sender implements RsyncTask,MessageHandler
                 sendFileListErrorNotification();
             }
 
-            _nextSegmentIndex++;
+            _curSegmentIndex++;
         }
 
         long segmentSize = _duplexChannel.numBytesWritten() - numBytesWritten;
@@ -1053,7 +1066,9 @@ public class Sender implements RsyncTask,MessageHandler
         throws ChannelException
     {
         if (!Item.isValidItem(iFlags)) {
-            throw new IllegalStateException(String.format("got flags %d - not supported"));
+            throw new IllegalStateException(String.format(
+                    "got flags %s - not supported",
+                    Integer.toBinaryString((int) iFlags)));
         }
         _duplexChannel.encodeIndex(index);
         _duplexChannel.putChar(iFlags);
@@ -1157,9 +1172,9 @@ public class Sender implements RsyncTask,MessageHandler
                     // slide start to 1 byte left of mark offset,
                     // will be subtracted immediately after break of loop
                     fv.slide(fv.windowLength() - 1);
-                    // TODO: optimize away an unnecessary expensive
-                    // compact operation here while we only have 1 byte to
-                    // compact, before reading in more data (if we're at the last block)
+                    // TODO: optimize away an unnecessary expensive compact
+                    // operation here while we only have 1 byte to compact,
+                    // before reading in more data (if we're at the last block)
                     rolling = Rolling.compute(fv.array(),
                                               fv.startOffset(),
                                               fv.windowLength());
@@ -1180,13 +1195,14 @@ public class Sender implements RsyncTask,MessageHandler
                 sizeLiteral += fv.totalBytes();
                 fileDigest.update(fv.array(), fv.firstOffset(),
                                   fv.totalBytes());
-                fv.setMarkRelativeToStart(fv.windowLength()); // or clearMark()
+                fv.setMarkRelativeToStart(fv.windowLength());
                 fv.slide(fv.windowLength());
             } else {
                 fv.slide(1);
             }
 
-            if (fv.windowLength() == peerChecksum.header().blockLength()) { // i.e. not at the end of the file
+            // i.e. not at the end of the file
+            if (fv.windowLength() == peerChecksum.header().blockLength()) {
                 rolling = Rolling.add(rolling, fv.valueAt(fv.endOffset()));
             }
         }
@@ -1234,7 +1250,8 @@ public class Sender implements RsyncTask,MessageHandler
     private void sendIntMessage(MessageCode code, int value)
         throws ChannelException
     {
-        ByteBuffer payload = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer payload =
+                ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
         payload.putInt(0, value);
         Message message = new Message(code, payload);
         _duplexChannel.putMessage(message);
@@ -1262,7 +1279,8 @@ public class Sender implements RsyncTask,MessageHandler
 
     private Path getLocalPathOf(FileInfo fileInfo)
     {
-        String pathName = _characterDecoder.decodeOrNull(fileInfo.pathNameBytes());
+        String pathName =
+                _characterDecoder.decodeOrNull(fileInfo.pathNameBytes());
         if (pathName == null) {
             throw new RuntimeException(String.format(
                 "unable to decode path name of %s using %s",
@@ -1279,11 +1297,13 @@ public class Sender implements RsyncTask,MessageHandler
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("reading final messages until EOF");
             }
-            byte dummy = _duplexChannel.getByte(); // dummy read to get any final messages from peer
-            // we're not expected to get this far, getByte should throw NetworkEOFException
-            throw new RsyncProtocolException(
-                String.format("Peer sent invalid data during connection tear " +
-                              "down (%d)", dummy));
+            // dummy read to get any final messages from peer
+            byte dummy = _duplexChannel.getByte();
+            // we're not expected to get this far, getByte should throw
+            // NetworkEOFException
+            throw new RsyncProtocolException(String.format(
+                    "Peer sent invalid data during connection tear down (%d)",
+                    dummy));
         } catch (ChannelEOFException e) {
             // It's OK, we expect EOF without having received any data
         }
