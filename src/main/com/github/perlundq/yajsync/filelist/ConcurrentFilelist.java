@@ -24,9 +24,10 @@ import java.util.concurrent.ConcurrentSkipListMap;
 
 public class ConcurrentFilelist extends Filelist
 {
-    public ConcurrentFilelist(boolean isRecursive)
+    public ConcurrentFilelist(boolean isRecursive, boolean isPruneDuplicates)
     {
         super(isRecursive,
+              isPruneDuplicates,
               Collections.synchronizedList(new ArrayList<Segment>()));
     }
 

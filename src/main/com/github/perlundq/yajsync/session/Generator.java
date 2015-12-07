@@ -192,7 +192,9 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     {
         _checksumSeed = builder._checksumSeed;
         _fileSelection = builder._fileSelection;
-        _fileList = new ConcurrentFilelist(_fileSelection == FileSelection.RECURSE);
+        _fileList =
+                new ConcurrentFilelist(_fileSelection == FileSelection.RECURSE,
+                                       true);
         _senderOutChannel = new RsyncOutChannel(builder._out,
                                                 OUTPUT_CHANNEL_BUF_SIZE);
         _characterEncoder = TextEncoder.newStrict(builder._charset);

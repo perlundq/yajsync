@@ -34,8 +34,8 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.logging.Level;
@@ -236,8 +236,8 @@ public final class Sender implements RsyncTask, MessageHandler
     @Override
     public Boolean call() throws ChannelException, InterruptedException
     {
-        Filelist fileList = new Filelist(_fileSelection ==
-                                         FileSelection.RECURSE);
+        Filelist fileList =
+                new Filelist(_fileSelection == FileSelection.RECURSE, false);
         try {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("Sender.transfer:");
@@ -254,7 +254,7 @@ public final class Sender implements RsyncTask, MessageHandler
 
             long t1 = System.currentTimeMillis();
 
-            StatusResult<Set<FileInfo>> expandResult =
+            StatusResult<List<FileInfo>> expandResult =
                     initialExpand(_sourceFiles);
             boolean isInitialListOK = expandResult.isOK();
             Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
@@ -681,10 +681,11 @@ public final class Sender implements RsyncTask, MessageHandler
 
     // NOTE: doesn't do any check of the validity of files or normalization -
     // it's up to the caller to do so, e.g. ServerSessionConfig.parseArguments
-    private StatusResult<Set<FileInfo>> initialExpand(Iterable<Path> files)
+    private StatusResult<List<FileInfo>>
+    initialExpand(Iterable<Path> files)
     {
         boolean isOK = true;
-        Set<FileInfo> fileset = new HashSet<>();
+        List<FileInfo> fileset = new LinkedList<>();
 
         for (Path p : files) {
             try {
@@ -706,37 +707,22 @@ public final class Sender implements RsyncTask, MessageHandler
                         _log.info("skipping directory " + fileInfo);
                     }
                 } else {
-                    boolean isAdded = fileset.add(fileInfo);
-                    if (isAdded) {
+                    if (_log.isLoggable(Level.FINE)) {
+                        _log.fine(String.format("adding %s to segment",
+                                                fileInfo));
+                    }
+                    fileset.add(fileInfo);
+                    if (fileInfo.isDotDir()) {
                         if (_log.isLoggable(Level.FINE)) {
-                            _log.fine(String.format("adding %s to segment",
-                                                    fileInfo));
+                            _log.fine("expanding dot dir " + fileInfo);
                         }
-                        if (fileInfo.isDotDir()) {
-                            if (_log.isLoggable(Level.FINE)) {
-                                _log.fine(String.format("expanding dot dir %s",
-                                                        fileInfo));
-                            }
-
-                            StatusResult<List<FileInfo>> expandResult =
-                                    expand(fileInfo);
-                            isOK = isOK && expandResult.isOK();
-                            for (FileInfo f2 : expandResult.value()) {
-                                boolean isAdded2 = fileset.add(f2);
-                                if (!isAdded2) {
-                                    if (_log.isLoggable(Level.WARNING)) {
-                                        _log.warning("pruning duplicate " + f2);
-                                    }
-                                    isOK = false;
-                                }
-                            }
-                            _curSegmentIndex++;
+                        StatusResult<List<FileInfo>> expandResult =
+                                expand(fileInfo);
+                        isOK = isOK && expandResult.isOK();
+                        for (FileInfo f2 : expandResult.value()) {
+                            fileset.add(f2);
                         }
-                    } else {
-                        if (_log.isLoggable(Level.WARNING)) {
-                            _log.warning("pruning duplicate " + fileInfo);
-                        }
-                        isOK = false;
+                        _curSegmentIndex++;
                     }
                 }
             } catch (IOException e) {
@@ -754,8 +740,7 @@ public final class Sender implements RsyncTask, MessageHandler
                 isOK = false;
             }
         }
-
-        return new StatusResult<Set<FileInfo>>(isOK, fileset);
+        return new StatusResult<List<FileInfo>>(isOK, fileset);
     }
 
     private StatusResult<List<FileInfo>> expand(FileInfo directory)
@@ -842,19 +827,9 @@ public final class Sender implements RsyncTask, MessageHandler
             assert _curSegmentIndex >= 0;
             FileInfo directory =
                 fileList.getStubDirectoryOrNull(_curSegmentIndex);
-            // duplicates already removed by us, but native keeps them so we
-            // have "stored" a null reference for that index instead
-            if (directory == null) {
-                if (_log.isLoggable(Level.FINE)) {
-                    _log.fine(String.format("skipping expansion and sending " +
-                                            "of segment index %d (duplicate)",
-                                            _curSegmentIndex));
-                }
-                _curSegmentIndex++;
-                continue;
-            }
-
+            assert directory != null;
             _duplexChannel.encodeIndex(Filelist.OFFSET - _curSegmentIndex);
+
             StatusResult<List<FileInfo>> expandResult = expand(directory);
             boolean isExpandOK = expandResult.isOK();
             if (!isExpandOK && _log.isLoggable(Level.WARNING)) {

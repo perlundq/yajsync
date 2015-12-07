@@ -19,7 +19,6 @@
  */
 package com.github.perlundq.yajsync.filelist;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -106,7 +105,7 @@ public class Filelist
         private long _totalFileSize;
 
         private Segment(FileInfo directory, int dirIndex, List<FileInfo> files,
-                        Map<Integer, FileInfo> map)
+                        Map<Integer, FileInfo> map, boolean isPruneDuplicates)
         {
             assert dirIndex >= -1;
             assert files != null;
@@ -121,14 +120,9 @@ public class Filelist
             FileInfo prev = null;
 
             for (FileInfo f : files) {
-                if (f.equals(prev)) {
+                if (isPruneDuplicates && f.equals(prev)) {
                     if (_log.isLoggable(Level.WARNING)) {
-                        Path prevPath = prev.path();
-                        _log.warning(String.format("skipping \"%s\" - a " +
-                                                   "duplicate of \"%s\" " +
-                                                   "(%s eq %s)",
-                                                   f, prev, f.path(),
-                                                   prevPath));
+                        _log.warning("skipping duplicate " + f.path());
                     }
                 } else {
                     _files.put(index, f);
@@ -262,16 +256,20 @@ public class Filelist
 
     protected final List<Segment> _segments;
     private final boolean _isRecursive;
+    private final boolean _isPruneDuplicates;
     private final SortedMap<Integer, FileInfo> _stubDirectories;
     private int _nextDirIndex;
     private int _stubDirectoryIndex = 0;
     private long _totalFileSize;
     private int _numFiles;
 
-    protected Filelist(boolean isRecursive, List<Segment> segments)
+
+    protected Filelist(boolean isRecursive, boolean isPruneDuplicates,
+                       List<Segment> segments)
     {
         _segments = segments;   // NOTE: should be an ArrayList to ensure fast binarySearch
         _isRecursive = isRecursive;
+        _isPruneDuplicates = isPruneDuplicates;
         if (isRecursive) {
             _stubDirectories = new TreeMap<>();
             _nextDirIndex = 0;
@@ -281,9 +279,9 @@ public class Filelist
         }
     }
 
-    public Filelist(boolean isRecursive)
+    public Filelist(boolean isRecursive, boolean isPruneDuplicates)
     {
-        this(isRecursive, new ArrayList<Segment>());
+        this(isRecursive, isPruneDuplicates, new ArrayList<Segment>());
     }
 
     protected Segment newSegment(SegmentBuilder builder,
@@ -307,7 +305,8 @@ public class Filelist
         Segment segment = new Segment(builder._directory,
                                       _nextDirIndex,
                                       builder._files,
-                                      map);
+                                      map,
+                                      _isPruneDuplicates);
         builder.clear();
         _nextDirIndex = segment._endIndex + 1;
         _segments.add(segment);
