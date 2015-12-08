@@ -452,19 +452,28 @@ public final class Sender implements RsyncTask, MessageHandler
         boolean sentEOF = false;
         ConnectionState connectionState = new ConnectionState();
         int ioError = 0;
-        Filelist.Segment segment = null;
+        Filelist.Segment segment = fileList.firstSegment();
+        int numFilesInTransit = segment.files().size();
 
         while (connectionState.isTransfer()) {
-            // We must send a new segment when we have one segment active
-            // (rather than none) to avoid deadlocking when talking to rsync
-            if (fileList.isExpandable() && fileList.expandedSegments() == 1) {
+            // We must send a new segment when we have at least one segment
+            // active to avoid deadlocking when talking to rsync
+            if (fileList.isExpandable() &&
+                (fileList.expandedSegments() == 1 ||
+                 numFilesInTransit < PARTIAL_FILE_LIST_SIZE / 2))
+            {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
-                            "expanding %s, %d segments in transit",
-                            fileList, fileList.expandedSegments()));
+                            "expanding file list. In transit: %d files, " +
+                            "%d segments", numFilesInTransit,
+                            fileList.expandedSegments()));
                 }
-                boolean isOK = expandAndSendSegments(fileList);
-                if (!isOK) {
+                int lim = Math.max(1, PARTIAL_FILE_LIST_SIZE -
+                                      numFilesInTransit);
+                StatusResult<Integer> res = expandAndSendSegments(fileList,
+                                                                  lim);
+                numFilesInTransit += res.value();
+                if (!res.isOK()) {
                     if (_log.isLoggable(Level.WARNING)) {
                         _log.warning("got I/O error during file list " +
                                      "expansion, notifying peer");
@@ -512,6 +521,7 @@ public final class Sender implements RsyncTask, MessageHandler
                     if (!fileList.isEmpty()) {
                         _duplexChannel.encodeIndex(Filelist.DONE);
                     }
+                    numFilesInTransit -= removed.files().size();
                 }
                 if (_fileSelection != FileSelection.RECURSE ||
                     fileList.isEmpty())
@@ -548,6 +558,7 @@ public final class Sender implements RsyncTask, MessageHandler
                             _log.fine(String.format("Deleting file/dir %s %d",
                                                     removed, index));
                         }
+                        numFilesInTransit--;
                     }
                     sendIndexAndIflags(index, iFlags);
                 } else if (!connectionState.isTearingDown()) {
@@ -809,14 +820,21 @@ public final class Sender implements RsyncTask, MessageHandler
         return new StatusResult<List<FileInfo>>(isOK, fileset);
     }
 
-    private boolean expandAndSendSegments(Filelist fileList)
+    private StatusResult<Integer> expandAndSendSegments(Filelist fileList,
+                                                        int limit)
         throws ChannelException
     {
         boolean isOK = true;
-        int numSent = 0;
+        int numFilesSent = 0;
+        int numSegmentsSent = 0;
         long numBytesWritten = _duplexChannel.numBytesWritten();
 
-        while (fileList.isExpandable() && numSent < PARTIAL_FILE_LIST_SIZE) {
+        if (_log.isLoggable(Level.FINE)) {
+            _log.fine(String.format("expanding segments until at least %d " +
+                                    "files have been sent", limit));
+        }
+
+        while (fileList.isExpandable() && numFilesSent < limit) {
 
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("sending segment index %d (as %d)",
@@ -851,7 +869,7 @@ public final class Sender implements RsyncTask, MessageHandler
 
             for (FileInfo fileInfo : segment.files()) {
                 sendFileMetaData(fileInfo);
-                numSent++;
+                numFilesSent++;
             }
 
             if (isExpandOK) {
@@ -862,18 +880,19 @@ public final class Sender implements RsyncTask, MessageHandler
                 isOK = false;
                 sendFileListErrorNotification();
             }
-
             _curSegmentIndex++;
+            numSegmentsSent++;
         }
 
         long segmentSize = _duplexChannel.numBytesWritten() - numBytesWritten;
         _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
 
         if (_log.isLoggable(Level.FINE)) {
-            _log.fine(String.format("sent meta data for %d files", numSent));
+            _log.fine(String.format("sent meta data for %d segments and %d " +
+                                    "files", numSegmentsSent, numFilesSent));
         }
 
-        return isOK;
+        return new StatusResult<Integer>(isOK, numFilesSent);
     }
 
     // flist.c:send_file_entry

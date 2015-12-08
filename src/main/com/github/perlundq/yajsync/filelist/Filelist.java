@@ -364,6 +364,11 @@ public class Filelist
         return sb.toString();
     }
 
+    public Segment firstSegment()
+    {
+        return _segments.get(0);
+    }
+
     // NOTE: fileIndex may be directoryIndex too
     // sender receiver generator
     public Segment getSegmentWith(int index)
