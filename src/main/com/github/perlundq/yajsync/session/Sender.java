@@ -175,7 +175,7 @@ public final class Sender implements RsyncTask, MessageHandler
         Logger.getLogger(Sender.class.getName());
     private static final int INPUT_CHANNEL_BUF_SIZE = 8 * 1024;
     private static final int OUTPUT_CHANNEL_BUF_SIZE = 8 * 1024;
-    private static final int PARTIAL_FILE_LIST_SIZE = 500;
+    private static final int PARTIAL_FILE_LIST_SIZE = 1024;
     private static final int CHUNK_SIZE = 8 * 1024;
 
     private final AutoFlushableRsyncDuplexChannel _duplexChannel;
