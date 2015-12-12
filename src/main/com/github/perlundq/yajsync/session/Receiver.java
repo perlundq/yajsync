@@ -1106,10 +1106,8 @@ public class Receiver implements RsyncTask, MessageHandler
                     _generator.sendMessage(MessageCode.ERROR, e.getMessage());
                 }
             }
-            /* NOTE: we must keep the file regardless of any errors, or else
-             * we'll have mismatching file list with sender */
             if (fileInfo == null) {
-                fileInfo = new FileInfo(null, null, pathNameBytes, attrs);
+                fileInfo = FileInfo.newUntransferrable(pathNameBytes, attrs);
             }
             builder.add(fileInfo);
         }

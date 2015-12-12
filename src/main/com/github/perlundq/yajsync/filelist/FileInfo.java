@@ -62,6 +62,14 @@ public class FileInfo implements Comparable<FileInfo>
         _attrs = attrs;
     }
 
+    // the Receiver must keep all files received from the sender regardless of
+    // any errors to ensure it has a matching file list with the sender
+    public static FileInfo newUntransferrable(byte[] pathNameBytes,
+                                              RsyncFileAttributes attrs)
+    {
+        return new FileInfo(null, null, pathNameBytes, attrs);
+    }
+
     /**
      *  not consistent with equals when using windows
      *  i.e. compareTo result != 0 and equals true is possible,
