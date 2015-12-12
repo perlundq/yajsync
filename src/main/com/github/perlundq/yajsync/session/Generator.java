@@ -306,6 +306,8 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     public void purgeFile(final Filelist.Segment segment, final int index)
         throws InterruptedException
     {
+        assert segment != null;
+
         Job j = new Job() {
             @Override
             public void process() throws ChannelException {
@@ -351,6 +353,8 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     // used for sending empty filter rules only
     public void sendBytes(final ByteBuffer buf) throws InterruptedException
     {
+        assert buf != null;
+
         Job j = new Job() {
             @Override
             public void process() throws ChannelException {
@@ -371,6 +375,9 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     public void sendMessage(final MessageCode code, final String text)
         throws InterruptedException
     {
+        assert code != null;
+        assert text != null;
+
         final ByteBuffer payload =
             ByteBuffer.wrap(_characterEncoder.encode(text));
         final Message message = new Message(code, payload);
@@ -401,6 +408,8 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     public void generateSegment(final Filelist.Segment segment)
         throws InterruptedException
     {
+        assert segment != null;
+
         Job j = new Job() {
             @Override
             public void process() throws ChannelException {
@@ -433,6 +442,10 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                              final FileInfo fileInfo)
         throws InterruptedException
     {
+        assert segment != null;
+        assert fileInfo != null;
+        assert fileInfo.isTransferrable();
+
         Job j = new Job() {
             @Override
             public void process() throws ChannelException {
@@ -491,6 +504,8 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     // NOTE: no error if dir already exists
     private void mkdir(FileInfo dir) throws IOException
     {
+        assert dir != null;
+        assert dir.isTransferrable();
         if (_log.isLoggable(Level.FINE)) {
             _log.fine("(Generator) creating directory " + dir.pathOrNull());
         }
@@ -634,7 +649,9 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         throws ChannelException,IOException
     {
         assert index >= 0;
-        assert fileInfo != null && fileInfo.attrs().isDirectory();
+        assert fileInfo != null;
+        assert fileInfo.isTransferrable();
+        assert fileInfo.attrs().isDirectory();
 
         if (_log.isLoggable(Level.FINE)) {
             _log.fine("(Generator) generating directory " +
@@ -659,7 +676,9 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         throws ChannelException,IOException
     {
         assert index >= 0;
-        assert fileInfo != null && fileInfo.attrs().isRegularFile();
+        assert fileInfo != null;
+        assert fileInfo.isTransferrable();
+        assert fileInfo.attrs().isRegularFile();
 
         if (_log.isLoggable(Level.FINE)) {
             _log.fine(String.format("(Generator) generating file %s, index %d",
@@ -721,6 +740,10 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                                          int minDigestLength)
         throws ChannelException
     {
+        assert fileInfo != null;
+        assert fileInfo.isTransferrable();
+        assert curAttrs != null;
+
         long currentSize = curAttrs.size();
         int blockLength = getBlockLengthFor(currentSize);
 //        int blockLength = getCompatibleBlockLengthFor(currentSize);
@@ -781,6 +804,8 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                                      RsyncFileAttributes targetAttrs)
         throws IOException
     {
+        assert path != null;
+        assert targetAttrs != null;
         if (_isPreservePermissions && (curAttrs == null ||
                                        curAttrs.mode() != targetAttrs.mode())) {
             if (_log.isLoggable(Level.FINE)) {
@@ -847,6 +872,9 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                                           final RsyncFileAttributes curAttrs,
                                           final RsyncFileAttributes targetAttrs)
     {
+        assert path != null;
+        assert targetAttrs != null;
+
         Runnable j = new Runnable() {
             @Override
             public void run() {
@@ -871,6 +899,8 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                                 int digestLength)
         throws ChannelException
     {
+        assert fileInfo != null;
+        assert fileInfo.isTransferrable();
         // NOTE: native opens the file first though even if its file size is zero
         if (isDataModified(fileInfo.attrs(), curAttrs) || _isIgnoreTimes) {
             if (curAttrs == null) {
@@ -906,6 +936,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private char itemizeFlags(RsyncFileAttributes curAttrs,
                               RsyncFileAttributes targetAttrs)
     {
+        assert targetAttrs != null;
         if (curAttrs == null) {
             return Item.IS_NEW;
         }
@@ -935,6 +966,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                                  char iMask)
         throws ChannelException
     {
+        assert targetAttrs != null;
         char iFlags = (char) (iMask | itemizeFlags(curAttrs, targetAttrs));
         if (_log.isLoggable(Level.FINE)) {
             _log.fine("(Generator) sending itemizeFlags=" + (int) iFlags);
@@ -948,6 +980,8 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                                   RsyncFileAttributes curAttrs)
         throws ChannelException,IOException
     {
+        assert fileInfo != null;
+        assert fileInfo.isTransferrable();
         if (curAttrs == null) {
             sendItemizeInfo(index, curAttrs, fileInfo.attrs(),
                             Item.LOCAL_CHANGE);
@@ -967,6 +1001,8 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                                               RsyncFileAttributes existingAttrs)
         throws IOException
     {
+        assert fileInfo != null;
+        assert fileInfo.isTransferrable();
         if (existingAttrs != null &&
             existingAttrs.fileType() != fileInfo.attrs().fileType()) {
             // TODO: BUG: this won't properly delete non-empty directories
