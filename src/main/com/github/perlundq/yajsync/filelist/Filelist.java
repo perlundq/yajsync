@@ -352,8 +352,10 @@ public class Filelist
                                 isExpandable()));
 
         for (Segment s : _segments) {
-            String pathName = s._directory == null ? "-"
-                                                   : s._directory.pathOrNull().toString();
+            String pathName = (s._directory == null ||
+                               s._directory.pathOrNull() == null)
+                    ? "-"
+                    : s._directory.pathOrNull().toString();
             sb.append(", ").
                append(String.format("segment(%d, %s)",
                                     s.directoryIndex(),
