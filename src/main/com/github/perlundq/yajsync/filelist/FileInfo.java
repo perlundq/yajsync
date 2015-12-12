@@ -32,8 +32,8 @@ import com.github.perlundq.yajsync.text.Text;
  */
 public class FileInfo implements Comparable<FileInfo>
 {
-    private final Path _path;                                                   // full path to file
-    private final Path _normalizedPath;                                         // normalized relative path to receiver destination directory
+    private final Path _pathOrNull;                                             // full path to file
+    private final Path _normalizedPathOrNull;                                   // normalized relative path to receiver destination directory
     private final byte[] _pathNameBytes;                                        // name of relative path to receiver destination (in bytes)
     private final RsyncFileAttributes _attrs;
 
@@ -41,8 +41,8 @@ public class FileInfo implements Comparable<FileInfo>
      * @throws IllegalArgumentException if file has a trailing slash but is not
      *         a directory
      */
-    public FileInfo(Path path, Path normalizedPath, byte[] pathNameBytes,
-                    RsyncFileAttributes attrs)
+    public FileInfo(Path pathOrNull, Path normalizedPathOrNull,
+                    byte[] pathNameBytes, RsyncFileAttributes attrs)
     {
         assert pathNameBytes != null && pathNameBytes.length > 0;
         assert attrs != null;
@@ -52,10 +52,10 @@ public class FileInfo implements Comparable<FileInfo>
         if (isTrailingSlash && !attrs.isDirectory()) {
             throw new IllegalArgumentException(String.format(
                 "%s has a trailing slash but is not a directory (path=%s, " +
-                "attrs=%s)", Text.bytesToString(pathNameBytes), path, attrs));
+                "attrs=%s)", Text.bytesToString(pathNameBytes), pathOrNull, attrs));
         }
-        _path = path;
-        _normalizedPath = normalizedPath;
+        _pathOrNull = pathOrNull;
+        _normalizedPathOrNull = normalizedPathOrNull;
         _pathNameBytes = !isTrailingSlash && attrs.isDirectory() // we could possibly make a defensive copy of it since it's mutable, on the other hand we'd just try not to modify it instead
                              ? addSlash(pathNameBytes)
                              : pathNameBytes;
@@ -82,7 +82,7 @@ public class FileInfo implements Comparable<FileInfo>
     public String toString()
     {
         return String.format("%s (attrs=%s, path=%s)",
-                             getClass().getSimpleName(), _attrs, _path);
+                             getClass().getSimpleName(), _attrs, _pathOrNull);
     }
 
     // two FileInfo instances are considered equal if the resulting real path is
@@ -93,10 +93,12 @@ public class FileInfo implements Comparable<FileInfo>
     {
         if (other != null && getClass() == other.getClass()) {
             FileInfo otherFile = (FileInfo) other;
-            if (_normalizedPath == null || otherFile._normalizedPath == null) {
-                return _normalizedPath == otherFile._normalizedPath;
+            if (_normalizedPathOrNull == null ||
+                otherFile._normalizedPathOrNull == null)
+            {
+                return _normalizedPathOrNull == otherFile._normalizedPathOrNull;
             }
-            return _normalizedPath.equals(otherFile._normalizedPath);
+            return _normalizedPathOrNull.equals(otherFile._normalizedPathOrNull);
         } else {
             return false;
         }
@@ -105,7 +107,7 @@ public class FileInfo implements Comparable<FileInfo>
     @Override
     public int hashCode()
     {
-        return Objects.hash(_normalizedPath);
+        return Objects.hash(_normalizedPathOrNull);
     }
 
     public RsyncFileAttributes attrs()
@@ -119,9 +121,9 @@ public class FileInfo implements Comparable<FileInfo>
     }
 
     // NOTE: may be null for receiver/generator, never null for sender
-    public Path path()
+    public Path pathOrNull()
     {
-        return _path;
+        return _pathOrNull;
     }
 
     /**
@@ -137,7 +139,7 @@ public class FileInfo implements Comparable<FileInfo>
 
     public boolean isTransferrable()
     {
-        return _path != null;
+        return _pathOrNull != null;
     }
 
     private static byte[] addSlash(byte[] pathNameBytes)

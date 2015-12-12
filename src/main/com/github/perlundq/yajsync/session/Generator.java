@@ -449,7 +449,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                         _log.warning(String.format(
                             "(Generator) failed to generate file meta data " +
                             "for %s (index %d): %s",
-                            fileInfo.path(), fileIndex, e.getMessage()));
+                            fileInfo.pathOrNull(), fileIndex, e.getMessage()));
                     }
                     _returnStatus++;
                 }
@@ -459,7 +459,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             public String toString()
             {
                 return String.format("generateFile (%s, %d, %s)",
-                                     segment, fileIndex, fileInfo.path());
+                                     segment, fileIndex, fileInfo.pathOrNull());
             }
         };
         appendJob(j);
@@ -492,13 +492,14 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private void mkdir(FileInfo dir) throws IOException
     {
         if (_log.isLoggable(Level.FINE)) {
-            _log.fine("(Generator) creating directory " + dir.path());
+            _log.fine("(Generator) creating directory " + dir.pathOrNull());
         }
-        RsyncFileAttributes attrs = RsyncFileAttributes.statOrNull(dir.path());
+        RsyncFileAttributes attrs =
+                RsyncFileAttributes.statOrNull(dir.pathOrNull());
         if (attrs == null) {
-            Files.createDirectories(dir.path());
+            Files.createDirectories(dir.pathOrNull());
         }
-        deferUpdateAttrsIfDiffer(dir.path(), attrs, dir.attrs());
+        deferUpdateAttrsIfDiffer(dir.pathOrNull(), attrs, dir.attrs());
     }
 
     private int sendChecksumForSegmentFiles(Filelist.Segment segment)
@@ -523,7 +524,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                         sendDirectoryMetadata(index, f);
                     } else {
                         if (_log.isLoggable(Level.FINE)) {
-                            _log.fine("(Generator) Skipping " + f.path());
+                            _log.fine("(Generator) Skipping " + f.pathOrNull());
                         }
                     }
                 }
@@ -534,7 +535,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 if (_log.isLoggable(Level.WARNING)) {
                     _log.warning(String.format(
                         "(Generator) failed to generate file %s (index %d): %s",
-                        f.path(), index, e.getMessage()));
+                        f.pathOrNull(), index, e.getMessage()));
                 }
                 numErrors++;
             }
@@ -613,7 +614,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 _log.warning(String.format(
                     "(Generator) failed to generate files below dir %s " +
                     "(index %d): %s",
-                    dir.path(), dirIndex, e.getMessage()));
+                    dir.pathOrNull(), dirIndex, e.getMessage()));
             }
             segment.removeAll();
             _returnStatus++;
@@ -636,12 +637,15 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         assert fileInfo != null && fileInfo.attrs().isDirectory();
 
         if (_log.isLoggable(Level.FINE)) {
-            _log.fine("(Generator) generating directory " + fileInfo.path());
+            _log.fine("(Generator) generating directory " +
+                      fileInfo.pathOrNull());
         }
-
+        // null if file does not exist; throws IOException on any other error
         RsyncFileAttributes existingAttrs =
-            RsyncFileAttributes.statIfExists(fileInfo.path());                  // value: null if file does not exist else non-null, throws IOException for other errors
-        boolean isRemoved = removeExistingIfDifferentType(fileInfo, existingAttrs); // throws IOException if fails to remove existing
+            RsyncFileAttributes.statIfExists(fileInfo.pathOrNull());
+        // throws IOException if it fails to remove existing
+        boolean isRemoved = removeExistingIfDifferentType(fileInfo,
+                                                          existingAttrs);
         if (isRemoved) {
             existingAttrs = null;
         }
@@ -659,12 +663,14 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
 
         if (_log.isLoggable(Level.FINE)) {
             _log.fine(String.format("(Generator) generating file %s, index %d",
-                                    fileInfo.path(), index));
+                                    fileInfo.pathOrNull(), index));
         }
-
+        // null if file does not exist; throws IOException on any other error
         RsyncFileAttributes existingAttrs =
-            RsyncFileAttributes.statIfExists(fileInfo.path());              // value: null if file does not exist else non-null, throws IOException for other errors
-        boolean isRemoved = removeExistingIfDifferentType(fileInfo, existingAttrs); // throws IOException if fails to remove existing
+            RsyncFileAttributes.statIfExists(fileInfo.pathOrNull());
+        // throws IOException if fails to remove existing
+        boolean isRemoved = removeExistingIfDifferentType(fileInfo,
+                                                          existingAttrs);
         if (isRemoved) {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("(Generator) removed existing file of different " +
@@ -723,11 +729,11 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                            ? Math.max(minDigestLength,
                                       getDigestLength(currentSize, blockLength))
                            : 0;
-
-        try (FileView fv = new FileView(fileInfo.path(),
+        // new FileView() throws FileViewOpenFailed
+        try (FileView fv = new FileView(fileInfo.pathOrNull(),
                                         currentSize,
                                         blockLength,
-                                        windowLength)) {   // throws FileViewOpenFailed
+                                        windowLength)) {
 
             Checksum.Header header = new Checksum.Header(blockLength,
                                                          digestLength,
@@ -883,12 +889,14 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         }
 
         try {
-            updateAttrsIfDiffer(fileInfo.path(), curAttrs, fileInfo.attrs());
+            updateAttrsIfDiffer(fileInfo.pathOrNull(), curAttrs,
+                                fileInfo.attrs());
         } catch (IOException e) {
             if (_log.isLoggable(Level.WARNING)) {
                 _log.warning(String.format(
                     "(Generator) received I/O error while applying " +
-                    "attributes on %s: %s", fileInfo.path(), e.getMessage()));
+                    "attributes on %s: %s",
+                    fileInfo.pathOrNull(), e.getMessage()));
             }
             _returnStatus++;
         }
@@ -949,7 +957,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 sendItemizeInfo(index, curAttrs, fileInfo.attrs(),
                                 Item.NO_CHANGE);
             }
-            deferUpdateAttrsIfDiffer(fileInfo.path(),
+            deferUpdateAttrsIfDiffer(fileInfo.pathOrNull(),
                                      curAttrs, fileInfo.attrs());
         }
     }
@@ -962,7 +970,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         if (existingAttrs != null &&
             existingAttrs.fileType() != fileInfo.attrs().fileType()) {
             // TODO: BUG: this won't properly delete non-empty directories
-            Files.deleteIfExists(fileInfo.path());
+            Files.deleteIfExists(fileInfo.pathOrNull());
             return true;
         } else {
             return false;

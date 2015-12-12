@@ -690,7 +690,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
                         "Receiving directory index %d is dir %s",
-                        directoryIndex, directory.path()));
+                        directoryIndex, directory.pathOrNull()));
                 }
 
                 List<FileInfoStub> stubs = new LinkedList<>();
@@ -744,7 +744,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 }
 
                 if (_log.isLoggable(Level.INFO)) {
-                    _log.info(fileInfo.path().toString());
+                    _log.info(fileInfo.pathOrNull().toString());
                 }
 
                 _stats.setNumTransferredFiles(_stats.numTransferredFiles() + 1);
@@ -752,7 +752,7 @@ public class Receiver implements RsyncTask, MessageHandler
                                                fileInfo.attrs().size());
 
                 if (isTransferred(index) && _log.isLoggable(Level.FINE)) {
-                    _log.fine("Re-receiving " + fileInfo.path());
+                    _log.fine("Re-receiving " + fileInfo.pathOrNull());
                 }
 
                 Checksum.Header checksumHeader = receiveChecksumHeader();
@@ -762,7 +762,7 @@ public class Receiver implements RsyncTask, MessageHandler
 
                 Path tempFile = null;
                 try {
-                    tempFile = Files.createTempFile(fileInfo.path().getParent(),
+                    tempFile = Files.createTempFile(fileInfo.pathOrNull().getParent(),
                                                     null, null);
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine("created tempfile " + tempFile);
@@ -773,7 +773,7 @@ public class Receiver implements RsyncTask, MessageHandler
                     if (_log.isLoggable(Level.WARNING)) {
                         _log.warning(String.format(
                             "failed to create tempfile in %s: %s",
-                            fileInfo.path().getParent(), e.getMessage()));
+                            fileInfo.pathOrNull().getParent(), e.getMessage()));
                     }
                     discardData(checksumHeader);
                     _senderInChannel.skip(Checksum.MAX_DIGEST_LENGTH);
@@ -819,12 +819,12 @@ public class Receiver implements RsyncTask, MessageHandler
             if (isIdentical) {
                 _log.fine(String.format("%s data received OK (remote and " +
                                         "local checksum is %s)",
-                                        fileInfo.path(),
+                                        fileInfo.pathOrNull(),
                                         MD5.md5DigestToString(md5sum)));
             } else {
                 _log.fine(String.format("%s checksum/size mismatch : " +
                                         "our=%s (size=%d), peer=%s (size=%d)",
-                                        fileInfo.path(),
+                                        fileInfo.pathOrNull(),
                                         MD5.md5DigestToString(md5sum),
                                         tempSize,
                                         MD5.md5DigestToString(peerMd5sum),
@@ -913,12 +913,12 @@ public class Receiver implements RsyncTask, MessageHandler
                 {
                     updateAttrsIfDiffer(resultFile, fileInfo.attrs());
                 }
-                if (!_isDeferWrite || !resultFile.equals(fileInfo.path())) {
+                if (!_isDeferWrite || !resultFile.equals(fileInfo.pathOrNull())) {
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine(String.format("moving %s -> %s",
-                                                resultFile, fileInfo.path()));
+                                                resultFile, fileInfo.pathOrNull()));
                     }
-                    moveTempfileToTarget(resultFile, fileInfo.path());
+                    moveTempfileToTarget(resultFile, fileInfo.pathOrNull());
                 }
             } catch (IOException e) {
                 _ioError |= IoError.GENERAL;
@@ -937,7 +937,7 @@ public class Receiver implements RsyncTask, MessageHandler
                                            String.format("%s (index %d) failed " +
                                                          "verification, update " +
                                                          "discarded\n",
-                                                         fileInfo.path(), index));
+                                                         fileInfo.pathOrNull(), index));
                 } catch (TextConversionException e) {
                     if (_log.isLoggable(Level.SEVERE)) {
                         _log.log(Level.SEVERE, "", e);
@@ -1307,22 +1307,22 @@ public class Receiver implements RsyncTask, MessageHandler
         try (FileChannel outFile = FileChannel.open(tempFile,
                                                     StandardOpenOption.WRITE)) {
             try (FileChannel replica =
-                   FileChannel.open(fileInfo.path(), StandardOpenOption.READ)) {
+                   FileChannel.open(fileInfo.pathOrNull(), StandardOpenOption.READ)) {
                 RsyncFileAttributes attrs =
-                    RsyncFileAttributes.stat(fileInfo.path());
+                    RsyncFileAttributes.stat(fileInfo.pathOrNull());
                 if (attrs.isRegularFile()) {
                     boolean isIntact = combineDataToFile(replica, outFile,
                                                          checksumHeader, md);
                     if (isIntact) {
-                        if (!attrs.equals(RsyncFileAttributes.statOrNull(fileInfo.path()))) {
+                        if (!attrs.equals(RsyncFileAttributes.statOrNull(fileInfo.pathOrNull()))) {
                             if (_log.isLoggable(Level.WARNING)) {
                                 _log.warning(String.format(
                                     "%s modified during verification",
-                                    fileInfo.path()));
+                                    fileInfo.pathOrNull()));
                             }
                             md.update((byte) 0);
                         }
-                        return fileInfo.path();
+                        return fileInfo.pathOrNull();
                     }
                     return tempFile;
                 } // else discard later

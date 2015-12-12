@@ -591,7 +591,7 @@ public final class Sender implements RsyncTask, MessageHandler
 
                     if (_log.isLoggable(Level.FINE)) {
                         if (isTransferred(index)) {
-                            _log.fine("Re-sending " + fileInfo.path());
+                            _log.fine("Re-sending " + fileInfo.pathOrNull());
                         } else {
                             _log.fine("sending " + fileInfo);
                         }
@@ -610,7 +610,7 @@ public final class Sender implements RsyncTask, MessageHandler
                     long fileSize = fileInfo.attrs().size();
 
                     byte[] fileMD5sum = null;
-                    try (FileView fv = new FileView(fileInfo.path(),
+                    try (FileView fv = new FileView(fileInfo.pathOrNull(),
                                                     fileInfo.attrs().size(),
                                                     blockSize,
                                                     blockSize * blockFactor)) {
@@ -657,14 +657,14 @@ public final class Sender implements RsyncTask, MessageHandler
                     if (_log.isLoggable(Level.FINE)) {
                         _log.finer(String.format(
                             "sending checksum for %s: %s",
-                            fileInfo.path(), Text.bytesToString(fileMD5sum)));
+                            fileInfo.pathOrNull(), Text.bytesToString(fileMD5sum)));
                     }
                     _duplexChannel.put(fileMD5sum, 0, fileMD5sum.length);
                     setIsTransferred(index);
 
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine(String.format("sent %s (%d bytes)",
-                                                fileInfo.path(), fileSize));
+                                                fileInfo.pathOrNull(), fileSize));
                     }
 
                     _stats.setNumTransferredFiles(_stats.numTransferredFiles() +
@@ -765,7 +765,7 @@ public final class Sender implements RsyncTask, MessageHandler
         final Path localPart = getLocalPathOf(directory);
 
         try (DirectoryStream<Path> stream =
-                Files.newDirectoryStream(directory.path())) {
+                Files.newDirectoryStream(directory.pathOrNull())) {
 
             for (Path entry : stream) {
                 if (!PathOps.isPathPreservable(entry.getFileName())) {
@@ -813,7 +813,7 @@ public final class Sender implements RsyncTask, MessageHandler
             if (_log.isLoggable(Level.WARNING)) {
                 _log.warning(String.format("Got I/O error during expansion " +
                                            "of %s: %s",
-                                           directory.path(), e.getMessage()));
+                                           directory.pathOrNull(), e.getMessage()));
             }
             isOK = false;
         }
@@ -899,7 +899,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private void sendFileMetaData(FileInfo fileInfo) throws ChannelException
     {
         if (_log.isLoggable(Level.FINE)) {
-            _log.fine("sending meta data for " + fileInfo.path());
+            _log.fine("sending meta data for " + fileInfo.pathOrNull());
         }
 
         boolean preserveLinks = false;
@@ -1281,7 +1281,7 @@ public final class Sender implements RsyncTask, MessageHandler
                 fileInfo, _characterDecoder.charset()));
         }
         Path relativePath = Paths.get(pathName);
-        return PathOps.subtractPath(fileInfo.path(), relativePath);
+        return PathOps.subtractPath(fileInfo.pathOrNull(), relativePath);
     }
 
     // FIXME: code duplication with Receiver, move to Connection?

@@ -64,12 +64,12 @@ public class Filelist
             assert _files != null && _directories != null;
             assert fileInfo != null;
 
-            if (_directory != null && fileInfo.path() != null &&
-                !fileInfo.path().startsWith(_directory.path()))
+            if (_directory != null && fileInfo.pathOrNull() != null &&
+                !fileInfo.pathOrNull().startsWith(_directory.pathOrNull()))
             {
                 throw new IllegalStateException(String.format(
                     "%s should be a path prefix to: %s",
-                    _directory.path(), fileInfo.path()));
+                    _directory.pathOrNull(), fileInfo.pathOrNull()));
             }
             _files.add(fileInfo);
             // NOTE: we store the directory in the builder regardless if we're
@@ -122,7 +122,7 @@ public class Filelist
             for (FileInfo f : files) {
                 if (isPruneDuplicates && f.equals(prev)) {
                     if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning("skipping duplicate " + f.path());
+                        _log.warning("skipping duplicate " + f.pathOrNull());
                     }
                 } else {
                     _files.put(index, f);
@@ -146,7 +146,7 @@ public class Filelist
             sb.append(String.format(
                 "%s [%s, dirIndex=%d, fileIndices=%d:%d, size=%d/%d]",
                 getClass().getSimpleName(),
-                _directory != null ? _directory.path() : "-",
+                _directory != null ? _directory.pathOrNull() : "-",
                 _dirIndex,
                 _dirIndex + 1,
                 _endIndex,
@@ -156,7 +156,7 @@ public class Filelist
             if (_log.isLoggable(Level.FINEST)) {
                 for (Map.Entry<Integer, FileInfo> e : _files.entrySet()) {
                     sb.append("   ").
-                    append(e.getValue().path()).
+                    append(e.getValue().pathOrNull()).
                     append(", ").
                     append(e.getKey()).
                     append(Environment.PATH_SEPARATOR);
@@ -352,7 +352,7 @@ public class Filelist
 
         for (Segment s : _segments) {
             String pathName = s._directory == null ? "-"
-                                                   : s._directory.path().toString();
+                                                   : s._directory.pathOrNull().toString();
             sb.append(", ").
                append(String.format("segment(%d, %s)",
                                     s.directoryIndex(),
