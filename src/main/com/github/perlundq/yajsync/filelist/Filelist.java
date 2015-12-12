@@ -65,7 +65,8 @@ public class Filelist
             assert fileInfo != null;
 
             if (_directory != null && fileInfo.pathOrNull() != null &&
-                !fileInfo.pathOrNull().startsWith(_directory.pathOrNull()))
+                (_directory.pathOrNull() == null ||
+                 !fileInfo.pathOrNull().startsWith(_directory.pathOrNull())))
             {
                 throw new IllegalStateException(String.format(
                     "%s should be a path prefix to: %s",
