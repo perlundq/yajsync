@@ -787,15 +787,16 @@ public class Receiver implements RsyncTask, MessageHandler
                     matchData(segment, index, fileInfo, checksumHeader,
                               tempFile);
                 } catch (IOException e) {
-                    if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning(String.format(
+                    String msg = String.format(
                             "failed to create tempfile in %s: %s",
-                            fileInfo.pathOrNull().getParent(), e.getMessage()));
+                            fileInfo.pathOrNull().getParent(), e.getMessage());
+                    if (_log.isLoggable(Level.SEVERE)) {
+                        _log.severe(msg);
                     }
+                    _generator.sendMessage(MessageCode.IO_ERROR, msg);
                     discardData(checksumHeader);
                     _senderInChannel.skip(Checksum.MAX_DIGEST_LENGTH);
                     _ioError |= IoError.GENERAL;
-                    // TODO: send error message to peer
                     _generator.purgeFile(segment, index);
                 } finally {
                     try {
@@ -807,10 +808,10 @@ public class Receiver implements RsyncTask, MessageHandler
                             Files.deleteIfExists(tempFile);
                         }
                     } catch (IOException e) {
-                        if (_log.isLoggable(Level.WARNING)) {
-                            _log.warning(String.format(
-                                "Warning: failed to remove tempfile %s: %s",
-                                tempFile, e.getMessage()));
+                        if (_log.isLoggable(Level.SEVERE)) {
+                            _log.severe(String.format(
+                                    "failed to remove tempfile %s: %s",
+                                    tempFile, e.getMessage()));
                         }
                     }
                 }
@@ -852,13 +853,16 @@ public class Receiver implements RsyncTask, MessageHandler
     }
 
     private void moveTempfileToTarget(Path tempFile, Path target)
+            throws InterruptedException
     {
         boolean isOK = FileOps.atomicMove(tempFile, target);
         if (!isOK) {
-            if (_log.isLoggable(Level.WARNING)) {
-                _log.warning(String.format("Error: when moving temporary file" +
-                                           " %s to %s", tempFile, target));
+            String msg = String.format("Error: when moving temporary file %s " +
+                                       "to %s", tempFile, target);
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.severe(msg);
             }
+            _generator.sendMessage(MessageCode.IO_ERROR, msg);
             _ioError |= IoError.GENERAL;
         }
     }
@@ -1326,7 +1330,7 @@ public class Receiver implements RsyncTask, MessageHandler
                                              Path tempFile,
                                              Checksum.Header checksumHeader,
                                              MessageDigest md)
-                                             throws ChannelException
+            throws ChannelException, InterruptedException
     {
         assert fileInfo != null;
         assert tempFile != null;
@@ -1345,11 +1349,16 @@ public class Receiver implements RsyncTask, MessageHandler
                                                          checksumHeader, md);
                     if (isIntact) {
                         Path p = fileInfo.pathOrNull();
-                        if (!attrs.equals(RsyncFileAttributes.statOrNull(p))) {
+                        RsyncFileAttributes attrs2 =
+                                RsyncFileAttributes.statOrNull(p);
+                        if (!attrs.equals(attrs2)) {
+                            String msg = String.format(
+                                    "%s modified during verification " +
+                                    "(%s != %s)", p, attrs, attrs2);
                             if (_log.isLoggable(Level.WARNING)) {
-                                _log.warning(String.format(
-                                    "%s modified during verification", p));
+                                _log.warning(msg);
                             }
+                            _generator.sendMessage(MessageCode.WARNING, msg);
                             md.update((byte) 0);
                         }
                         return fileInfo.pathOrNull();
