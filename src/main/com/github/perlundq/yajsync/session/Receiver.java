@@ -290,15 +290,18 @@ public class Receiver implements RsyncTask, MessageHandler
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("empty file list - exiting early");
                 }
-                // NOTE: we never _receive_ any statistics if initial file list is empty
+                // NOTE: we never _receive_ any statistics if initial file list
+                // is empty
                 if (_isExitAfterEOF) {
                     readAllMessagesUntilEOF();
                 }
                 return _ioError == 0;
             }
 
-            Path targetPath = PathOps.get(_targetPathName);                     // throws InvalidPathException
-            _pathResolver = getPathResolver(targetPath, stubs);                 // throws PathResolverException
+            // throws InvalidPathException
+            Path targetPath = PathOps.get(_targetPathName);
+            // throws PathResolverException
+            _pathResolver = getPathResolver(targetPath, stubs);
             if (_log.isLoggable(Level.FINER)) {
                 _log.finer("Path Resolver: " + _pathResolver.toString());
             }
@@ -332,10 +335,10 @@ public class Receiver implements RsyncTask, MessageHandler
             return _ioError == 0;
         } catch (RuntimeInterruptException e) {
             throw new InterruptedException();
-        } catch (InvalidPathException e) { // Paths.get
+        } catch (InvalidPathException e) {
             throw new RsyncException(String.format(
                 "illegal target path name %s: %s", _targetPathName, e));
-        } catch (PathResolverException e) { // getPathResolver
+        } catch (PathResolverException e) {
             throw new RsyncException(e);
         } finally {
             _generator.stop();
@@ -409,8 +412,9 @@ public class Receiver implements RsyncTask, MessageHandler
         throws PathResolverException
     {
         try {
+            // throws IOException
             RsyncFileAttributes attrs =
-                RsyncFileAttributes.statIfExists(targetPath);                   // throws IOException
+                RsyncFileAttributes.statIfExists(targetPath);
 
             boolean isTargetExisting = attrs != null;
             boolean isTargetExistingDir =
@@ -434,9 +438,10 @@ public class Receiver implements RsyncTask, MessageHandler
                 _log.finest(stubs.toString());
             }
 
+            // -> targetPath
             if (isSourceSingleFile && isTargetNonExistingFile ||
                 isSourceSingleFile && isTargetExistingFile)
-            {                                                                       // -> targetPath
+            {
                 return new PathResolver() {
                     @Override public Path relativePathOf(String pathName) {
                         return Paths.get(stubs.get(0)._pathName);
@@ -449,7 +454,8 @@ public class Receiver implements RsyncTask, MessageHandler
                     }
                 };
             }
-            if (isTargetExistingDir || !isTargetExisting) {                         // -> targetPath/*
+            // -> targetPath/*
+            if (isTargetExistingDir || !isTargetExisting) {
                 if (!isTargetExisting) {
                     if (_log.isLoggable(Level.FINER)) {
                         _log.finer("creating directory (with parents) " +
@@ -459,7 +465,8 @@ public class Receiver implements RsyncTask, MessageHandler
                 }
                 return new PathResolver() {
                     @Override public Path relativePathOf(String pathName) {
-                        Path relativePath = Paths.get(pathName);                    // throws InvalidPathException
+                        // throws InvalidPathException
+                        Path relativePath = Paths.get(pathName);
                         if (relativePath.isAbsolute()) {
                             throw new RsyncSecurityException(relativePath +
                                 " is absolute");
@@ -484,7 +491,9 @@ public class Receiver implements RsyncTask, MessageHandler
                 };
             }
 
-            if (isTargetExisting && !attrs.isDirectory() && !attrs.isRegularFile()) {
+            if (isTargetExisting && !attrs.isDirectory() &&
+                !attrs.isRegularFile())
+            {
                 throw new PathResolverException(String.format(
                     "refusing to overwrite existing target path %s which is " +
                     "neither a file nor a directory (%s)", targetPath, attrs));
@@ -575,10 +584,13 @@ public class Receiver implements RsyncTask, MessageHandler
         try {
             MessageCode msgType = message.header().messageType();
             if (msgType.equals(MessageCode.ERROR_XFER)) {
-                _ioError |= IoError.TRANSFER;                        // this is not what native does though - it stores it in a separate variable called got_xfer_error
+                // rsync stores the error a separate variable called
+                // got_xfer_error
+                _ioError |= IoError.TRANSFER;
             }
             if (_log.isLoggable(message.logLevelOrNull())) {
-                String text = _characterDecoder.decode(message.payload());      // throws TextConversionException
+                // throws TextConversionException
+                String text = _characterDecoder.decode(message.payload());
                 _log.log(message.logLevelOrNull(),
                          String.format("<SENDER> %s: %s",
                                        msgType, Text.stripLast(text)));
@@ -631,7 +643,9 @@ public class Receiver implements RsyncTask, MessageHandler
             }
 
             if (index == Filelist.DONE) {
-                if (_fileSelection != FileSelection.RECURSE && !fileList.isEmpty()) {
+                if (_fileSelection != FileSelection.RECURSE &&
+                    !fileList.isEmpty())
+                {
                     throw new IllegalStateException(
                         "received file list DONE when not recursive and file " +
                         "list is not empty: " + fileList);
@@ -704,8 +718,8 @@ public class Receiver implements RsyncTask, MessageHandler
             } else if (index >= 0) {
                 if (_isListOnly) {
                     throw new RsyncProtocolException(String.format(
-                        "Error: received file index %d when listing files " +
-                        "only", index));
+                        "Error: received file index %d when listing files only",
+                        index));
                 }
 
                 final char iFlags = _senderInChannel.getChar();
@@ -717,12 +731,13 @@ public class Receiver implements RsyncTask, MessageHandler
 
                 if ((iFlags & Item.TRANSFER) == 0) {
                     if (_log.isLoggable(Level.FINE)) {
-                        _log.fine("index " + index + " is not a transfer");
+                        _log.fine(String.format(
+                                "index %d is not a transfer", index));
                     }
                     continue;
                 }
 
-                if (connectionState.isTearingDown()) { // NOTE: Originally was:  if (atTearDownPhase >= Consts.NUM_TEARDOWN_PHASES - 1) {
+                if (connectionState.isTearingDown()) {
                     throw new RsyncProtocolException(
                         String.format("Error: wrong phase (%s)",
                                       connectionState));
@@ -764,8 +779,8 @@ public class Receiver implements RsyncTask, MessageHandler
 
                 Path tempFile = null;
                 try {
-                    tempFile = Files.createTempFile(fileInfo.pathOrNull().getParent(),
-                                                    null, null);
+                    Path parentDir = fileInfo.pathOrNull().getParent();
+                    tempFile = Files.createTempFile(parentDir, null, null);
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine("created tempfile " + tempFile);
                     }
@@ -862,7 +877,9 @@ public class Receiver implements RsyncTask, MessageHandler
             FileOps.setFileMode(path, targetAttrs.mode(),
                                 LinkOption.NOFOLLOW_LINKS);
         }
-        if (_isPreserveTimes && curAttrs.lastModifiedTime() != targetAttrs.lastModifiedTime()) {
+        if (_isPreserveTimes &&
+            curAttrs.lastModifiedTime() != targetAttrs.lastModifiedTime())
+        {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format(
                     "updating mtime %d -> %d on %s",
@@ -915,10 +932,13 @@ public class Receiver implements RsyncTask, MessageHandler
                 {
                     updateAttrsIfDiffer(resultFile, fileInfo.attrs());
                 }
-                if (!_isDeferWrite || !resultFile.equals(fileInfo.pathOrNull())) {
+                if (!_isDeferWrite ||
+                    !resultFile.equals(fileInfo.pathOrNull()))
+                {
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine(String.format("moving %s -> %s",
-                                                resultFile, fileInfo.pathOrNull()));
+                                                resultFile,
+                                                fileInfo.pathOrNull()));
                     }
                     moveTempfileToTarget(resultFile, fileInfo.pathOrNull());
                 }
@@ -936,10 +956,12 @@ public class Receiver implements RsyncTask, MessageHandler
                 _ioError |= IoError.GENERAL;
                 try {
                     _generator.sendMessage(MessageCode.ERROR_XFER,
-                                           String.format("%s (index %d) failed " +
-                                                         "verification, update " +
-                                                         "discarded\n",
-                                                         fileInfo.pathOrNull(), index));
+                                           String.format(
+                                                   "%s (index %d) failed " +
+                                                   "verification, update " +
+                                                   "discarded\n",
+                                                   fileInfo.pathOrNull(),
+                                                   index));
                 } catch (TextConversionException e) {
                     if (_log.isLoggable(Level.SEVERE)) {
                         _log.log(Level.SEVERE, "", e);
@@ -987,7 +1009,8 @@ public class Receiver implements RsyncTask, MessageHandler
                 if (flags == (TransmitFlags.EXTENDED_FLAGS |
                               TransmitFlags.IO_ERROR_ENDLIST)) {
                     if (!_isSafeFileList) {
-                        throw new RsyncProtocolException("invalid flag " + Integer.toBinaryString(flags));
+                        throw new RsyncProtocolException(
+                               "invalid flag " + Integer.toBinaryString(flags));
                     }
                     ioError |= receiveAndDecodeInt();
                     if (_log.isLoggable(Level.WARNING)) {
@@ -1056,7 +1079,7 @@ public class Receiver implements RsyncTask, MessageHandler
                         _log.log(Level.SEVERE, "", e);
                     }
                 }
-            } else if (!PathOps.isDirectoryStructurePreservable(pathName)) {    // TODO: implement support for user defined mapping of illegal characters
+            } else if (!PathOps.isDirectoryStructurePreservable(pathName)) {
                 ioError |= IoError.GENERAL;
                 try {
                     _generator.sendMessage(MessageCode.ERROR,
@@ -1076,18 +1099,18 @@ public class Receiver implements RsyncTask, MessageHandler
                 try {
                     Path relativePath = _pathResolver.relativePathOf(pathName);
                     Path fullPath = _pathResolver.fullPathOf(relativePath);
-
                     if (_log.isLoggable(Level.FINER)) {
                         _log.finer(String.format(
                                 "relative path: %s, full path: %s",
                                 relativePath, fullPath));
                     }
                     if (PathOps.isPathPreservable(fullPath)) {
+                        // throws IllegalArgumentException but this is avoided
+                        // due to previous checks
                         fileInfo = new FileInfo(fullPath,
                                                 relativePath,
                                                 pathNameBytes,
-                                                attrs);              // throws IllegalArgumentException but this is avoided due to previous checks
-
+                                                attrs);
                         if (_log.isLoggable(Level.FINE)) {
                             _log.fine("Finished receiving " + fileInfo);
                         }
@@ -1189,27 +1212,33 @@ public class Receiver implements RsyncTask, MessageHandler
             if (_fileSelection == FileSelection.RECURSE && isReceiveUserName) {
                 user = receiveUser();
                 _uidUserMap.put(user.uid(), user);
-            } else if (_fileSelection == FileSelection.RECURSE) {  // && !isReceiveUsername where isReceiveUserName is only true once for every new mapping, old ones have been sent previously
+            } else if (_fileSelection == FileSelection.RECURSE) {
+                // && !isReceiveUsername where isReceiveUserName is only true
+                // once for every new mapping, old ones have been sent
+                // previously
                 int uid = receiveUserId();
-                user = _uidUserMap.get(uid);  // Note: _uidUserMap contains a predefined mapping for root
+                // Note: _uidUserMap contains a predefined mapping for root
+                user = _uidUserMap.get(uid);
                 if (user == null) {
                     user = new User("", uid);
                 }
             } else { // if (_fileSelection != FileSelection.RECURSE) {
-                user = receiveIncompleteUser();  // User with uid but no user name. User name mappings are sent in batch after initial file list
+                // User with uid but no user name. User name mappings are sent
+                // in batch after initial file list
+                user = receiveIncompleteUser();
             }
             _fileInfoCache.setPrevUser(user);
         }
-
         if ((xflags & TransmitFlags.SAME_GID) == 0) {
             throw new RsyncProtocolException("TransmitFlags.SAME_GID is " +
                                              "required");
         }
-
+        // throws IllegalArgumentException if fileSize or lastModified is
+        // negative, but we check for this earlier
         RsyncFileAttributes attrs = new RsyncFileAttributes(mode,
                                                             fileSize,
                                                             lastModified,
-                                                            user);      // throws IllegalArgumentException if fileSize or lastModified is negative, but we check for this earlier
+                                                            user);
         return attrs;
     }
 
@@ -1270,7 +1299,6 @@ public class Receiver implements RsyncTask, MessageHandler
         return new User(userName, uid);
     }
 
-    // FIXME: remove me, replace with combineDataToFile
     private void discardData(Checksum.Header checksumHeader)
         throws ChannelException
     {
@@ -1285,7 +1313,8 @@ public class Receiver implements RsyncTask, MessageHandler
                 _senderInChannel.skip(numBytes);
                 sizeLiteral += numBytes;
             } else {
-                final int blockIndex = - (token + 1);  // blockIndex >= 0 && blockIndex <= Integer.MAX_VALUE
+                // blockIndex >= 0 && blockIndex <= Integer.MAX_VALUE
+                final int blockIndex = - (token + 1);
                 sizeMatch += sizeForChecksumBlock(blockIndex, checksumHeader);
             }
         }
@@ -1306,19 +1335,20 @@ public class Receiver implements RsyncTask, MessageHandler
 
         try (FileChannel outFile = FileChannel.open(tempFile,
                                                     StandardOpenOption.WRITE)) {
-            try (FileChannel replica =
-                   FileChannel.open(fileInfo.pathOrNull(), StandardOpenOption.READ)) {
+            try (FileChannel replica = FileChannel.open(
+                    fileInfo.pathOrNull(), StandardOpenOption.READ))
+            {
                 RsyncFileAttributes attrs =
                     RsyncFileAttributes.stat(fileInfo.pathOrNull());
                 if (attrs.isRegularFile()) {
                     boolean isIntact = combineDataToFile(replica, outFile,
                                                          checksumHeader, md);
                     if (isIntact) {
-                        if (!attrs.equals(RsyncFileAttributes.statOrNull(fileInfo.pathOrNull()))) {
+                        Path p = fileInfo.pathOrNull();
+                        if (!attrs.equals(RsyncFileAttributes.statOrNull(p))) {
                             if (_log.isLoggable(Level.WARNING)) {
                                 _log.warning(String.format(
-                                    "%s modified during verification",
-                                    fileInfo.pathOrNull()));
+                                    "%s modified during verification", p));
                             }
                             md.update((byte) 0);
                         }
@@ -1358,10 +1388,10 @@ public class Receiver implements RsyncTask, MessageHandler
             if (token == 0) {
                 break;
             }
-
-            if (token < 0) {  // token correlates to a matching block index
-                final int blockIndex = - (token + 1);  // blockIndex >= 0 && blockIndex <= Integer.MAX_VALUE
-
+            // token correlates to a matching block index
+            if (token < 0) {
+                // blockIndex >= 0 && blockIndex <= Integer.MAX_VALUE
+                final int blockIndex = - (token + 1);
                 if (_log.isLoggable(Level.FINEST)) {
                     _log.finest(String.format("got matching block index %d",
                                               blockIndex));
@@ -1375,10 +1405,11 @@ public class Receiver implements RsyncTask, MessageHandler
                     throw new RsyncProtocolException(String.format(
                         "Received a matching block index from peer %d when we" +
                         " never sent any blocks to peer (checksum " +
-                        "blockLength = %d)",blockIndex, checksumHeader.blockLength()));
+                        "blockLength = %d)",
+                        blockIndex, checksumHeader.blockLength()));
                 } else if (replica == null) {
-                    // or we could alternatively read zeroes from replica and have
-                    // the correct file size in the end?
+                    // or we could alternatively read zeroes from replica and
+                    // have the correct file size in the end?
                     //
                     // i.e. generator sent file info to sender and sender
                     // replies with a match but now our replica is gone
@@ -1388,7 +1419,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 sizeMatch += sizeForChecksumBlock(blockIndex, checksumHeader);
 
                 if (isIntact) {
-                    if (blockIndex == expectedIndex) { // if not identical to previous index we could possible try to see if the checksum are identical as a fallback attempt
+                    if (blockIndex == expectedIndex) {
                         expectedIndex++;
                         continue;
                     }
@@ -1402,7 +1433,7 @@ public class Receiver implements RsyncTask, MessageHandler
                                    outFile, md);
                 }
                 matchReplica(blockIndex, checksumHeader, replica, outFile, md);
-            } else if (token > 0) { // receive non-matched literal data from peer:
+            } else if (token > 0) { // receive literal data from peer:
                 if (isIntact) {
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine(String.format("defer-write disabled since " +
@@ -1421,7 +1452,8 @@ public class Receiver implements RsyncTask, MessageHandler
             }
         }
 
-        if (isIntact && expectedIndex != checksumHeader.chunkCount()) { // rare truncation of multiples of checksum blocks
+        // rare truncation of multiples of checksum blocks
+        if (isIntact && expectedIndex != checksumHeader.chunkCount()) {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("defer-write disabled since " +
                                         "expectedIndex %d != " +
@@ -1535,7 +1567,8 @@ public class Receiver implements RsyncTask, MessageHandler
     private void writeOut(FileChannel outFile, ByteBuffer src)
     {
         try {
-            outFile.write(src); // NOTE: might notably fail due to running out of disk space
+            // NOTE: might notably fail due to running out of disk space
+            outFile.write(src);
             if (src.hasRemaining()) {
                 throw new IllegalStateException(String.format(
                     "truncated write to outFile (%s), returned %d bytes, " +
@@ -1555,8 +1588,10 @@ public class Receiver implements RsyncTask, MessageHandler
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("reading final messages until EOF");
             }
-            byte dummy = _senderInChannel.getByte(); // dummy read to get any final messages from peer
-            // we're not expected to get this far, getByte should throw NetworkEOFException
+            // dummy read to get any final messages from peer
+            byte dummy = _senderInChannel.getByte();
+            // we're not expected to get this far, getByte should throw
+            // NetworkEOFException
             throw new RsyncProtocolException(
                 String.format("Peer sent invalid data during connection tear " +
                               "down (%d)", dummy));
