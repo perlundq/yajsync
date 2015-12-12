@@ -710,7 +710,9 @@ public class Receiver implements RsyncTask, MessageHandler
 
                 final char iFlags = _senderInChannel.getChar();
                 if (!Item.isValidItem(iFlags)) {
-                    throw new IllegalStateException(String.format("got flags %d - not supported"));
+                    throw new IllegalStateException(String.format(
+                            "got flags %s - not supported",
+                            Integer.toBinaryString((int) iFlags)));
                 }
 
                 if ((iFlags & Item.TRANSFER) == 0) {
