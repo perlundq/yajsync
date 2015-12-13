@@ -211,7 +211,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private final FileSelection _fileSelection;
     private final Generator _generator;
     private final Map<Integer, User> _uidUserMap = new HashMap<>();
-    private final RsyncInChannel _senderInChannel;
+    private final RsyncInChannel _in;
     private final Statistics _stats = new Statistics();
     private final String _targetPathName;
     private final TextDecoder _characterDecoder;
@@ -234,9 +234,7 @@ public class Receiver implements RsyncTask, MessageHandler
         _isPreserveTimes = _generator.isPreserveTimes();
         _isPreserveUser = _generator.isPreserveUser();
         _fileSelection = _generator.fileSelection();
-        _senderInChannel = new RsyncInChannel(builder._in,
-                                              this,
-                                              INPUT_CHANNEL_BUF_SIZE);
+        _in = new RsyncInChannel(builder._in, this, INPUT_CHANNEL_BUF_SIZE);
         _targetPathName = builder._targetPathName;
         _characterDecoder = TextDecoder.newStrict(_generator.charset());
     }
@@ -250,7 +248,7 @@ public class Receiver implements RsyncTask, MessageHandler
     @Override
     public void closeChannel() throws ChannelException
     {
-        _senderInChannel.close();
+        _in.close();
     }
 
     @Override
@@ -322,7 +320,7 @@ public class Receiver implements RsyncTask, MessageHandler
                         " %d, Total bytes received: %d",
                         fileList.totalFileSize(),
                         _generator.numBytesWritten(),
-                        _senderInChannel.numBytesRead()));
+                        _in.numBytesRead()));
                 }
             }
 
@@ -621,7 +619,7 @@ public class Receiver implements RsyncTask, MessageHandler
 
     private Checksum.Header receiveChecksumHeader() throws ChannelException
     {
-        return Connection.receiveChecksumHeader(_senderInChannel);
+        return Connection.receiveChecksumHeader(_in);
     }
 
     private void receiveFiles(Filelist fileList, Filelist.Segment firstSegment)
@@ -635,10 +633,10 @@ public class Receiver implements RsyncTask, MessageHandler
         while (connectionState.isTransfer()) {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("num bytes available to read: %d",
-                                        _senderInChannel.numBytesAvailable()));
+                                        _in.numBytesAvailable()));
             }
 
-            final int index = _senderInChannel.decodeIndex();
+            final int index = _in.decodeIndex();
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("Received index %d", index));
             }
@@ -723,7 +721,7 @@ public class Receiver implements RsyncTask, MessageHandler
                         index));
                 }
 
-                final char iFlags = _senderInChannel.getChar();
+                final char iFlags = _in.getChar();
                 if (!Item.isValidItem(iFlags)) {
                     throw new IllegalStateException(String.format(
                             "got flags %s - not supported",
@@ -785,7 +783,7 @@ public class Receiver implements RsyncTask, MessageHandler
         long tempSize = localFile == null ? -1 : FileOps.sizeOf(localFile);
         byte[] md5sum = md.digest();
         byte[] peerMd5sum = new byte[md5sum.length];
-        _senderInChannel.get(ByteBuffer.wrap(peerMd5sum));
+        _in.get(ByteBuffer.wrap(peerMd5sum));
         boolean isIdentical = tempSize == fileInfo.attrs().size() &&
                               Arrays.equals(md5sum, peerMd5sum);
 
@@ -904,7 +902,7 @@ public class Receiver implements RsyncTask, MessageHandler
             }
             _generator.sendMessage(MessageCode.IO_ERROR, msg);
             discardData(checksumHeader);
-            _senderInChannel.skip(Checksum.MAX_DIGEST_LENGTH);
+            _in.skip(Checksum.MAX_DIGEST_LENGTH);
             _ioError |= IoError.GENERAL;
             _generator.purgeFile(segment, index);
         }
@@ -978,7 +976,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private long receiveAndDecodeLong(int minBytes) throws ChannelException
     {
         try {
-            return IntegerCoder.decodeLong(_senderInChannel, minBytes);
+            return IntegerCoder.decodeLong(_in, minBytes);
         } catch (Exception e) {
             throw new ChannelException(e.getMessage());
         }
@@ -991,16 +989,16 @@ public class Receiver implements RsyncTask, MessageHandler
         throws ChannelException
     {
         int ioError = 0;
-        long numBytesRead = _senderInChannel.numBytesRead() -
-                            _senderInChannel.numBytesPrefetched();
+        long numBytesRead = _in.numBytesRead() -
+                            _in.numBytesPrefetched();
 
         while (true) {
-            char flags = (char) (_senderInChannel.getByte() & 0xFF);
+            char flags = (char) (_in.getByte() & 0xFF);
             if (flags == 0) {
                 break;
             }
             if ((flags & TransmitFlags.EXTENDED_FLAGS) != 0) {
-                flags |= (_senderInChannel.getByte() & 0xFF) << 8;
+                flags |= (_in.getByte() & 0xFF) << 8;
                 if (flags == (TransmitFlags.EXTENDED_FLAGS |
                               TransmitFlags.IO_ERROR_ENDLIST)) {
                     if (!_isSafeFileList) {
@@ -1033,8 +1031,8 @@ public class Receiver implements RsyncTask, MessageHandler
             builder.add(stub);
         }
 
-        long segmentSize = _senderInChannel.numBytesRead() -
-                           _senderInChannel.numBytesPrefetched() - numBytesRead;
+        long segmentSize = _in.numBytesRead() -
+                           _in.numBytesPrefetched() - numBytesRead;
         _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
         return ioError;
     }
@@ -1142,19 +1140,19 @@ public class Receiver implements RsyncTask, MessageHandler
     {
         int prefixNumBytes = 0;
         if ((xflags & TransmitFlags.SAME_NAME) != 0) {
-            prefixNumBytes = 0xFF & _senderInChannel.getByte();
+            prefixNumBytes = 0xFF & _in.getByte();
         }
         int suffixNumBytes;
         if ((xflags & TransmitFlags.LONG_NAME) != 0) {
             suffixNumBytes = receiveAndDecodeInt();
         } else {
-            suffixNumBytes = 0xFF & _senderInChannel.getByte();
+            suffixNumBytes = 0xFF & _in.getByte();
         }
 
         byte[] prevFileNameBytes = _fileInfoCache.getPrevFileNameBytes();
         byte[] fileNameBytes = new byte[prefixNumBytes + suffixNumBytes];
         Util.copyArrays(prevFileNameBytes, fileNameBytes, prefixNumBytes);
-        _senderInChannel.get(fileNameBytes, prefixNumBytes, suffixNumBytes);
+        _in.get(fileNameBytes, prefixNumBytes, suffixNumBytes);
         _fileInfoCache.setPrevFileNameBytes(fileNameBytes);
         return fileNameBytes;
     }
@@ -1184,7 +1182,7 @@ public class Receiver implements RsyncTask, MessageHandler
         if ((xflags & TransmitFlags.SAME_MODE) != 0) {
             mode = _fileInfoCache.getPrevMode();
         } else {
-            mode = _senderInChannel.getInt();
+            mode = _in.getInt();
             _fileInfoCache.setPrevMode(mode);
         }
 
@@ -1275,8 +1273,8 @@ public class Receiver implements RsyncTask, MessageHandler
      */
     private String receiveUserName() throws ChannelException
     {
-        int nameLength = 0xFF & _senderInChannel.getByte();
-        ByteBuffer buf = _senderInChannel.get(nameLength);
+        int nameLength = 0xFF & _in.getByte();
+        ByteBuffer buf = _in.get(nameLength);
         String userName = _characterDecoder.decode(buf);
         if (_log.isLoggable(Level.FINER)) {
             _log.finer("received user name " + userName);
@@ -1300,17 +1298,17 @@ public class Receiver implements RsyncTask, MessageHandler
         long sizeLiteral = 0;
         long sizeMatch = 0;
         while (true) {
-            int token = _senderInChannel.getInt();
+            int token = _in.getInt();
             if (token == 0) {
                 break;
             } else if (token > 0) {
                 int numBytes = token;
-                _senderInChannel.skip(numBytes);
+                _in.skip(numBytes);
                 sizeLiteral += numBytes;
             } else {
                 // blockIndex >= 0 && blockIndex <= Integer.MAX_VALUE
                 final int blockIndex = - (token + 1);
-                sizeMatch += sizeForChecksumBlock(blockIndex, checksumHeader);
+                sizeMatch += blockSize(blockIndex, checksumHeader);
             }
         }
         _stats.setTotalLiteralSize(_stats.totalLiteralSize() + sizeLiteral);
@@ -1328,18 +1326,16 @@ public class Receiver implements RsyncTask, MessageHandler
         assert checksumHeader != null;
         assert md != null;
 
-        try (FileChannel outFile = FileChannel.open(tempFile,
-                                                    StandardOpenOption.WRITE)) {
-            try (FileChannel replica = FileChannel.open(
-                    fileInfo.pathOrNull(), StandardOpenOption.READ))
-            {
-                RsyncFileAttributes attrs =
-                    RsyncFileAttributes.stat(fileInfo.pathOrNull());
+        try (FileChannel target = FileChannel.open(tempFile,
+                                                   StandardOpenOption.WRITE)) {
+            Path p = fileInfo.pathOrNull();
+            try (FileChannel replica =
+                    FileChannel.open(p, StandardOpenOption.READ)) {
+                RsyncFileAttributes attrs = RsyncFileAttributes.stat(p);
                 if (attrs.isRegularFile()) {
-                    boolean isIntact = combineDataToFile(replica, outFile,
+                    boolean isIntact = combineDataToFile(replica, target,
                                                          checksumHeader, md);
                     if (isIntact) {
-                        Path p = fileInfo.pathOrNull();
                         RsyncFileAttributes attrs2 =
                                 RsyncFileAttributes.statOrNull(p);
                         if (!attrs.equals(attrs2)) {
@@ -1352,39 +1348,38 @@ public class Receiver implements RsyncTask, MessageHandler
                             _generator.sendMessage(MessageCode.WARNING, msg);
                             md.update((byte) 0);
                         }
-                        return fileInfo.pathOrNull();
+                        return p;
                     }
                     return tempFile;
                 } // else discard later
             } catch (NoSuchFileException e) {  // replica.open
-                combineDataToFile(null, outFile, checksumHeader, md);
+                combineDataToFile(null, target, checksumHeader, md);
                 return tempFile;
             }
-        } catch (IOException e) {        // outFile.open
+        } catch (IOException e) {        // target.open
             // discard below
         }
         discardData(checksumHeader);
         return null;
     }
 
-    // replica may be null
-    private boolean combineDataToFile(FileChannel replica,
-                                      FileChannel outFile,
+    private boolean combineDataToFile(FileChannel replicaOrNull,
+                                      FileChannel target,
                                       Checksum.Header checksumHeader,
                                       MessageDigest md)
         throws IOException, ChannelException
     {
-        assert outFile != null;
+        assert target != null;
         assert checksumHeader != null;
         assert md != null;
 
-        boolean isIntact = _isDeferWrite && replica != null;
+        boolean isDeferrable = _isDeferWrite && replicaOrNull != null;
         long sizeLiteral = 0;
         long sizeMatch = 0;
         int expectedIndex = 0;
 
         while (true) {
-            final int token = _senderInChannel.getInt();
+            final int token = _in.getInt();
             if (token == 0) {
                 break;
             }
@@ -1407,7 +1402,7 @@ public class Receiver implements RsyncTask, MessageHandler
                         " never sent any blocks to peer (checksum " +
                         "blockLength = %d)",
                         blockIndex, checksumHeader.blockLength()));
-                } else if (replica == null) {
+                } else if (replicaOrNull == null) {
                     // or we could alternatively read zeroes from replica and
                     // have the correct file size in the end?
                     //
@@ -1416,61 +1411,74 @@ public class Receiver implements RsyncTask, MessageHandler
                     continue;
                 }
 
-                sizeMatch += sizeForChecksumBlock(blockIndex, checksumHeader);
+                sizeMatch += blockSize(blockIndex, checksumHeader);
 
-                if (isIntact) {
+                if (isDeferrable) {
                     if (blockIndex == expectedIndex) {
                         expectedIndex++;
                         continue;
                     }
                     if (_log.isLoggable(Level.FINE)) {
-                        _log.fine(String.format("defer-write disabled since " +
+                        _log.fine(String.format("defer write disabled since " +
                                                 "%d != %d",
                                                 blockIndex, expectedIndex));
                     }
-                    isIntact = false;
-                    copyBlockRange(expectedIndex, checksumHeader, replica,
-                                   outFile, md);
+                    isDeferrable = false;
+                    for (int i = 0; i < expectedIndex; i++) {
+                        copyFromReplicaAndUpdateDigest(replicaOrNull, i,
+                                                       target, md,
+                                                       checksumHeader);
+                    }
                 }
-                matchReplica(blockIndex, checksumHeader, replica, outFile, md);
+                copyFromReplicaAndUpdateDigest(replicaOrNull, blockIndex,
+                                               target, md, checksumHeader);
             } else if (token > 0) { // receive literal data from peer:
-                if (isIntact) {
+                if (isDeferrable) {
                     if (_log.isLoggable(Level.FINE)) {
-                        _log.fine(String.format("defer-write disabled since " +
+                        _log.fine(String.format("defer write disabled since " +
                                                 "we got literal data %d",
                                                 token));
                     }
-                    isIntact = false;
-                    copyBlockRange(expectedIndex, checksumHeader, replica,
-                                   outFile, md);
+                    isDeferrable = false;
+                    for (int i = 0; i < expectedIndex; i++) {
+                        copyFromReplicaAndUpdateDigest(replicaOrNull, i,
+                                                       target, md,
+                                                       checksumHeader);
+                    }
                 }
                 int length = token;
                 sizeLiteral += length;
-                if (outFile != null) {
-                    copyRemoteBlocks(outFile, length, md);
-                }
+                copyFromPeerAndUpdateDigest(target, length, md);
             }
         }
 
         // rare truncation of multiples of checksum blocks
-        if (isIntact && expectedIndex != checksumHeader.chunkCount()) {
+        if (isDeferrable && expectedIndex != checksumHeader.chunkCount()) {
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format("defer-write disabled since " +
+                _log.fine(String.format("defer write disabled since " +
                                         "expectedIndex %d != " +
                                         "checksumHeader.chunkCount() %d",
                                         expectedIndex,
                                         checksumHeader.chunkCount()));
             }
-            isIntact = false;
-            copyBlockRange(expectedIndex, checksumHeader, replica, outFile, md);
+            isDeferrable = false;
+            for (int i = 0; i < expectedIndex; i++) {
+                copyFromReplicaAndUpdateDigest(replicaOrNull, i,  target, md,
+                                               checksumHeader);
+            }
         }
-        if (isIntact) {
-            verifyBlockRange(expectedIndex, checksumHeader, replica, md);
+        if (isDeferrable) {
+            // expectedIndex == checksumHeader.chunkCount()
+            for (int i = 0; i < expectedIndex; i++) {
+                ByteBuffer replicaBuf = readFromReplica(replicaOrNull, i,
+                                                        checksumHeader);
+                md.update(replicaBuf);
+            }
         }
 
         if (_log.isLoggable(Level.FINE)) {
-            if (_isDeferWrite && replica != null && !isIntact) {
-                _log.fine("deferred write disabled");
+            if (_isDeferWrite && replicaOrNull != null && !isDeferrable) {
+                _log.fine("defer write disabled");
             }
             _log.fine(String.format("total bytes = %d, num matched bytes = " +
                                     "%d, num literal bytes = %d, %f%% match",
@@ -1481,99 +1489,86 @@ public class Receiver implements RsyncTask, MessageHandler
         }
         _stats.setTotalLiteralSize(_stats.totalLiteralSize() + sizeLiteral);
         _stats.setTotalMatchedSize(_stats.totalMatchedSize() + sizeMatch);
-        return isIntact;
+        return isDeferrable;
     }
 
-    private void copyRemoteBlocks(FileChannel outFile, int length,
-                                  MessageDigest md)
+    private void copyFromPeerAndUpdateDigest(FileChannel target, int length,
+                                             MessageDigest md)
         throws ChannelException
     {
-        // TODO: possibly skip writing out to file if replica is not OK
         int bytesReceived = 0;
         while (bytesReceived < length) {
             int chunkSize = Math.min(INPUT_CHANNEL_BUF_SIZE,
                                      length - bytesReceived);
-            ByteBuffer literalData = _senderInChannel.get(chunkSize);
+            ByteBuffer literalData = _in.get(chunkSize);
             bytesReceived += chunkSize;
-            if (outFile != null) {
-                literalData.mark();
-                writeOut(outFile, literalData);
-                literalData.reset();
-            }
+            literalData.mark();
+            writeToFile(target, literalData);
+            literalData.reset();
             md.update(literalData);
         }
     }
 
-    private void verifyBlockRange(int endIndex,
-                                  Checksum.Header checksumHeader,
-                                  FileChannel replica,
-                                  MessageDigest md)
+    private void copyFromReplicaAndUpdateDigest(FileChannel replica,
+                                                int blockIndex,
+                                                FileChannel target,
+                                                MessageDigest md,
+                                                Checksum.Header checksumHeader)
         throws IOException
     {
-        copyBlockRange(endIndex, checksumHeader, replica, null, md);
-    }
-
-    private void copyBlockRange(int endIndex,
-                                Checksum.Header checksumHeader,
-                                FileChannel replica,
-                                FileChannel outFile,
-                                MessageDigest md)
-        throws IOException
-    {
-        for (int i = 0; i < endIndex; i++) {
-            matchReplica(i, checksumHeader, replica, outFile, md);
-        }
-    }
-
-    private void matchReplica(int blockIndex,
-                              Checksum.Header checksumHeader,
-                              FileChannel replica,
-                              FileChannel outFile,
-                              MessageDigest md)
-        throws IOException
-    {
-        ByteBuffer replicaBuf =
-            ByteBuffer.allocate(sizeForChecksumBlock(blockIndex,
-                                                     checksumHeader));
-        long fileOffset = (long) blockIndex * checksumHeader.blockLength();
-        int bytesRead = replica.read(replicaBuf, fileOffset);
-        if (replicaBuf.hasRemaining()) {
-            throw new IllegalStateException(String.format(
-                "truncated read from replica (%s), read %d " +
-                    "bytes but expected %d more bytes",
-                    replica, bytesRead, replicaBuf.remaining()));
-        }
-        replicaBuf.flip();
-
-        // TODO: clean this up, not good
-        if (outFile != null) {
-            writeOut(outFile, replicaBuf);
-            replicaBuf.rewind();
-        }
+        ByteBuffer replicaBuf = readFromReplica(replica, blockIndex,
+                                                checksumHeader);
+        writeToFile(target, replicaBuf);
+        // it's OK to rewind since the buffer is newly allocated with an initial
+        // position of zero
+        replicaBuf.rewind();
         md.update(replicaBuf);
     }
 
-    private int sizeForChecksumBlock(int blockIndex,
-                                     Checksum.Header checksumHeader)
+    private ByteBuffer readFromReplica(FileChannel replica,
+                                       int blockIndex,
+                                       Checksum.Header checksumHeader)
+            throws IOException
     {
-        if (blockIndex == checksumHeader.chunkCount() - 1 &&
+        int length = blockSize(blockIndex, checksumHeader);
+        long offset = (long) blockIndex * checksumHeader.blockLength();
+        return readFromReplica(replica, offset, length);
+    }
+
+    private ByteBuffer readFromReplica(FileChannel replica, long offset,
+                                       int length)
+            throws IOException
+    {
+        ByteBuffer buf = ByteBuffer.allocate(length);
+        int bytesRead = replica.read(buf, offset);
+        if (buf.hasRemaining()) {
+            throw new IllegalStateException(String.format(
+                "truncated read from replica (%s), read %d bytes but expected" +
+                " %d more bytes", replica, bytesRead, buf.remaining()));
+        }
+        buf.flip();
+        return buf;
+    }
+
+    private static int blockSize(int index, Checksum.Header checksumHeader)
+    {
+        if (index == checksumHeader.chunkCount() - 1 &&
             checksumHeader.remainder() != 0) {
             return checksumHeader.remainder();
         }
         return checksumHeader.blockLength();
     }
 
-    // FIXME: handle out of space sitation without a stack trace
-    private void writeOut(FileChannel outFile, ByteBuffer src)
+    private void writeToFile(FileChannel out, ByteBuffer src)
     {
         try {
             // NOTE: might notably fail due to running out of disk space
-            outFile.write(src);
+            out.write(src);
             if (src.hasRemaining()) {
                 throw new IllegalStateException(String.format(
-                    "truncated write to outFile (%s), returned %d bytes, " +
+                    "truncated write to %s, returned %d bytes, " +
                     "expected %d more bytes",
-                    outFile, src.position(), src.remaining()));
+                    out, src.position(), src.remaining()));
             }
         } catch (IOException e) {
             // native exists immediately if this happens, and so do we:
@@ -1589,7 +1584,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 _log.fine("reading final messages until EOF");
             }
             // dummy read to get any final messages from peer
-            byte dummy = _senderInChannel.getByte();
+            byte dummy = _in.getByte();
             // we're not expected to get this far, getByte should throw
             // NetworkEOFException
             throw new RsyncProtocolException(
