@@ -51,6 +51,7 @@ import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
 import com.github.perlundq.yajsync.filelist.User;
+import com.github.perlundq.yajsync.io.AutoDeletable;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.text.TextConversionException;
 import com.github.perlundq.yajsync.text.TextDecoder;
@@ -771,50 +772,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 if (isTransferred(index) && _log.isLoggable(Level.FINE)) {
                     _log.fine("Re-receiving " + fileInfo.pathOrNull());
                 }
-
-                Checksum.Header checksumHeader = receiveChecksumHeader();
-                if (_log.isLoggable(Level.FINE)) {
-                    _log.fine("received peer checksum " + checksumHeader);
-                }
-
-                Path tempFile = null;
-                try {
-                    Path parentDir = fileInfo.pathOrNull().getParent();
-                    tempFile = Files.createTempFile(parentDir, null, null);
-                    if (_log.isLoggable(Level.FINE)) {
-                        _log.fine("created tempfile " + tempFile);
-                    }
-                    matchData(segment, index, fileInfo, checksumHeader,
-                              tempFile);
-                } catch (IOException e) {
-                    String msg = String.format(
-                            "failed to create tempfile in %s: %s",
-                            fileInfo.pathOrNull().getParent(), e.getMessage());
-                    if (_log.isLoggable(Level.SEVERE)) {
-                        _log.severe(msg);
-                    }
-                    _generator.sendMessage(MessageCode.IO_ERROR, msg);
-                    discardData(checksumHeader);
-                    _senderInChannel.skip(Checksum.MAX_DIGEST_LENGTH);
-                    _ioError |= IoError.GENERAL;
-                    _generator.purgeFile(segment, index);
-                } finally {
-                    try {
-                        // TODO: save temporary file when md5sum mismatches
-                        // as next replica to use for this file, it should often
-                        // be closer to what the sender has than our previous
-                        // replica
-                        if (tempFile != null) {
-                            Files.deleteIfExists(tempFile);
-                        }
-                    } catch (IOException e) {
-                        if (_log.isLoggable(Level.SEVERE)) {
-                            _log.severe(String.format(
-                                    "failed to remove tempfile %s: %s",
-                                    tempFile, e.getMessage()));
-                        }
-                    }
-                }
+                receiveAndMatch(segment, index, fileInfo);
             }
         }
     }
@@ -916,6 +874,39 @@ public class Receiver implements RsyncTask, MessageHandler
             //       might be cleared.
             FileOps.setUserId(path, targetAttrs.user().uid(),
                               LinkOption.NOFOLLOW_LINKS);
+        }
+    }
+
+    private void receiveAndMatch(Filelist.Segment segment, int index,
+                                 FileInfo fileInfo)
+        throws ChannelException, InterruptedException
+    {
+        Checksum.Header checksumHeader = receiveChecksumHeader();
+        if (_log.isLoggable(Level.FINE)) {
+            _log.fine("received peer checksum " + checksumHeader);
+        }
+
+        try (AutoDeletable tempFile = new AutoDeletable(
+                Files.createTempFile(fileInfo.pathOrNull().getParent(),
+                                     null, null)))
+        {
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine("created tempfile " + tempFile);
+            }
+            matchData(segment, index, fileInfo, checksumHeader,
+                      tempFile.path());
+        } catch (IOException e) {
+            String msg = String.format("failed to create tempfile in %s: %s",
+                                       fileInfo.pathOrNull().getParent(),
+                                       e.getMessage());
+            if (_log.isLoggable(Level.SEVERE)) {
+                _log.severe(msg);
+            }
+            _generator.sendMessage(MessageCode.IO_ERROR, msg);
+            discardData(checksumHeader);
+            _senderInChannel.skip(Checksum.MAX_DIGEST_LENGTH);
+            _ioError |= IoError.GENERAL;
+            _generator.purgeFile(segment, index);
         }
     }
 
