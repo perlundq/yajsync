@@ -79,6 +79,7 @@ public final class Sender implements RsyncTask, MessageHandler
         private boolean _isExitEarlyIfEmptyList;
         private boolean _isInterruptible = true;
         private boolean _isPreserveUser;
+        private boolean _isNumericIds;
         private boolean _isReceiveFilterRules;
         private boolean _isSafeFileList = true;
         private boolean _isSendStatistics;
@@ -140,6 +141,12 @@ public final class Sender implements RsyncTask, MessageHandler
             return this;
         }
 
+        public Builder isNumericIds(boolean isNumericIds)
+        {
+            _isNumericIds = isNumericIds;
+            return this;
+        }
+
         public Builder charset(Charset charset)
         {
             assert charset != null;
@@ -184,6 +191,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private final boolean _isExitEarlyIfEmptyList;
     private final boolean _isInterruptible;
     private final boolean _isPreserveUser;
+    private final boolean _isNumericIds;
     private final boolean _isReceiveFilterRules;
     private final boolean _isSafeFileList;
     private final boolean _isSendStatistics;
@@ -211,6 +219,7 @@ public final class Sender implements RsyncTask, MessageHandler
         _isExitEarlyIfEmptyList = builder._isExitEarlyIfEmptyList;
         _isInterruptible = builder._isInterruptible;
         _isPreserveUser = builder._isPreserveUser;
+        _isNumericIds = builder._isNumericIds;
         _isReceiveFilterRules = builder._isReceiveFilterRules;
         _isSafeFileList = builder._isSafeFileList;
         _isSendStatistics = builder._isSendStatistics;
@@ -276,7 +285,8 @@ public final class Sender implements RsyncTask, MessageHandler
             }
             long t3 = System.currentTimeMillis();
 
-            if (_isPreserveUser && _fileSelection != FileSelection.RECURSE) {
+            if (_isPreserveUser && !_isNumericIds
+                    && _fileSelection != FileSelection.RECURSE) {
                 sendUserList();
             }
 
@@ -536,7 +546,7 @@ public final class Sender implements RsyncTask, MessageHandler
                 if (!Item.isValidItem(iFlags)) {
                     throw new IllegalStateException(String.format(
                         "got flags %s - not supported",
-                        Integer.toBinaryString((int) iFlags)));
+                        Integer.toBinaryString(iFlags)));
                 }
                 if ((iFlags & Item.TRANSFER) == 0) {
                     if (segment == null ||
@@ -1062,7 +1072,7 @@ public final class Sender implements RsyncTask, MessageHandler
         if (!Item.isValidItem(iFlags)) {
             throw new IllegalStateException(String.format(
                     "got flags %s - not supported",
-                    Integer.toBinaryString((int) iFlags)));
+                    Integer.toBinaryString(iFlags)));
         }
         _duplexChannel.encodeIndex(index);
         _duplexChannel.putChar(iFlags);

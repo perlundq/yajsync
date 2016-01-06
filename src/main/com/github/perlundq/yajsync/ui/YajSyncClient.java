@@ -135,7 +135,7 @@ public class YajSyncClient
     private int _verbosity;
     private PrintStream _stderr = System.out;
     private PrintStream _stdout = System.out;
-    private RsyncClient.Builder _clientBuilder =
+    private final RsyncClient.Builder _clientBuilder =
             new RsyncClient.Builder().authProvider(_authProvider);
     private Statistics _statistics = new Statistics();
     private String _passwordFile;
@@ -265,6 +265,17 @@ public class YajSyncClient
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
                     _clientBuilder.isPreserveUser(true);
+                }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "numeric-ids", "",
+                                      String.format("don't map uid/gid " +
+                                              "values by user/group name " +
+                                              "(default false)"),
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    _clientBuilder.isNumericIds(true);
                 }}));
 
         options.add(
