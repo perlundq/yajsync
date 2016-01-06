@@ -332,6 +332,15 @@ public class ServerSessionConfig extends SessionConfig
                     _fileSelection = FileSelection.TRANSFER_DIRS;
                 }}));
 
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                "stats", "", "", new Option.ContinuingHandler() {
+                    @Override
+                    public void handleAndContinue(Option option) {
+                        ; // TODO: re-check that the server can ignore the
+                          // transferred stats option
+                    }
+                }));
+
         // FIXME: let ModuleProvider mutate this argsParser instance before
         // calling parse (e.g. adding specific options or removing options)
 

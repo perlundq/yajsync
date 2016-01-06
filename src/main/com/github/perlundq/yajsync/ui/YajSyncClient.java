@@ -65,7 +65,7 @@ import com.github.perlundq.yajsync.util.Pair;
 import com.github.perlundq.yajsync.util.Triple;
 import com.github.perlundq.yajsync.util.Util;
 
-public class YajSyncClient
+public class YajSyncClient implements SyncClient
 {
     private static final int PORT_UNDEFINED = -1;
 
@@ -135,7 +135,7 @@ public class YajSyncClient
     private int _verbosity;
     private PrintStream _stderr = System.out;
     private PrintStream _stdout = System.out;
-    private RsyncClient.Builder _clientBuilder =
+    private final RsyncClient.Builder _clientBuilder =
             new RsyncClient.Builder().authProvider(_authProvider);
     private Statistics _statistics = new Statistics();
     private String _passwordFile;
@@ -156,6 +156,7 @@ public class YajSyncClient
         return this;
     }
 
+    @Override
     public Statistics statistics()
     {
         return _statistics;
@@ -522,6 +523,7 @@ public class YajSyncClient
         return RsyncClient.Result.failure();
     }
 
+    @Override
     public int start(String[] args)
     {
         ArgumentParser argsParser =
