@@ -269,6 +269,16 @@ public class YajSyncClient
 
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "group", "g",
+                                      String.format("preserve group " +
+                                                    "(default false)"),
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    _clientBuilder.isPreserveGroup(true);
+                }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "numeric-ids", "",
                                       String.format("don't map uid/gid " +
                                               "values by user/group name " +

@@ -51,6 +51,7 @@ import com.github.perlundq.yajsync.channels.RsyncInChannel;
 import com.github.perlundq.yajsync.channels.RsyncOutChannel;
 import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
+import com.github.perlundq.yajsync.filelist.Group;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
 import com.github.perlundq.yajsync.filelist.User;
 import com.github.perlundq.yajsync.io.FileView;
@@ -79,6 +80,7 @@ public final class Sender implements RsyncTask, MessageHandler
         private boolean _isExitEarlyIfEmptyList;
         private boolean _isInterruptible = true;
         private boolean _isPreserveUser;
+        private boolean _isPreserveGroup;
         private boolean _isNumericIds;
         private boolean _isReceiveFilterRules;
         private boolean _isSafeFileList = true;
@@ -141,6 +143,12 @@ public final class Sender implements RsyncTask, MessageHandler
             return this;
         }
 
+        public Builder isPreserveGroup(boolean isPreserveGroup)
+        {
+            _isPreserveGroup = isPreserveGroup;
+            return this;
+        }
+
         public Builder isNumericIds(boolean isNumericIds)
         {
             _isNumericIds = isNumericIds;
@@ -191,6 +199,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private final boolean _isExitEarlyIfEmptyList;
     private final boolean _isInterruptible;
     private final boolean _isPreserveUser;
+    private final boolean _isPreserveGroup;
     private final boolean _isNumericIds;
     private final boolean _isReceiveFilterRules;
     private final boolean _isSafeFileList;
@@ -200,6 +209,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private final FileSelection _fileSelection;
     private final Iterable<Path> _sourceFiles;
     private final Set<User> _transferredUserNames = new LinkedHashSet<>();
+    private final Set<Group> _transferredGroupNames = new LinkedHashSet<>();
     private final Statistics _stats = new Statistics();
     private final TextDecoder _characterDecoder;
     private final TextEncoder _characterEncoder;
@@ -219,6 +229,7 @@ public final class Sender implements RsyncTask, MessageHandler
         _isExitEarlyIfEmptyList = builder._isExitEarlyIfEmptyList;
         _isInterruptible = builder._isInterruptible;
         _isPreserveUser = builder._isPreserveUser;
+        _isPreserveGroup = builder._isPreserveGroup;
         _isNumericIds = builder._isNumericIds;
         _isReceiveFilterRules = builder._isReceiveFilterRules;
         _isSafeFileList = builder._isSafeFileList;
@@ -290,6 +301,11 @@ public final class Sender implements RsyncTask, MessageHandler
                 sendUserList();
             }
 
+            if (_isPreserveGroup && !_isNumericIds
+                    && _fileSelection != FileSelection.RECURSE) {
+                sendGroupList();
+            }
+
             _stats.setFileListBuildTime(Math.max(1, t2 - t1));
             _stats.setFileListTransferTime(Math.max(0, t3 - t2));
             long segmentSize = _duplexChannel.numBytesWritten() -
@@ -354,6 +370,14 @@ public final class Sender implements RsyncTask, MessageHandler
         sendEncodedInt(uid);
     }
 
+    private void sendGroupId(int gid) throws ChannelException
+    {
+        if (_log.isLoggable(Level.FINER)) {
+            _log.finer("sending group id " + gid);
+        }
+        sendEncodedInt(gid);
+    }
+
     private void sendUserName(String name) throws ChannelException
     {
         if (_log.isLoggable(Level.FINER)) {
@@ -371,12 +395,37 @@ public final class Sender implements RsyncTask, MessageHandler
         _duplexChannel.put(buf);
     }
 
+    private void sendGroupName(String name) throws ChannelException
+    {
+        if (_log.isLoggable(Level.FINER)) {
+            _log.finer("sending group name " + name);
+        }
+        ByteBuffer buf = ByteBuffer.wrap(_characterEncoder.encode(name));
+        if (buf.remaining() > 0xFF) { // unlikely scenario, we could also recover from this (by truncating or falling back to nobody)
+            throw new IllegalStateException(String.format(
+                "encoded length of group name %s is %d, which is larger than " +
+                "what fits in a byte (255)", name, buf.remaining()));
+        }
+        _duplexChannel.putByte((byte) buf.remaining());
+        _duplexChannel.put(buf);
+    }
+
     private void sendUserList() throws ChannelException
     {
         for (User user : _transferredUserNames) {
-            assert user.uid() != User.root().uid();
-            sendUserId(user.uid());
+            assert user.id() != User.root().id();
+            sendUserId(user.id());
             sendUserName(user.name());
+        }
+        sendEncodedInt(0);
+    }
+
+    private void sendGroupList() throws ChannelException
+    {
+        for (Group group : _transferredGroupNames) {
+            assert group.id() != Group.root().id();
+            sendGroupId(group.id());
+            sendGroupName(group.name());
         }
         sendEncodedInt(0);
     }
@@ -944,7 +993,21 @@ public final class Sender implements RsyncTask, MessageHandler
             xflags |= TransmitFlags.SAME_UID;
         }
 
-        xflags |= TransmitFlags.SAME_GID;
+        Group group = fileInfo.attrs().group();
+        if (_isPreserveGroup &&
+               !group.equals(_fileInfoCache.getPrevGroupOrNull()))
+        {
+            _fileInfoCache.setPrevGroup(group);
+            if (!group.equals(Group.root())) {
+                if (_fileSelection == FileSelection.RECURSE &&
+                        !_transferredGroupNames.contains(group)) {
+                    xflags |= TransmitFlags.GROUP_NAME_FOLLOWS;
+                } // else send in batch later
+                _transferredGroupNames.add(group);
+            }
+        } else {
+            xflags |= TransmitFlags.SAME_GID;
+        }
 
         long lastModified = attrs.lastModifiedTime();
         if (lastModified == _fileInfoCache.getPrevLastModified()) {
@@ -1008,9 +1071,16 @@ public final class Sender implements RsyncTask, MessageHandler
         }
 
         if (_isPreserveUser && ((xflags & TransmitFlags.SAME_UID) == 0)) {
-            sendUserId(user.uid());
+            sendUserId(user.id());
             if ((xflags & TransmitFlags.USER_NAME_FOLLOWS) != 0) {
                 sendUserName(user.name());
+            }
+        }
+
+        if (_isPreserveGroup && ((xflags & TransmitFlags.SAME_GID) == 0)) {
+            sendGroupId(group.id());
+            if ((xflags & TransmitFlags.GROUP_NAME_FOLLOWS) != 0) {
+                sendGroupName(group.name());
             }
         }
 

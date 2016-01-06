@@ -75,6 +75,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         private boolean _isPreservePermissions;
         private boolean _isPreserveTimes;
         private boolean _isPreserveUser;
+        private boolean _isPreserveGroup;
         private boolean _isNumericIds;
         private Charset _charset;
         private FileSelection _fileSelection = FileSelection.EXACT;
@@ -129,6 +130,12 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             return this;
         }
 
+        public Builder isPreserveGroup(boolean isPreserveGroup)
+        {
+            _isPreserveGroup = isPreserveGroup;
+            return this;
+        }
+
         public Builder isNumericIds(boolean isNumericIds)
         {
             _isNumericIds = isNumericIds;
@@ -173,6 +180,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private final boolean _isPreservePermissions;
     private final boolean _isPreserveTimes;
     private final boolean _isPreserveUser;
+    private final boolean _isPreserveGroup;
     private final boolean _isNumericIds;
     private final byte[] _checksumSeed;
     private final Deque<Runnable> _deferredFileAttrUpdates = new ArrayDeque<>();
@@ -213,6 +221,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         _isPreservePermissions = builder._isPreservePermissions;
         _isPreserveTimes = builder._isPreserveTimes;
         _isPreserveUser = builder._isPreserveUser;
+        _isPreserveGroup = builder._isPreserveGroup;
         _isNumericIds = builder._isNumericIds;
     }
 
@@ -246,6 +255,11 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     public boolean isPreserveUser()
     {
         return _isPreserveUser;
+    }
+
+    public boolean isPreserveGroup()
+    {
+        return _isPreserveGroup;
     }
 
     public boolean isNumericIds()
@@ -876,20 +890,53 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                         LinkOption.NOFOLLOW_LINKS);
             } else if ((_isNumericIds || newAttrs.user().name().isEmpty())
                     && (curAttrsOrNull == null || curAttrsOrNull.user()
-                            .uid() != newAttrs.user().uid())) {
+                            .id() != newAttrs.user().id())) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
                             "(Generator) updating uid %s -> %d on %s",
                             curAttrsOrNull == null ? ""
-                                    : curAttrsOrNull.user().uid(),
-                            newAttrs.user().uid(), path));
+                                    : curAttrsOrNull.user().id(),
+                            newAttrs.user().id(), path));
                 }
                 // NOTE: side effect of chown in Linux is that set user/group id
                 // bit might be cleared.
-                FileOps.setUserId(path, newAttrs.user().uid(),
+                FileOps.setUserId(path, newAttrs.user().id(),
                         LinkOption.NOFOLLOW_LINKS);
             }
         }
+
+        if (_isPreserveGroup) {
+            if (!_isNumericIds && !newAttrs.group().name().isEmpty()
+                    && (curAttrsOrNull == null || !curAttrsOrNull.group().name()
+                            .equals(newAttrs.group().name()))) {
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine(String
+                            .format("(Generator) updating group %s -> %s on %s",
+                                    curAttrsOrNull == null ? ""
+                                            : curAttrsOrNull.group(),
+                                    newAttrs.group(), path));
+                }
+                // NOTE: side effect of chown in Linux is that set user/group id
+                // bit might be cleared.
+                FileOps.setGroup(path, newAttrs.group(),
+                        LinkOption.NOFOLLOW_LINKS);
+            } else if ((_isNumericIds || newAttrs.group().name().isEmpty())
+                    && (curAttrsOrNull == null || curAttrsOrNull.group()
+                            .id() != newAttrs.group().id())) {
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine(String.format(
+                            "(Generator) updating gid %s -> %d on %s",
+                            curAttrsOrNull == null ? ""
+                                    : curAttrsOrNull.group().id(),
+                            newAttrs.group().id(), path));
+                }
+                // NOTE: side effect of chown in Linux is that set user/group id
+                // bit might be cleared.
+                FileOps.setGroupId(path, newAttrs.group().id(),
+                        LinkOption.NOFOLLOW_LINKS);
+            }
+        }
+
     }
 
     private void deferUpdateAttrsIfDiffer(
@@ -987,6 +1034,11 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             !curAttrsOrNull.user().equals(newAttrs.user()))
         {
             iFlags |= Item.REPORT_OWNER;
+        }
+        if (_isPreserveGroup &&
+            !curAttrsOrNull.group().equals(newAttrs.group()))
+        {
+            iFlags |= Item.REPORT_GROUP;
         }
         if (curAttrsOrNull.isRegularFile() &&
             curAttrsOrNull.size() != newAttrs.size())

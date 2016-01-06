@@ -12,6 +12,8 @@ Currently implemented rsync options:
 
 - Preserve owner (-o, --owner)
 
+- Preserve group (-g, --group)
+
 - Don't map uid/gid values by user/group name (--numeric-ids)
 
 - Preserve permissions (-p, --perms)

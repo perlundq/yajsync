@@ -35,6 +35,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import com.github.perlundq.yajsync.filelist.Group;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
 import com.github.perlundq.yajsync.filelist.User;
 import com.github.perlundq.yajsync.security.RsyncAuthContext;
@@ -160,10 +161,10 @@ class FileUtil
         return true;
     }
 
-    public static boolean isFileSameOwner(RsyncFileAttributes leftAttrs,
+    public static boolean isFileSameOwnerAndGroup(RsyncFileAttributes leftAttrs,
                                                   RsyncFileAttributes rightAttrs)
     {
-        return leftAttrs.user().equals(rightAttrs.user());
+        return leftAttrs.user().equals(rightAttrs.user()) && leftAttrs.group().equals(rightAttrs.group());
     }
 
     public static boolean isDirectory(Path path)
@@ -732,20 +733,21 @@ public class SystemTest
     }
 
     @Test
-    public void testClientCopyPreserveUid() throws IOException
+    public void testClientCopyPreserveOwnerAndGroup() throws IOException
     {
-        if (!User.root().name().equals(User.whoami().name())) {
-            fail("owner test has to be run as root");
-        }
+       if (!User.root().name().equals(User.whoami().name())) {
+           fail("owner/group test has to be run as root");
+       }
 
-        Path src = _tempDir.newFolder().toPath();
+       Path src = _tempDir.newFolder().toPath();
         Path dst = Paths.get(src.toString() + ".dst");
 
         Path srcDir = src.resolve("dir");
         Path srcFile = srcDir.resolve("file");
         Files.createDirectory(srcDir);
         FileUtil.writeToFiles(1, srcFile);
-        FileOps.setUserId(srcFile, User.nobody().uid());
+        FileOps.setOwner(srcFile, User.nobody());
+        FileOps.setGroup(srcFile, Group.nobody());
 
         Files.createDirectory(dst);
         Path copyOfSrc = dst.resolve(src.getFileName());
@@ -755,12 +757,45 @@ public class SystemTest
         Files.createDirectory(dstDir);
         FileUtil.writeToFiles(1, dstFile);
 
-        ReturnStatus status = fileCopy(src, dst, "--recursive", "--owner", "--numeric-ids");
+        ReturnStatus status = fileCopy(src, dst, "--recursive", "--owner", "--group");
 
         assertTrue(status.rc == 0);
         assertTrue(FileUtil.isDirectory(dst));
         assertTrue(FileUtil.isDirectoriesIdentical(src, copyOfSrc));
-        assertTrue(FileUtil.isFileSameOwner(RsyncFileAttributes.stat(srcFile), RsyncFileAttributes.stat(dstFile)));
+        assertTrue(FileUtil.isFileSameOwnerAndGroup(RsyncFileAttributes.stat(srcFile), RsyncFileAttributes.stat(dstFile)));
+    }
+
+    @Test
+    public void testClientCopyPreserveUidAndGid() throws IOException
+    {
+       if (!User.root().name().equals(User.whoami().name())) {
+           fail("owner/group test has to be run as root");
+       }
+
+       Path src = _tempDir.newFolder().toPath();
+        Path dst = Paths.get(src.toString() + ".dst");
+
+        Path srcDir = src.resolve("dir");
+        Path srcFile = srcDir.resolve("file");
+        Files.createDirectory(srcDir);
+        FileUtil.writeToFiles(1, srcFile);
+        FileOps.setUserId(srcFile, User.nobody().id());
+        FileOps.setGroupId(srcFile, Group.nobody().id());
+
+        Files.createDirectory(dst);
+        Path copyOfSrc = dst.resolve(src.getFileName());
+        Files.createDirectory(copyOfSrc);
+        Path dstDir = copyOfSrc.resolve("dir");
+        Path dstFile = dstDir.resolve("file");
+        Files.createDirectory(dstDir);
+        FileUtil.writeToFiles(1, dstFile);
+
+        ReturnStatus status = fileCopy(src, dst, "--recursive", "--owner", "--group", "--numeric-ids");
+
+        assertTrue(status.rc == 0);
+        assertTrue(FileUtil.isDirectory(dst));
+        assertTrue(FileUtil.isDirectoriesIdentical(src, copyOfSrc));
+        assertTrue(FileUtil.isFileSameOwnerAndGroup(RsyncFileAttributes.stat(srcFile), RsyncFileAttributes.stat(dstFile)));
     }
 
     @Test(timeout=100)
