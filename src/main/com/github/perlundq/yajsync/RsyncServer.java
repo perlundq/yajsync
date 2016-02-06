@@ -22,6 +22,7 @@ package com.github.perlundq.yajsync;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
+import java.nio.charset.UnsupportedCharsetException;
 import java.util.concurrent.ExecutorService;
 
 import com.github.perlundq.yajsync.session.Generator;
@@ -109,6 +110,7 @@ public class RsyncServer
                     charset(cfg.charset()).
                     fileSelection(cfg.fileSelection()).
                     isPreserveUser(cfg.isPreserveUser()).
+                    isNumericIds(cfg.isNumericIds()).
                     isInterruptible(isChannelsInterruptible).
                     isSafeFileList(cfg.isSafeFileList()).build();
             return _rsyncTaskExecutor.exec(sender);
@@ -120,6 +122,7 @@ public class RsyncServer
                     isPreservePermissions(cfg.isPreservePermissions()).
                     isPreserveTimes(cfg.isPreserveTimes()).
                     isPreserveUser(cfg.isPreserveUser()).
+                    isNumericIds(cfg.isNumericIds()).
                     isIgnoreTimes(cfg.isIgnoreTimes()).
                     isAlwaysItemize(cfg.verbosity() > 1).
                     isInterruptible(isChannelsInterruptible).build();

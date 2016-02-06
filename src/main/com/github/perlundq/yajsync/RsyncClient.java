@@ -726,6 +726,7 @@ public final class RsyncClient
                             charset(_charset).
                             fileSelection(fileSelection).
                             isPreserveUser(_isPreserveUser).
+                            isNumericIds(_isNumericIds).
                             isInterruptible(_isInterruptible).
                             isSafeFileList(cfg.isSafeFileList()).build();
                     isOK = _rsyncTaskExecutor.exec(sender);
