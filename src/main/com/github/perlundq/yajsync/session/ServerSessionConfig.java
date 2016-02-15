@@ -58,6 +58,7 @@ public class ServerSessionConfig extends SessionConfig
     private boolean _isPreservePermissions = false;
     private boolean _isPreserveTimes = false;
     private boolean _isPreserveUser = false;
+    private boolean _isNumericIds = false;
     private boolean _isIgnoreTimes = false;
     private FileSelection _fileSelection = FileSelection.EXACT;
     private Module _module;
@@ -309,6 +310,14 @@ public class ServerSessionConfig extends SessionConfig
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
+            "numeric-ids", "", "",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    setIsNumericIds();
+                }}));
+
+        argsParser.add(Option.newWithoutArgument(
+            Option.Policy.OPTIONAL,
             "perms", "p", "",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
@@ -322,7 +331,6 @@ public class ServerSessionConfig extends SessionConfig
                 @Override public void handleAndContinue(Option option) {
                     setIsPreserveTimes();
                 }}));
-
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
@@ -457,6 +465,11 @@ public class ServerSessionConfig extends SessionConfig
         _isPreserveUser = true;
     }
 
+    private void setIsNumericIds()
+    {
+        _isNumericIds = true;
+    }
+
     private void setIsIgnoreTimes()
     {
         _isIgnoreTimes = true;
@@ -485,6 +498,11 @@ public class ServerSessionConfig extends SessionConfig
     public boolean isPreserveUser()
     {
         return _isPreserveUser;
+    }
+
+    public boolean isNumericIds()
+    {
+        return _isNumericIds;
     }
 
     public boolean isIgnoreTimes()

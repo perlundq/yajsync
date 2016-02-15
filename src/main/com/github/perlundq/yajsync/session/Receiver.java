@@ -204,6 +204,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private final boolean _isPreservePermissions;
     private final boolean _isPreserveTimes;
     private final boolean _isPreserveUser;
+    private final boolean _isNumericIds;
     private final boolean _isReceiveStatistics;
     private final boolean _isSafeFileList;
     private final boolean _isSendFilterRules;
@@ -233,6 +234,7 @@ public class Receiver implements RsyncTask, MessageHandler
         _isPreservePermissions = _generator.isPreservePermissions();
         _isPreserveTimes = _generator.isPreserveTimes();
         _isPreserveUser = _generator.isPreserveUser();
+        _isNumericIds = _generator.isNumericIds();
         _fileSelection = _generator.fileSelection();
         _in = new RsyncInChannel(builder._in, this, INPUT_CHANNEL_BUF_SIZE);
         _targetPathName = builder._targetPathName;
@@ -272,14 +274,18 @@ public class Receiver implements RsyncTask, MessageHandler
                 sendEmptyFilterRules();
             }
 
-            if (_isPreserveUser && _fileSelection == FileSelection.RECURSE) {
+            if (_isPreserveUser && !_isNumericIds &&
+                _fileSelection == FileSelection.RECURSE)
+            {
                 _uidUserMap.put(User.root().uid(), User.root());
             }
 
             List<FileInfoStub> stubs = new LinkedList<>();
             _ioError |= receiveFileMetaDataInto(stubs);
 
-            if (_isPreserveUser && _fileSelection != FileSelection.RECURSE) {
+            if (_isPreserveUser && !_isNumericIds &&
+                _fileSelection != FileSelection.RECURSE)
+            {
                 Map<Integer, User> uidUserMap = receiveUserList();
                 uidUserMap.put(User.root().uid(), User.root());
                 addUserNameToStubs(uidUserMap, stubs);
@@ -725,7 +731,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 if (!Item.isValidItem(iFlags)) {
                     throw new IllegalStateException(String.format(
                             "got flags %s - not supported",
-                            Integer.toBinaryString((int) iFlags)));
+                            Integer.toBinaryString(iFlags)));
                 }
 
                 if ((iFlags & Item.TRANSFER) == 0) {
@@ -849,29 +855,31 @@ public class Receiver implements RsyncTask, MessageHandler
             FileOps.setLastModifiedTime(path, targetAttrs.lastModifiedTime(),
                                         LinkOption.NOFOLLOW_LINKS);
         }
-        if (_isPreserveUser && !targetAttrs.user().name().isEmpty() &&
-            !curAttrs.user().name().equals(targetAttrs.user().name())) {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format("updating ownership %s -> %s on %s",
-                                        curAttrs.user(), targetAttrs.user(),
-                                        path));
+        if (_isPreserveUser) {
+            if (!_isNumericIds && !targetAttrs.user().name().isEmpty() &&
+                !curAttrs.user().name().equals(targetAttrs.user().name()))
+            {
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine(String.format("updating ownership %s -> %s on %s",
+                            curAttrs.user(), targetAttrs.user(), path));
+                }
+                // FIXME: side effect of chown in Linux is that set user/group
+                // id bit are cleared.
+                FileOps.setOwner(path, targetAttrs.user(),
+                                 LinkOption.NOFOLLOW_LINKS);
+            } else if ((_isNumericIds || targetAttrs.user().name().isEmpty()) &&
+                       curAttrs.user().uid() != targetAttrs.user().uid()) {
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine(String.format(
+                            "updating uid %d -> %d on %s",
+                            curAttrs.user().uid(), targetAttrs.user().uid(),
+                            path));
+                }
+                // NOTE: side effect of chown in Linux is that set user/group id
+                // bit might be cleared.
+                FileOps.setUserId(path, targetAttrs.user().uid(),
+                                  LinkOption.NOFOLLOW_LINKS);
             }
-            // FIXME: side effect of chown in Linux is that set user/group id
-            //        bit are cleared.
-            FileOps.setOwner(path, targetAttrs.user(),
-                             LinkOption.NOFOLLOW_LINKS);
-        } else if (_isPreserveUser && targetAttrs.user().name().isEmpty() &&
-             curAttrs.user().uid() != targetAttrs.user().uid())
-        {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format("updating uid %d -> %d on %s",
-                                        curAttrs.user().uid(),
-                                        targetAttrs.user().uid(), path));
-            }
-            // NOTE: side effect of chown in Linux is that set user/group id bit
-            //       might be cleared.
-            FileOps.setUserId(path, targetAttrs.user().uid(),
-                              LinkOption.NOFOLLOW_LINKS);
         }
     }
 
@@ -1201,6 +1209,9 @@ public class Receiver implements RsyncTask, MessageHandler
                 throw new RsyncProtocolException("got user name mapping when " +
                                                  "not doing incremental " +
                                                  "recursion");
+            } else if (isReceiveUserName && _isNumericIds) {
+                throw new RsyncProtocolException("got user name mapping with " +
+                                                 "--numeric-ids");
             }
             if (_fileSelection == FileSelection.RECURSE && isReceiveUserName) {
                 user = receiveUser();

@@ -75,6 +75,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         private boolean _isPreservePermissions;
         private boolean _isPreserveTimes;
         private boolean _isPreserveUser;
+        private boolean _isNumericIds;
         private Charset _charset;
         private FileSelection _fileSelection = FileSelection.EXACT;
 
@@ -128,6 +129,12 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             return this;
         }
 
+        public Builder isNumericIds(boolean isNumericIds)
+        {
+            _isNumericIds = isNumericIds;
+            return this;
+        }
+
         public Builder charset(Charset charset)
         {
             assert charset != null;
@@ -166,6 +173,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private final boolean _isPreservePermissions;
     private final boolean _isPreserveTimes;
     private final boolean _isPreserveUser;
+    private final boolean _isNumericIds;
     private final byte[] _checksumSeed;
     private final Deque<Runnable> _deferredFileAttrUpdates = new ArrayDeque<>();
     private final Filelist _fileList;
@@ -205,6 +213,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         _isPreservePermissions = builder._isPreservePermissions;
         _isPreserveTimes = builder._isPreserveTimes;
         _isPreserveUser = builder._isPreserveUser;
+        _isNumericIds = builder._isNumericIds;
     }
 
     @Override
@@ -237,6 +246,11 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     public boolean isPreserveUser()
     {
         return _isPreserveUser;
+    }
+
+    public boolean isNumericIds()
+    {
+        return _isNumericIds;
     }
 
     public Charset charset()
@@ -845,35 +859,37 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         //       succeed).
         // NOTE: we cannot detect if we have the capabilities to change
         //       ownership (knowing if UID 0 is not sufficient)
-        // TODO: fall back to changing uid (find out how rsync works) if name
-        //       change fails
-        if (_isPreserveUser && !newAttrs.user().name().isEmpty() &&
-            (curAttrsOrNull == null ||
-             !curAttrsOrNull.user().name().equals(newAttrs.user().name())))
-        {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format(
-                    "(Generator) updating ownership %s -> %s on %s",
-                    curAttrsOrNull == null ? "" : curAttrsOrNull.user(),
-                    newAttrs.user(), path));
+        if (_isPreserveUser) {
+            if (!_isNumericIds && !newAttrs.user().name().isEmpty() &&
+                (curAttrsOrNull == null ||
+                 !curAttrsOrNull.user().name().equals(newAttrs.user().name())))
+            {
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine(String.format(
+                            "(Generator) updating ownership %s -> %s on %s",
+                            curAttrsOrNull == null
+                                ? "" : curAttrsOrNull.user(),
+                            newAttrs.user(), path));
+                }
+                // NOTE: side effect of chown in Linux is that set user/group id
+                // bit might be cleared.
+                FileOps.setOwner(path, newAttrs.user(),
+                                 LinkOption.NOFOLLOW_LINKS);
+            } else if ((_isNumericIds || newAttrs.user().name().isEmpty()) &&
+                       (curAttrsOrNull == null ||
+                        curAttrsOrNull.user().uid() != newAttrs.user().uid())) {
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine(String.format(
+                            "(Generator) updating uid %s -> %d on %s",
+                            curAttrsOrNull == null
+                                ? "" : curAttrsOrNull.user().uid(),
+                            newAttrs.user().uid(), path));
+                }
+                // NOTE: side effect of chown in Linux is that set user/group id
+                // bit might be cleared.
+                FileOps.setUserId(path, newAttrs.user().uid(),
+                                  LinkOption.NOFOLLOW_LINKS);
             }
-            // NOTE: side effect of chown in Linux is that set user/group id bit
-            //       might be cleared.
-            FileOps.setOwner(path, newAttrs.user(),
-                             LinkOption.NOFOLLOW_LINKS);
-        } else if (_isPreserveUser && newAttrs.user().name().isEmpty() &&
-                   (curAttrsOrNull == null ||
-                    curAttrsOrNull.user().uid() != newAttrs.user().uid())) {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format(
-                    "(Generator) updating uid %s -> %d on %s",
-                    curAttrsOrNull == null ? "" : curAttrsOrNull.user().uid(),
-                    newAttrs.user().uid(), path));
-            }
-            // NOTE: side effect of chown in Linux is that set user/group id bit
-            //       might be cleared.
-            FileOps.setUserId(path, newAttrs.user().uid(),
-                              LinkOption.NOFOLLOW_LINKS);
         }
     }
 
