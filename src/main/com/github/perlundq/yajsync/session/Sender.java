@@ -932,7 +932,7 @@ public final class Sender implements RsyncTask, MessageHandler
             !user.equals(_fileInfoCache.getPrevUserOrNull()))
         {
             _fileInfoCache.setPrevUser(user);
-            if (!user.equals(User.root())) {
+            if (!_isNumericIds && !user.equals(User.root())) {
                 if (_fileSelection == FileSelection.RECURSE &&
                     !_transferredUserNames.contains(user))
                 {
