@@ -2,7 +2,6 @@ package com.github.perlundq.yajsync.test;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
@@ -161,7 +160,7 @@ class FileUtil
     }
 
     public static boolean isFileSameOwner(RsyncFileAttributes leftAttrs,
-                                                  RsyncFileAttributes rightAttrs)
+                                          RsyncFileAttributes rightAttrs)
     {
         return leftAttrs.user().equals(rightAttrs.user());
     }
@@ -734,8 +733,8 @@ public class SystemTest
     @Test
     public void testClientCopyPreserveUid() throws IOException
     {
-        if (!User.root().name().equals(User.whoami().name())) {
-            fail("owner test has to be run as root");
+        if (!User.whoami().equals(User.root())) {
+            return;
         }
 
         Path src = _tempDir.newFolder().toPath();
@@ -755,12 +754,14 @@ public class SystemTest
         Files.createDirectory(dstDir);
         FileUtil.writeToFiles(1, dstFile);
 
-        ReturnStatus status = fileCopy(src, dst, "--recursive", "--owner", "--numeric-ids");
+        ReturnStatus status = fileCopy(src, dst, "--recursive", "--owner",
+                                       "--numeric-ids");
 
         assertTrue(status.rc == 0);
         assertTrue(FileUtil.isDirectory(dst));
         assertTrue(FileUtil.isDirectoriesIdentical(src, copyOfSrc));
-        assertTrue(FileUtil.isFileSameOwner(RsyncFileAttributes.stat(srcFile), RsyncFileAttributes.stat(dstFile)));
+        assertTrue(FileUtil.isFileSameOwner(RsyncFileAttributes.stat(srcFile),
+                                            RsyncFileAttributes.stat(dstFile)));
     }
 
     @Test(timeout=100)
