@@ -860,34 +860,35 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         // NOTE: we cannot detect if we have the capabilities to change
         //       ownership (knowing if UID 0 is not sufficient)
         if (_isPreserveUser) {
-            if (!_isNumericIds && !newAttrs.user().name().isEmpty()
-                    && (curAttrsOrNull == null || !curAttrsOrNull.user().name()
-                            .equals(newAttrs.user().name()))) {
+            if (!_isNumericIds && !newAttrs.user().name().isEmpty() &&
+                (curAttrsOrNull == null ||
+                 !curAttrsOrNull.user().name().equals(newAttrs.user().name())))
+            {
                 if (_log.isLoggable(Level.FINE)) {
-                    _log.fine(String
-                            .format("(Generator) updating ownership %s -> %s on %s",
-                                    curAttrsOrNull == null ? ""
-                                            : curAttrsOrNull.user(),
-                                    newAttrs.user(), path));
+                    _log.fine(String.format(
+                            "(Generator) updating ownership %s -> %s on %s",
+                            curAttrsOrNull == null
+                                ? "" : curAttrsOrNull.user(),
+                            newAttrs.user(), path));
                 }
                 // NOTE: side effect of chown in Linux is that set user/group id
                 // bit might be cleared.
                 FileOps.setOwner(path, newAttrs.user(),
-                        LinkOption.NOFOLLOW_LINKS);
-            } else if ((_isNumericIds || newAttrs.user().name().isEmpty())
-                    && (curAttrsOrNull == null || curAttrsOrNull.user()
-                            .uid() != newAttrs.user().uid())) {
+                                 LinkOption.NOFOLLOW_LINKS);
+            } else if ((_isNumericIds || newAttrs.user().name().isEmpty()) &&
+                       (curAttrsOrNull == null ||
+                        curAttrsOrNull.user().uid() != newAttrs.user().uid())) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
                             "(Generator) updating uid %s -> %d on %s",
-                            curAttrsOrNull == null ? ""
-                                    : curAttrsOrNull.user().uid(),
+                            curAttrsOrNull == null
+                                ? "" : curAttrsOrNull.user().uid(),
                             newAttrs.user().uid(), path));
                 }
                 // NOTE: side effect of chown in Linux is that set user/group id
                 // bit might be cleared.
                 FileOps.setUserId(path, newAttrs.user().uid(),
-                        LinkOption.NOFOLLOW_LINKS);
+                                  LinkOption.NOFOLLOW_LINKS);
             }
         }
     }

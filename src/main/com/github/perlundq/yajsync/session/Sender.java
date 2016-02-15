@@ -285,8 +285,9 @@ public final class Sender implements RsyncTask, MessageHandler
             }
             long t3 = System.currentTimeMillis();
 
-            if (_isPreserveUser && !_isNumericIds
-                    && _fileSelection != FileSelection.RECURSE) {
+            if (_isPreserveUser && !_isNumericIds &&
+                _fileSelection != FileSelection.RECURSE)
+            {
                 sendUserList();
             }
 

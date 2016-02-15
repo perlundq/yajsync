@@ -270,9 +270,8 @@ public class YajSyncClient
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "numeric-ids", "",
-                                      String.format("don't map uid/gid " +
-                                              "values by user/group name " +
-                                              "(default false)"),
+                                      "don't map uid/gid values by " +
+                                      "user/group name (default false)",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
                     _clientBuilder.isNumericIds(true);
