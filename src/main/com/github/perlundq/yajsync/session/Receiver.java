@@ -1206,6 +1206,9 @@ public class Receiver implements RsyncTask, MessageHandler
                 throw new RsyncProtocolException("got user name mapping when " +
                                                  "not doing incremental " +
                                                  "recursion");
+            } else if (isReceiveUserName && _isNumericIds) {
+                throw new RsyncProtocolException("got user name mapping with " +
+                                                 "--numeric-ids");
             }
             if (_fileSelection == FileSelection.RECURSE && isReceiveUserName) {
                 user = receiveUser();
