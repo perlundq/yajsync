@@ -633,9 +633,9 @@ public final class RsyncClient
             // revisit if we add support for --iconv
             serverArgs.add(sb.toString());
 
-			if (_isNumericIds) {
-				serverArgs.add("--numeric-ids");
-			}
+            if (_isNumericIds) {
+                serverArgs.add("--numeric-ids");
+            }
 
             serverArgs.add("."); // arg delimiter
 
