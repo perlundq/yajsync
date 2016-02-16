@@ -26,29 +26,14 @@ import com.github.perlundq.yajsync.util.Environment;
 
 public final class Group extends AbstractPrincipal
 {
-    private static final Group ROOT = new Group("root", 0);
-    private static final Group NOBODY = new Group("nobody", ID_NOBODY);
-    private static final Group JVM_USER = new Group(Environment.getGroupName(),
+    public static final Group ROOT = new Group("root", 0);
+    public static final Group NOBODY = new Group("nobody", ID_NOBODY);
+    public static final Group JVM_GROUP = new Group(Environment.getGroupName(),
                                                     Environment.getGroupId());
 
     public Group(String name, int gid)
     {
         super(name, gid);
-    }
-
-    public static Group whoami()
-    {
-        return JVM_USER;
-    }
-
-    public static Group root()
-    {
-        return ROOT;
-    }
-
-    public static Group nobody()
-    {
-        return NOBODY;
     }
 
     public GroupPrincipal groupPrincipal() throws IOException

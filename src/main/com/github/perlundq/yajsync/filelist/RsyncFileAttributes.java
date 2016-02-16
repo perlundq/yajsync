@@ -75,8 +75,8 @@ public class RsyncFileAttributes
         this(RsyncFileAttributes.toMode(attrs),
              attrs.size(),
              attrs.lastModifiedTime().to(TimeUnit.SECONDS),
-             User.whoami(),
-             Group.whoami());
+             User.JVM_USER,
+             Group.JVM_GROUP);
     }
 
     private RsyncFileAttributes(PosixFileAttributes attrs)
@@ -84,8 +84,8 @@ public class RsyncFileAttributes
         this(RsyncFileAttributes.toMode(attrs),
              attrs.size(),
              attrs.lastModifiedTime().to(TimeUnit.SECONDS),
-             new User(attrs.owner().getName(), User.whoami().id()),
-             new Group(attrs.group().getName(), Group.whoami().id()));
+             new User(attrs.owner().getName(), User.JVM_USER.id()),
+             new Group(attrs.group().getName(), Group.JVM_GROUP.id()));
     }
 
     public static RsyncFileAttributes stat(Path path) throws IOException

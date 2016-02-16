@@ -26,29 +26,14 @@ import com.github.perlundq.yajsync.util.Environment;
 
 public final class User extends AbstractPrincipal
 {
-    private static final User ROOT = new User("root", 0);
-    private static final User NOBODY = new User("nobody", ID_NOBODY);
-    private static final User JVM_USER = new User(Environment.getUserName(),
+    public static final User ROOT = new User("root", 0);
+    public static final User NOBODY = new User("nobody", ID_NOBODY);
+    public static final User JVM_USER = new User(Environment.getUserName(),
                                                   Environment.getUserId());
 
     public User(String name, int uid)
     {
         super(name, uid);
-    }
-
-    public static User whoami()
-    {
-        return JVM_USER;
-    }
-
-    public static User root()
-    {
-        return ROOT;
-    }
-
-    public static User nobody()
-    {
-        return NOBODY;
     }
 
     public UserPrincipal userPrincipal() throws IOException

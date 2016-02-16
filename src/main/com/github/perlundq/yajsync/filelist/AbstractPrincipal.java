@@ -19,8 +19,8 @@ package com.github.perlundq.yajsync.filelist;
 
 import java.util.Objects;
 
-public abstract class AbstractPrincipal {
-
+public abstract class AbstractPrincipal
+{
     public static final int ID_MAX = 65535;
 
     protected static final int ID_NOBODY = ID_MAX - 1;

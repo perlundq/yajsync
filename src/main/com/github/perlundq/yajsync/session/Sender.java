@@ -301,9 +301,9 @@ public final class Sender implements RsyncTask, MessageHandler
             {
                 sendUserList();
             }
-
-            if (_isPreserveGroup && !_isNumericIds
-                    && _fileSelection != FileSelection.RECURSE) {
+            if (_isPreserveGroup && !_isNumericIds &&
+                _fileSelection != FileSelection.RECURSE)
+            {
                 sendGroupList();
             }
 
@@ -402,7 +402,7 @@ public final class Sender implements RsyncTask, MessageHandler
             _log.finer("sending group name " + name);
         }
         ByteBuffer buf = ByteBuffer.wrap(_characterEncoder.encode(name));
-        if (buf.remaining() > 0xFF) { // unlikely scenario, we could also recover from this (by truncating or falling back to nobody)
+        if (buf.remaining() > 0xFF) {
             throw new IllegalStateException(String.format(
                 "encoded length of group name %s is %d, which is larger than " +
                 "what fits in a byte (255)", name, buf.remaining()));
@@ -414,7 +414,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private void sendUserList() throws ChannelException
     {
         for (User user : _transferredUserNames) {
-            assert user.id() != User.root().id();
+            assert user.id() != User.ROOT.id();
             sendUserId(user.id());
             sendUserName(user.name());
         }
@@ -424,7 +424,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private void sendGroupList() throws ChannelException
     {
         for (Group group : _transferredGroupNames) {
-            assert group.id() != Group.root().id();
+            assert group.id() != Group.ROOT.id();
             sendGroupId(group.id());
             sendGroupName(group.name());
         }
@@ -982,7 +982,7 @@ public final class Sender implements RsyncTask, MessageHandler
             !user.equals(_fileInfoCache.getPrevUserOrNull()))
         {
             _fileInfoCache.setPrevUser(user);
-            if (!_isNumericIds && !user.equals(User.root())) {
+            if (!_isNumericIds && !user.equals(User.ROOT)) {
                 if (_fileSelection == FileSelection.RECURSE &&
                     !_transferredUserNames.contains(user))
                 {
@@ -996,12 +996,13 @@ public final class Sender implements RsyncTask, MessageHandler
 
         Group group = fileInfo.attrs().group();
         if (_isPreserveGroup &&
-               !group.equals(_fileInfoCache.getPrevGroupOrNull()))
+            !group.equals(_fileInfoCache.getPrevGroupOrNull()))
         {
             _fileInfoCache.setPrevGroup(group);
-            if (!group.equals(Group.root())) {
+            if (!_isNumericIds && !group.equals(Group.ROOT)) {
                 if (_fileSelection == FileSelection.RECURSE &&
-                        !_transferredGroupNames.contains(group)) {
+                    !_transferredGroupNames.contains(group))
+                {
                     xflags |= TransmitFlags.GROUP_NAME_FOLLOWS;
                 } // else send in batch later
                 _transferredGroupNames.add(group);
