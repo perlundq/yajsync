@@ -19,27 +19,27 @@ package com.github.perlundq.yajsync.filelist;
 
 import java.io.IOException;
 import java.nio.file.FileSystems;
-import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
 
 import com.github.perlundq.yajsync.util.Environment;
 
-public final class User extends AbstractPrincipal
+public final class Group extends AbstractPrincipal
 {
-    public static final User ROOT = new User("root", 0);
-    public static final User NOBODY = new User("nobody", ID_NOBODY);
-    public static final User JVM_USER = new User(Environment.getUserName(),
-                                                  Environment.getUserId());
+    public static final Group ROOT = new Group("root", 0);
+    public static final Group NOBODY = new Group("nobody", ID_NOBODY);
+    public static final Group JVM_GROUP = new Group(Environment.getGroupName(),
+                                                    Environment.getGroupId());
 
-    public User(String name, int uid)
+    public Group(String name, int gid)
     {
-        super(name, uid);
+        super(name, gid);
     }
 
-    public UserPrincipal userPrincipal() throws IOException
+    public GroupPrincipal groupPrincipal() throws IOException
     {
         UserPrincipalLookupService lookupService =
             FileSystems.getDefault().getUserPrincipalLookupService();
-        return lookupService.lookupPrincipalByName(_name);
+        return lookupService.lookupPrincipalByGroupName(_name);
     }
 }

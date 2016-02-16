@@ -168,6 +168,7 @@ public final class RsyncClient
                                 isPreservePermissions(_isPreservePermissions).
                                 isPreserveTimes(_isPreserveTimes).
                                 isPreserveUser(_isPreserveUser).
+                                isPreserveGroup(_isPreserveGroup).
                                 isNumericIds(_isNumericIds).
                                 isIgnoreTimes(_isIgnoreTimes).
                                 isAlwaysItemize(_verbosity > 1).
@@ -365,6 +366,7 @@ public final class RsyncClient
                     isExitEarlyIfEmptyList(true).
                     charset(_charset).
                     isPreserveUser(_isPreserveUser).
+                    isPreserveUser(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
                     fileSelection(fileSelection).build();
             Generator generator = new Generator.Builder(toSender.sink(), seed).
@@ -373,6 +375,7 @@ public final class RsyncClient
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
                     isPreserveUser(_isPreserveUser).
+                    isPreserveUser(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
                     isIgnoreTimes(_isIgnoreTimes).
                     isListOnly(true).
@@ -413,6 +416,7 @@ public final class RsyncClient
                     isExitEarlyIfEmptyList(true).
                     charset(_charset).
                     isPreserveUser(_isPreserveUser).
+                    isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
                     fileSelection(fileSelection).build();
             Generator generator = new Generator.Builder(toSender.sink(), seed).
@@ -421,6 +425,7 @@ public final class RsyncClient
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
                     isPreserveUser(_isPreserveUser).
+                    isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
                     isIgnoreTimes(_isIgnoreTimes).
                     isListOnly(false).
@@ -702,6 +707,7 @@ public final class RsyncClient
                             isPreservePermissions(_isPreservePermissions).
                             isPreserveTimes(_isPreserveTimes).
                             isPreserveUser(_isPreserveUser).
+                            isPreserveGroup(_isPreserveGroup).
                             isNumericIds(_isNumericIds).
                             isIgnoreTimes(_isIgnoreTimes).
                             isAlwaysItemize(_verbosity > 1).
@@ -726,6 +732,7 @@ public final class RsyncClient
                             charset(_charset).
                             fileSelection(fileSelection).
                             isPreserveUser(_isPreserveUser).
+                            isPreserveGroup(_isPreserveGroup).
                             isNumericIds(_isNumericIds).
                             isInterruptible(_isInterruptible).
                             isSafeFileList(cfg.isSafeFileList()).build();
@@ -776,6 +783,7 @@ public final class RsyncClient
         private boolean _isDeferWrite;
         private boolean _isIgnoreTimes;
         private boolean _isPreserveUser;
+        private boolean _isPreserveGroup;
         private boolean _isNumericIds;
         private boolean _isPreservePermissions;
         private boolean _isPreserveTimes;
@@ -824,6 +832,12 @@ public final class RsyncClient
         public Builder isPreserveUser(boolean isPreserveUser)
         {
             _isPreserveUser = isPreserveUser;
+            return this;
+        }
+
+        public Builder isPreserveGroup(boolean isPreserveGroup)
+        {
+            _isPreserveGroup = isPreserveGroup;
             return this;
         }
 
@@ -891,6 +905,7 @@ public final class RsyncClient
     private final boolean _isIgnoreTimes;
     private final boolean _isOwnerOfExecutorService;
     private final boolean _isPreserveUser;
+    private final boolean _isPreserveGroup;
     private final boolean _isNumericIds;
     private final boolean _isPreservePermissions;
     private final boolean _isPreserveTimes;
@@ -909,6 +924,7 @@ public final class RsyncClient
         _isDeferWrite = builder._isDeferWrite;
         _isIgnoreTimes = builder._isIgnoreTimes;
         _isPreserveUser = builder._isPreserveUser;
+        _isPreserveGroup = builder._isPreserveGroup;
         _isNumericIds = builder._isNumericIds;
         _isPreservePermissions = builder._isPreservePermissions;
         _isPreserveTimes = builder._isPreserveTimes;
