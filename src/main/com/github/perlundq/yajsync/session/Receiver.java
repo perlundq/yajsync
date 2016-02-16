@@ -1327,6 +1327,9 @@ public class Receiver implements RsyncTask, MessageHandler
                 throw new RsyncProtocolException("got group name mapping when " +
                                                  "not doing incremental " +
                                                  "recursion");
+            } else if (isReceiveGroupName && _isNumericIds) {
+                throw new RsyncProtocolException("got group name mapping " +
+                                                 "with --numeric-ids");
             }
             if (_fileSelection == FileSelection.RECURSE && isReceiveGroupName) {
                 group = receiveGroup();
