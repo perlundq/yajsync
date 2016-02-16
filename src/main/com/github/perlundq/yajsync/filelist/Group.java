@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2015 Florian Sager
+ * Copyright (C) 2014-2016 Per Lundqvist
+ * Copyright (C) 2015-2016 Florian Sager
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
