@@ -165,6 +165,12 @@ class FileUtil
         return leftAttrs.user().equals(rightAttrs.user());
     }
 
+    public static boolean isFileSameGroup(RsyncFileAttributes leftAttrs,
+                                          RsyncFileAttributes rightAttrs)
+    {
+        return leftAttrs.group().equals(rightAttrs.group());
+    }
+
     public static boolean isDirectory(Path path)
     {
         return Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS);
@@ -733,7 +739,7 @@ public class SystemTest
     @Test
     public void testClientCopyPreserveUid() throws IOException
     {
-        if (!User.whoami().equals(User.root())) {
+        if (!User.JVM_USER.equals(User.ROOT)) {
             return;
         }
 
@@ -744,7 +750,7 @@ public class SystemTest
         Path srcFile = srcDir.resolve("file");
         Files.createDirectory(srcDir);
         FileUtil.writeToFiles(1, srcFile);
-        FileOps.setUserId(srcFile, User.nobody().id());
+        FileOps.setUserId(srcFile, User.NOBODY.id());
 
         Files.createDirectory(dst);
         Path copyOfSrc = dst.resolve(src.getFileName());
@@ -761,6 +767,40 @@ public class SystemTest
         assertTrue(FileUtil.isDirectory(dst));
         assertTrue(FileUtil.isDirectoriesIdentical(src, copyOfSrc));
         assertTrue(FileUtil.isFileSameOwner(RsyncFileAttributes.stat(srcFile),
+                                            RsyncFileAttributes.stat(dstFile)));
+    }
+
+    @Test
+    public void testClientCopyPreserveGid() throws IOException
+    {
+        if (!User.JVM_USER.equals(User.ROOT)) {
+            return;
+        }
+
+        Path src = _tempDir.newFolder().toPath();
+        Path dst = Paths.get(src.toString() + ".dst");
+
+        Path srcDir = src.resolve("dir");
+        Path srcFile = srcDir.resolve("file");
+        Files.createDirectory(srcDir);
+        FileUtil.writeToFiles(1, srcFile);
+        FileOps.setGroupId(srcFile, User.NOBODY.id());
+
+        Files.createDirectory(dst);
+        Path copyOfSrc = dst.resolve(src.getFileName());
+        Files.createDirectory(copyOfSrc);
+        Path dstDir = copyOfSrc.resolve("dir");
+        Path dstFile = dstDir.resolve("file");
+        Files.createDirectory(dstDir);
+        FileUtil.writeToFiles(1, dstFile);
+
+        ReturnStatus status = fileCopy(src, dst, "--recursive", "--group",
+                                       "--numeric-ids");
+
+        assertTrue(status.rc == 0);
+        assertTrue(FileUtil.isDirectory(dst));
+        assertTrue(FileUtil.isDirectoriesIdentical(src, copyOfSrc));
+        assertTrue(FileUtil.isFileSameGroup(RsyncFileAttributes.stat(srcFile),
                                             RsyncFileAttributes.stat(dstFile)));
     }
 
