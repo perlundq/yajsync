@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Per Lundqvist
+ * Copyright (C) 2015 Florian Sager
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,42 +18,42 @@ package com.github.perlundq.yajsync.filelist;
 
 import java.io.IOException;
 import java.nio.file.FileSystems;
-import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
 
 import com.github.perlundq.yajsync.util.Environment;
 
-public final class User extends AbstractPrincipal
+public final class Group extends AbstractPrincipal
 {
-	private static final User ROOT = new User("root", 0);
-    private static final User NOBODY = new User("nobody", ID_NOBODY);
-    private static final User JVM_USER = new User(Environment.getUserName(),
-                                                  Environment.getUserId());
+	private static final Group ROOT = new Group("root", 0);
+    private static final Group NOBODY = new Group("nobody", ID_NOBODY);
+    private static final Group JVM_USER = new Group(Environment.getGroupName(),
+                                                  Environment.getGroupId());
 
-    public User(String name, int uid)
+    public Group(String name, int gid)
     {
-    	super(name, uid);
+    	super(name, gid);
     }
 
-    public static User whoami()
+    public static Group whoami()
     {
         return JVM_USER;
     }
 
-    public static User root()
+    public static Group root()
     {
         return ROOT;
     }
 
-    public static User nobody()
+    public static Group nobody()
     {
         return NOBODY;
     }
 
-    public UserPrincipal userPrincipal() throws IOException
+    public GroupPrincipal groupPrincipal() throws IOException
     {
-    	UserPrincipalLookupService lookupService =
-            FileSystems.getDefault().getUserPrincipalLookupService();
-        return lookupService.lookupPrincipalByName(_name);
+        UserPrincipalLookupService lookupService =
+        		FileSystems.getDefault().getUserPrincipalLookupService();
+        return lookupService.lookupPrincipalByGroupName(_name);
     }
 }

@@ -744,7 +744,7 @@ public class SystemTest
         Path srcFile = srcDir.resolve("file");
         Files.createDirectory(srcDir);
         FileUtil.writeToFiles(1, srcFile);
-        FileOps.setUserId(srcFile, User.nobody().uid());
+        FileOps.setUserId(srcFile, User.nobody().id());
 
         Files.createDirectory(dst);
         Path copyOfSrc = dst.resolve(src.getFileName());

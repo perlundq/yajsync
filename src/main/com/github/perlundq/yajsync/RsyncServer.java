@@ -110,6 +110,7 @@ public class RsyncServer
                     charset(cfg.charset()).
                     fileSelection(cfg.fileSelection()).
                     isPreserveUser(cfg.isPreserveUser()).
+                    isPreserveGroup(cfg.isPreserveGroup()).
                     isNumericIds(cfg.isNumericIds()).
                     isInterruptible(isChannelsInterruptible).
                     isSafeFileList(cfg.isSafeFileList()).build();
@@ -122,6 +123,7 @@ public class RsyncServer
                     isPreservePermissions(cfg.isPreservePermissions()).
                     isPreserveTimes(cfg.isPreserveTimes()).
                     isPreserveUser(cfg.isPreserveUser()).
+                    isPreserveGroup(cfg.isPreserveGroup()).
                     isNumericIds(cfg.isNumericIds()).
                     isIgnoreTimes(cfg.isIgnoreTimes()).
                     isAlwaysItemize(cfg.verbosity() > 1).

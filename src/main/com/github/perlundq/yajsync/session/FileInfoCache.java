@@ -19,6 +19,7 @@
  */
 package com.github.perlundq.yajsync.session;
 
+import com.github.perlundq.yajsync.filelist.Group;
 import com.github.perlundq.yajsync.filelist.User;
 
 class FileInfoCache
@@ -27,6 +28,7 @@ class FileInfoCache
     private byte[] _prevFileName = {};
     private long _prevLastModified = 0;
     private User _prevUser;
+    private Group _prevGroup;
 
     public FileInfoCache() {}
 
@@ -68,5 +70,15 @@ class FileInfoCache
     public void setPrevUser(User user)
     {
         _prevUser = user;
+    }
+
+    public Group getPrevGroupOrNull()
+    {
+        return _prevGroup;
+    }
+
+    public void setPrevGroup(Group group)
+    {
+        _prevGroup = group;
     }
 }

@@ -13,9 +13,9 @@ import com.github.perlundq.yajsync.util.FileOps;
 public class FileInfoTest {
 
     RsyncFileAttributes _fileAttrs =
-        new RsyncFileAttributes(FileOps.S_IFREG | 0644, 0, 0, User.whoami());
+        new RsyncFileAttributes(FileOps.S_IFREG | 0644, 0, 0, User.whoami(), Group.whoami());
     RsyncFileAttributes _dirAttrs =
-        new RsyncFileAttributes(FileOps.S_IFDIR | 0755, 0, 0, User.whoami());
+        new RsyncFileAttributes(FileOps.S_IFDIR | 0755, 0, 0, User.whoami(), Group.whoami());
     Path _dotDirPath = Paths.get("./");
     Path dotDirAbsPath = Paths.get("/path/to/module/root/");
     FileInfo _dotDir = new FileInfo(dotDirAbsPath,
