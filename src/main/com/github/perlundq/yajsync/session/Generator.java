@@ -907,37 +907,32 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         }
 
         if (_isPreserveGroup) {
-            if (!_isNumericIds && !newAttrs.group().name().isEmpty()
-                    && (curAttrsOrNull == null || !curAttrsOrNull.group().name()
-                            .equals(newAttrs.group().name()))) {
+            if (!_isNumericIds && !newAttrs.group().name().isEmpty() &&
+                (curAttrsOrNull == null ||
+                 !curAttrsOrNull.group().name().equals(newAttrs.group().name()))) {
                 if (_log.isLoggable(Level.FINE)) {
-                    _log.fine(String
-                            .format("(Generator) updating group %s -> %s on %s",
-                                    curAttrsOrNull == null ? ""
-                                            : curAttrsOrNull.group(),
-                                    newAttrs.group(), path));
+                    _log.fine(String.format(
+                            "(Generator) updating group %s -> %s on %s",
+                            curAttrsOrNull == null
+                                ? "" : curAttrsOrNull.group(),
+                            newAttrs.group(), path));
                 }
-                // NOTE: side effect of chown in Linux is that set user/group id
-                // bit might be cleared.
                 FileOps.setGroup(path, newAttrs.group(),
-                        LinkOption.NOFOLLOW_LINKS);
-            } else if ((_isNumericIds || newAttrs.group().name().isEmpty())
-                    && (curAttrsOrNull == null || curAttrsOrNull.group()
-                            .id() != newAttrs.group().id())) {
+                                 LinkOption.NOFOLLOW_LINKS);
+            } else if ((_isNumericIds || newAttrs.group().name().isEmpty()) &&
+                       (curAttrsOrNull == null ||
+                        curAttrsOrNull.group().id() != newAttrs.group().id())) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
                             "(Generator) updating gid %s -> %d on %s",
-                            curAttrsOrNull == null ? ""
-                                    : curAttrsOrNull.group().id(),
+                            curAttrsOrNull == null
+                                ? "" : curAttrsOrNull.group().id(),
                             newAttrs.group().id(), path));
                 }
-                // NOTE: side effect of chown in Linux is that set user/group id
-                // bit might be cleared.
                 FileOps.setGroupId(path, newAttrs.group().id(),
-                        LinkOption.NOFOLLOW_LINKS);
+                                   LinkOption.NOFOLLOW_LINKS);
             }
         }
-
     }
 
     private void deferUpdateAttrsIfDiffer(
