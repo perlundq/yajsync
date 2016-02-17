@@ -366,7 +366,7 @@ public final class RsyncClient
                     isExitEarlyIfEmptyList(true).
                     charset(_charset).
                     isPreserveUser(_isPreserveUser).
-                    isPreserveUser(_isPreserveGroup).
+                    isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
                     fileSelection(fileSelection).build();
             Generator generator = new Generator.Builder(toSender.sink(), seed).
@@ -375,7 +375,7 @@ public final class RsyncClient
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
                     isPreserveUser(_isPreserveUser).
-                    isPreserveUser(_isPreserveGroup).
+                    isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
                     isIgnoreTimes(_isIgnoreTimes).
                     isListOnly(true).
