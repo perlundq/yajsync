@@ -621,6 +621,9 @@ public final class RsyncClient
             if (_isPreserveUser) {
                 sb.append("o");
             }
+            if (_isPreserveGroup) {
+                sb.append("g");
+            }
             if (_isIgnoreTimes) {
                 sb.append("I");
             }
