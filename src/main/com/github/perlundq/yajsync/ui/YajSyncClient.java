@@ -289,6 +289,16 @@ public class YajSyncClient
 
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "delete", "",
+                                      String.format("delete extraneous files " +
+                                                    "(default false)"),
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    _clientBuilder.isDelete(true);
+                }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "numeric-ids", "",
                                       "don't map uid/gid values by " +
                                       "user/group name (default false)",

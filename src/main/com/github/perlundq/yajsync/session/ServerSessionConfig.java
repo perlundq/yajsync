@@ -53,6 +53,7 @@ public class ServerSessionConfig extends SessionConfig
         Logger.getLogger(ServerSessionConfig.class.getName());
     private final List<Path> _sourceFiles = new LinkedList<>();
     private Path _receiverDestination;
+    private boolean _isDelete = false;
     private boolean _isIncrementalRecurse = false;
     private boolean _isSender = false;
     private boolean _isPreserveLinks = false;
@@ -278,6 +279,17 @@ public class ServerSessionConfig extends SessionConfig
                     _fileSelection = FileSelection.RECURSE;
                 }}));
 
+        argsParser.add(Option.newWithoutArgument(
+            Option.Policy.OPTIONAL,
+            "no-r", "", "",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    // is sent when transfer dirs and delete
+                    if (_fileSelection == FileSelection.RECURSE) {
+                        _fileSelection = FileSelection.EXACT;
+                    }
+                }}));
+
         argsParser.add(Option.newStringOption(
             Option.Policy.REQUIRED,
             "rsh", "e", "",
@@ -300,6 +312,14 @@ public class ServerSessionConfig extends SessionConfig
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
                     increaseVerbosity();
+                }}));
+
+        argsParser.add(Option.newWithoutArgument(
+            Option.Policy.OPTIONAL,
+            "delete", "", "",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    setIsDelete();
                 }}));
 
         argsParser.add(Option.newWithoutArgument(
@@ -468,6 +488,11 @@ public class ServerSessionConfig extends SessionConfig
         _peerConnection.putInt(BitOps.toBigEndianInt(_checksumSeed));
     }
 
+    private void setIsDelete()
+    {
+        _isDelete = true;
+    }
+
     private void setIsPreserveLinks()
     {
         _isPreserveLinks = true;
@@ -511,6 +536,11 @@ public class ServerSessionConfig extends SessionConfig
     public List<Path> sourceFiles()
     {
         return _sourceFiles;
+    }
+
+    public boolean isDelete()
+    {
+        return _isDelete;
     }
 
     public boolean isPreserveLinks()

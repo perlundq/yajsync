@@ -85,11 +85,11 @@ public final class Sender implements RsyncTask, MessageHandler
         private boolean _isPreserveUser;
         private boolean _isPreserveGroup;
         private boolean _isNumericIds;
-        private boolean _isReceiveFilterRules;
         private boolean _isSafeFileList = true;
         private boolean _isSendStatistics;
         private Charset _charset = Charset.forName(Text.UTF8_NAME);
         private FileSelection _fileSelection = FileSelection.EXACT;
+        private FilterMode _filterMode = FilterMode.NONE;
 
         public Builder(ReadableByteChannel in,
                        WritableByteChannel out,
@@ -112,7 +112,6 @@ public final class Sender implements RsyncTask, MessageHandler
                                         byte[] checksumSeed)
         {
             Builder builder = new Builder(in, out, sourceFiles, checksumSeed);
-            builder._isReceiveFilterRules = true;
             builder._isSendStatistics = true;
             builder._isExitEarlyIfEmptyList = true;
             builder._isExitAfterEOF = false;
@@ -125,7 +124,6 @@ public final class Sender implements RsyncTask, MessageHandler
                                         byte[] checksumSeed)
         {
             Builder builder = new Builder(in, out, sourceFiles, checksumSeed);
-            builder._isReceiveFilterRules = false;
             builder._isSendStatistics = false;
             builder._isExitEarlyIfEmptyList = false;
             builder._isExitAfterEOF = true;
@@ -137,6 +135,13 @@ public final class Sender implements RsyncTask, MessageHandler
         {
             assert fileSelection != null;
             _fileSelection = fileSelection;
+            return this;
+        }
+
+        public Builder filterMode(FilterMode filterMode)
+        {
+            assert filterMode != null;
+            _filterMode = filterMode;
             return this;
         }
 
@@ -211,12 +216,12 @@ public final class Sender implements RsyncTask, MessageHandler
     private final boolean _isPreserveUser;
     private final boolean _isPreserveGroup;
     private final boolean _isNumericIds;
-    private final boolean _isReceiveFilterRules;
     private final boolean _isSafeFileList;
     private final boolean _isSendStatistics;
     private final byte[] _checksumSeed;
     private final FileInfoCache _fileInfoCache = new FileInfoCache();
     private final FileSelection _fileSelection;
+    private final FilterMode _filterMode;
     private final Iterable<Path> _sourceFiles;
     private final Set<User> _transferredUserNames = new LinkedHashSet<>();
     private final Set<Group> _transferredGroupNames = new LinkedHashSet<>();
@@ -242,11 +247,11 @@ public final class Sender implements RsyncTask, MessageHandler
         _isPreserveUser = builder._isPreserveUser;
         _isPreserveGroup = builder._isPreserveGroup;
         _isNumericIds = builder._isNumericIds;
-        _isReceiveFilterRules = builder._isReceiveFilterRules;
         _isSafeFileList = builder._isSafeFileList;
         _isSendStatistics = builder._isSendStatistics;
         _checksumSeed = builder._checksumSeed;
         _fileSelection = builder._fileSelection;
+        _filterMode = builder._filterMode;
         _sourceFiles = builder._sourceFiles;
         _characterDecoder = TextDecoder.newStrict(builder._charset);
         _characterEncoder = TextEncoder.newStrict(builder._charset);
@@ -273,7 +278,8 @@ public final class Sender implements RsyncTask, MessageHandler
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("Sender.transfer:");
             }
-            if (_isReceiveFilterRules) {
+
+            if (_filterMode == FilterMode.RECEIVE) {
                 String rules = receiveFilterRules();
                 if (rules.length() > 0) {
                     throw new RsyncProtocolException(String.format(
@@ -281,6 +287,8 @@ public final class Sender implements RsyncTask, MessageHandler
                             "from peer, this is not yet supported (%s)",
                             rules.length(), rules));
                 }
+            } else if (_filterMode == FilterMode.SEND) {
+                sendEmptyFilterRules();
             }
 
             long t1 = System.currentTimeMillis();
@@ -374,6 +382,14 @@ public final class Sender implements RsyncTask, MessageHandler
         }
     }
 
+    private void sendEmptyFilterRules() throws ChannelException
+    {
+        ByteBuffer buf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(0);
+        buf.flip();
+        _duplexChannel.put(buf);
+    }
+
     private void sendUserId(int uid) throws ChannelException
     {
         if (_log.isLoggable(Level.FINER)) {
@@ -452,13 +468,15 @@ public final class Sender implements RsyncTask, MessageHandler
         case IO_ERROR:
             _ioError |= message.payload().getInt();
             break;
-        case INFO:
         case ERROR:
         case ERROR_XFER:
+            _ioError |= IoError.TRANSFER;  // fall through
+        case INFO:
         case WARNING:
         case LOG:
-            // throws TextConversionException
-            printMessage(message);
+            if (_log.isLoggable(message.logLevelOrNull())) {
+                printMessage(message);
+            }
             break;
         default:
             throw new RuntimeException(
@@ -475,18 +493,13 @@ public final class Sender implements RsyncTask, MessageHandler
         assert message.isText();
         try {
             MessageCode msgType = message.header().messageType();
-            if (msgType.equals(MessageCode.ERROR_XFER)) {
-                _ioError |= IoError.TRANSFER;
-            }
-            if (_log.isLoggable(message.logLevelOrNull())) {
-                // throws TextConversionException
-                String text = _characterDecoder.decode(message.payload());
-                // Receiver here means the opposite of Sender - not the process
-                // (which actually is the Generator)
-                _log.log(message.logLevelOrNull(),
-                         String.format("<RECEIVER> %s: %s",
-                                       msgType, Text.stripLast(text)));
-            }
+            // throws TextConversionException
+            String text = _characterDecoder.decode(message.payload());
+            // Receiver here means the opposite of Sender - not the process
+            // (which actually is the Generator)
+            _log.log(message.logLevelOrNull(),
+                     String.format("<RECEIVER> %s: %s", msgType,
+                                   Text.stripLast(text)));
         } catch (TextConversionException e) {
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe(String.format(

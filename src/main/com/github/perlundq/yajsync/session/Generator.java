@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -36,10 +37,12 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -76,6 +79,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         private boolean _isAlwaysItemize;
         private boolean _isIgnoreTimes;
         private boolean _isInterruptible = true;
+        private boolean _isDelete;
         private boolean _isListOnly;
         private boolean _isPreserveLinks;
         private boolean _isPreservePermissions;
@@ -97,6 +101,12 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         public Builder isAlwaysItemize(boolean isAlwaysItemize)
         {
             _isAlwaysItemize = isAlwaysItemize;
+            return this;
+        }
+
+        public Builder isDelete(boolean isDelete)
+        {
+            _isDelete = isDelete;
             return this;
         }
 
@@ -170,6 +180,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
 
         public Generator build()
         {
+            assert !_isDelete || _fileSelection != FileSelection.EXACT;
             return new Generator(this);
         }
     }
@@ -186,6 +197,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
 
     private final BitSet _pruned = new BitSet();
     private final boolean _isAlwaysItemize;
+    private final boolean _isDelete;
     private final boolean _isIgnoreTimes;
     private final boolean _isInterruptible;
     private final boolean _isListOnly;
@@ -209,6 +221,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
 
     private boolean _isRunning = true;
     private int _returnStatus;
+    private volatile boolean _isDeletionsEnabled;
 
     static {
         try {
@@ -229,6 +242,8 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                                                 OUTPUT_CHANNEL_BUF_SIZE);
         _characterEncoder = TextEncoder.newStrict(builder._charset);
         _isAlwaysItemize = builder._isAlwaysItemize;
+        _isDelete = builder._isDelete;
+        _isDeletionsEnabled = _fileSelection != FileSelection.EXACT;
         _isIgnoreTimes = builder._isIgnoreTimes;
         _isInterruptible = builder._isInterruptible;
         _isListOnly = builder._isListOnly;
@@ -673,6 +688,20 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             return;
         }
 
+        if (_isDelete && _isDeletionsEnabled) {
+            try {
+                unlinkFilesInDirNotAtSender(dir.pathOrNull(), segment.files());
+            } catch (IOException e) {
+                if (Files.exists(dir.pathOrNull(), LinkOption.NOFOLLOW_LINKS)) {
+                    if (_log.isLoggable(Level.WARNING)) {
+                        _log.warning(String.format(
+                                "failed to delete %s and all its files: %s",
+                                dir, e));
+                    }
+                    _returnStatus++;
+                }
+            }
+        }
         try {
             if (dir.attrs().isDirectory()) {
                 mkdir(dir);
@@ -1223,6 +1252,49 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                             (char) (Item.LOCAL_CHANGE | Item.REPORT_CHANGE));
         } catch (UnsupportedOperationException e) {
             throw new IOException(e);
+        }
+    }
+
+    private void unlinkFilesInDirNotAtSender(Path dir,
+                                             Collection<FileInfo> files)
+            throws IOException
+    {
+        assert _isDelete && _isDeletionsEnabled;
+        Set<Path> senderPaths = new HashSet<>(files.size());
+        for (FileInfo f : files) {
+            if (f.pathOrNull() != null) {
+                senderPaths.add(f.pathOrNull());
+            }
+        }
+
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
+            for (Path entry : stream) {
+                if (!senderPaths.contains(entry)) {
+                    try {
+                        if (_log.isLoggable(Level.INFO)) {
+                            _log.info("deleting extraneous " + entry);
+                        }
+                        FileOps.unlink(entry);
+                    } catch (IOException e) {
+                        if (_log.isLoggable(Level.WARNING)) {
+                            _log.warning(String.format(
+                                    "failed to delete %s: %s", entry, e));
+                        }
+                        _returnStatus++;
+                    }
+                }
+            }
+        }
+    }
+
+    public void disableDelete()
+    {
+        if (_isDelete && _isDeletionsEnabled) {
+            if (_log.isLoggable(Level.WARNING)) {
+                _log.warning("--delete disabled due to receiving error " +
+                             "notification from peer sender");
+            }
+            _isDeletionsEnabled = false;
         }
     }
 }

@@ -77,7 +77,7 @@ public class Receiver implements RsyncTask, MessageHandler
         private boolean _isExitEarlyIfEmptyList;
         private boolean _isReceiveStatistics;
         private boolean _isSafeFileList = true;
-        private boolean _isSendFilterRules;
+        private FilterMode _filterMode = FilterMode.NONE;
 
         public Builder(Generator generator, ReadableByteChannel in,
                        String targetPathName)
@@ -96,9 +96,9 @@ public class Receiver implements RsyncTask, MessageHandler
                                         String targetPathName)
         {
             return new Builder(generator, in, targetPathName).
-                    isSendFilterRules(false).
                     isReceiveStatistics(false).
-                    isExitEarlyIfEmptyList(false);
+                    isExitEarlyIfEmptyList(false).
+                    isExitAfterEOF(false);
         }
 
         public static Builder newClient(Generator generator,
@@ -106,7 +106,6 @@ public class Receiver implements RsyncTask, MessageHandler
                                         String targetPathName)
         {
             return new Builder(generator, in, targetPathName).
-                    isSendFilterRules(true).
                     isReceiveStatistics(true).
                     isExitEarlyIfEmptyList(true).
                     isExitAfterEOF(true);
@@ -142,9 +141,10 @@ public class Receiver implements RsyncTask, MessageHandler
             return this;
         }
 
-        public Builder isSendFilterRules(boolean isSendFilterRules)
+        public Builder filterMode(FilterMode filterMode)
         {
-            _isSendFilterRules = isSendFilterRules;
+            assert filterMode != null;
+            _filterMode = filterMode;
             return this;
         }
 
@@ -213,9 +213,9 @@ public class Receiver implements RsyncTask, MessageHandler
     private final boolean _isNumericIds;
     private final boolean _isReceiveStatistics;
     private final boolean _isSafeFileList;
-    private final boolean _isSendFilterRules;
     private final FileInfoCache _fileInfoCache = new FileInfoCache();
     private final FileSelection _fileSelection;
+    private final FilterMode _filterMode;
     private final Generator _generator;
     private final Map<Integer, User> _uidUserMap = new HashMap<>();
     private final Map<Integer, Group> _gidGroupMap = new HashMap<>();
@@ -234,7 +234,6 @@ public class Receiver implements RsyncTask, MessageHandler
         _isExitEarlyIfEmptyList = builder._isExitEarlyIfEmptyList;
         _isReceiveStatistics = builder._isReceiveStatistics;
         _isSafeFileList = builder._isSafeFileList;
-        _isSendFilterRules = builder._isSendFilterRules;
         _generator = builder._generator;
         _isInterruptible = _generator.isInterruptible();
         _isListOnly = _generator.isListOnly();
@@ -245,6 +244,7 @@ public class Receiver implements RsyncTask, MessageHandler
         _isPreserveGroup = _generator.isPreserveGroup();
         _isNumericIds = _generator.isNumericIds();
         _fileSelection = _generator.fileSelection();
+        _filterMode = builder._filterMode;
         _in = new RsyncInChannel(builder._in, this, INPUT_CHANNEL_BUF_SIZE);
         _targetPathName = builder._targetPathName;
         _characterDecoder = TextDecoder.newStrict(_generator.charset());
@@ -270,17 +270,27 @@ public class Receiver implements RsyncTask, MessageHandler
                 _log.fine(String.format("Receiver.receive(targetPathName=%s, " +
                                         "isDeferWrite=%s," +
                                         " isListOnly=%s, isPreserveTimes=%s, " +
-                                        "fileSelection=%s, sendFilterRules=%s, " +
+                                        "fileSelection=%s, " +
                                         "receiveStatistics=%s, " +
-                                        "exitEarlyIfEmptyList=%s",
+                                        "exitEarlyIfEmptyList=%s, " +
+                                        "filterMode=%s",
                                         _targetPathName, _isDeferWrite,
                                         _isListOnly, _isPreserveTimes,
-                                        _fileSelection, _isSendFilterRules,
+                                        _fileSelection,
                                         _isReceiveStatistics,
-                                        _isExitEarlyIfEmptyList));
+                                        _isExitEarlyIfEmptyList,
+                                        _filterMode));
             }
-            if (_isSendFilterRules) {
+            if (_filterMode == FilterMode.SEND) {
                 sendEmptyFilterRules();
+            } else if (_filterMode == FilterMode.RECEIVE) {
+                String rules = receiveFilterRules();
+                if (rules.length() > 0) {
+                    throw new RsyncProtocolException(String.format(
+                            "Received a list of filter rules of length %d " +
+                            "from peer, this is not yet supported (%s)",
+                            rules.length(), rules));
+                }
             }
 
             if (!_isNumericIds && _fileSelection == FileSelection.RECURSE) {
@@ -366,6 +376,22 @@ public class Receiver implements RsyncTask, MessageHandler
             _generator.stop();
         }
     }
+
+    /**
+     * @throws RsyncProtocolException if failing to decode the filter rules
+     */
+    private String receiveFilterRules() throws ChannelException
+    {
+        try {
+            int numBytesToRead = _in.getInt();
+            ByteBuffer buf = _in.get(numBytesToRead);
+            String filterRules = _characterDecoder.decode(buf);
+            return filterRules;
+        } catch (TextConversionException e) {
+            throw new RsyncProtocolException(e);
+        }
+    }
+
 
     /**
      * @throws RsyncProtocolException if user name is the empty string
@@ -623,17 +649,22 @@ public class Receiver implements RsyncTask, MessageHandler
         switch (message.header().messageType()) {
         case IO_ERROR:
             _ioError |= message.payload().getInt();
+            _generator.disableDelete();
             break;
         case NO_SEND:
             int index = message.payload().getInt();
             handleMessageNoSend(index);
             break;
-        case INFO:
-        case ERROR:
+        case ERROR:                         // store this as an IoError.TRANSFER
         case ERROR_XFER:
+            _ioError |= IoError.TRANSFER;
+            _generator.disableDelete();     // NOTE: fall through
+        case INFO:
         case WARNING:
         case LOG:
-            printMessage(message);
+            if (_log.isLoggable(message.logLevelOrNull())) {
+                printMessage(message);
+            }
             break;
         default:
             throw new RuntimeException(
@@ -650,18 +681,11 @@ public class Receiver implements RsyncTask, MessageHandler
         assert message.isText();
         try {
             MessageCode msgType = message.header().messageType();
-            if (msgType.equals(MessageCode.ERROR_XFER)) {
-                // rsync stores the error a separate variable called
-                // got_xfer_error
-                _ioError |= IoError.TRANSFER;
-            }
-            if (_log.isLoggable(message.logLevelOrNull())) {
-                // throws TextConversionException
-                String text = _characterDecoder.decode(message.payload());
-                _log.log(message.logLevelOrNull(),
-                         String.format("<SENDER> %s: %s",
-                                       msgType, Text.stripLast(text)));
-            }
+            // throws TextConversionException
+            String text = _characterDecoder.decode(message.payload());
+            _log.log(message.logLevelOrNull(),
+                    String.format("<SENDER> %s: %s", msgType,
+                                  Text.stripLast(text)));
         } catch (TextConversionException e) {
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe(String.format(
@@ -1104,6 +1128,7 @@ public class Receiver implements RsyncTask, MessageHandler
                         _log.warning(String.format("peer process returned an " +
                                                    "I/O error (%d)", ioError));
                     }
+                    _generator.disableDelete();
                     break;
                 }
             }
@@ -1112,9 +1137,7 @@ public class Receiver implements RsyncTask, MessageHandler
             }
             byte[] pathNameBytes = receivePathNameBytes(flags);
             RsyncFileAttributes attrs = receiveRsyncFileAttributes(flags);
-            String pathName =
-                _characterDecoder.decodeOrNull(pathNameBytes);
-
+            String pathName = _characterDecoder.decodeOrNull(pathNameBytes);
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("Receiving file information for %s: %s",
                                         pathName, attrs));

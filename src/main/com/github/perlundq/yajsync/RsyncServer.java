@@ -25,6 +25,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.concurrent.ExecutorService;
 
+import com.github.perlundq.yajsync.session.FilterMode;
 import com.github.perlundq.yajsync.session.Generator;
 import com.github.perlundq.yajsync.session.Modules;
 import com.github.perlundq.yajsync.session.Receiver;
@@ -105,8 +106,9 @@ public class RsyncServer
 
         if (cfg.isSender()) {
             Sender sender = Sender.Builder.newServer(in, out,
-                    cfg.sourceFiles(),
-                    cfg.checksumSeed()).
+                                                     cfg.sourceFiles(),
+                                                     cfg.checksumSeed()).
+                    filterMode(FilterMode.RECEIVE).
                     charset(cfg.charset()).
                     fileSelection(cfg.fileSelection()).
                     isPreserveLinks(cfg.isPreserveLinks()).
@@ -118,9 +120,10 @@ public class RsyncServer
             return _rsyncTaskExecutor.exec(sender);
         } else {
             Generator generator = new Generator.Builder(out,
-                    cfg.checksumSeed()).
+                                                        cfg.checksumSeed()).
                     charset(cfg.charset()).
                     fileSelection(cfg.fileSelection()).
+                    isDelete(cfg.isDelete()).
                     isPreserveLinks(cfg.isPreserveLinks()).
                     isPreservePermissions(cfg.isPreservePermissions()).
                     isPreserveTimes(cfg.isPreserveTimes()).
@@ -131,8 +134,10 @@ public class RsyncServer
                     isAlwaysItemize(cfg.verbosity() > 1).
                     isInterruptible(isChannelsInterruptible).build();
             Receiver receiver = Receiver.Builder.newServer(generator,
-                    in,
-                    cfg.getReceiverDestination().toString()).
+                                                           in,
+                                                           cfg.getReceiverDestination().toString()).
+                    filterMode(cfg.isDelete() ? FilterMode.RECEIVE
+                                              : FilterMode.NONE).
                     isDeferWrite(_isDeferWrite).
                     isSafeFileList(cfg.isSafeFileList()).build();
             return _rsyncTaskExecutor.exec(generator, receiver);

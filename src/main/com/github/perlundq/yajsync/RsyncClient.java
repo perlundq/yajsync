@@ -44,6 +44,7 @@ import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.session.ClientSessionConfig;
 import com.github.perlundq.yajsync.session.ClientSessionConfig.AuthProvider;
 import com.github.perlundq.yajsync.session.FileSelection;
+import com.github.perlundq.yajsync.session.FilterMode;
 import com.github.perlundq.yajsync.session.Generator;
 import com.github.perlundq.yajsync.session.Receiver;
 import com.github.perlundq.yajsync.session.RsyncException;
@@ -165,6 +166,7 @@ public final class RsyncClient
                                                                     cfg.checksumSeed()).
                                 charset(cfg.charset()).
                                 fileSelection(fileSelection).
+                                isDelete(_isDelete).
                                 isPreserveLinks(_isPreserveLinks).
                                 isPreservePermissions(_isPreservePermissions).
                                 isPreserveTimes(_isPreserveTimes).
@@ -180,12 +182,12 @@ public final class RsyncClient
                         Receiver receiver = new Receiver.Builder(generator,
                                                                  in,
                                                                  CURRENT_DIR).
+                                filterMode(FilterMode.SEND).
                                 isDeferWrite(_isDeferWrite).
                                 isExitAfterEOF(true).
                                 isExitEarlyIfEmptyList(true).
                                 isReceiveStatistics(true).
-                                isSafeFileList(cfg.isSafeFileList()).
-                                isSendFilterRules(true).build();
+                                isSafeFileList(cfg.isSafeFileList()).build();
                         boolean isOK = _rsyncTaskExecutor.exec(generator,
                                                                receiver);
                         return new Result(isOK, receiver.statistics());
@@ -374,6 +376,7 @@ public final class RsyncClient
             Generator generator = new Generator.Builder(toSender.sink(), seed).
                     charset(_charset).
                     fileSelection(fileSelection).
+                    isDelete(_isDelete).
                     isPreserveLinks(_isPreserveLinks).
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
@@ -426,6 +429,7 @@ public final class RsyncClient
             Generator generator = new Generator.Builder(toSender.sink(), seed).
                     charset(_charset).
                     fileSelection(fileSelection).
+                    isDelete(_isDelete).
                     isPreserveLinks(_isPreserveLinks).
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
@@ -647,8 +651,18 @@ public final class RsyncClient
             sb.append("f");
             serverArgs.add(sb.toString());
 
+            if (_isDelete && mode == Mode.REMOTE_SEND) {
+                serverArgs.add("--delete");
+            }
             if (_isNumericIds) {
                 serverArgs.add("--numeric-ids");
+            }
+            if (_isDelete &&
+                _fileSelectionOrNull == FileSelection.TRANSFER_DIRS)
+            {
+                // seems like it's only safe to use --delete and --dirs with
+                // rsync versions that happens to support --no-r
+                serverArgs.add("--no-r");
             }
 
             serverArgs.add("."); // arg delimiter
@@ -713,6 +727,7 @@ public final class RsyncClient
                                                                 cfg.checksumSeed()).
                             charset(cfg.charset()).
                             fileSelection(fileSelection).
+                            isDelete(_isDelete).
                             isPreserveLinks(_isPreserveLinks).
                             isPreservePermissions(_isPreservePermissions).
                             isPreserveTimes(_isPreserveTimes).
@@ -725,12 +740,12 @@ public final class RsyncClient
                             isInterruptible(_isInterruptible).build();
                     Receiver receiver = new Receiver.Builder(generator, _in,
                                                              dstPathName).
+                            filterMode(FilterMode.SEND).
                             isDeferWrite(_isDeferWrite).
                             isExitAfterEOF(true).
                             isExitEarlyIfEmptyList(true).
                             isReceiveStatistics(true).
-                            isSafeFileList(cfg.isSafeFileList()).
-                            isSendFilterRules(true).build();
+                            isSafeFileList(cfg.isSafeFileList()).build();
                     boolean isOK = _rsyncTaskExecutor.exec(generator, receiver);
                     return new Result(isOK, receiver.statistics());
                 case REMOTE_SEND:
@@ -739,6 +754,8 @@ public final class RsyncClient
                                                              _out,
                                                              srcPaths,
                                                              cfg.checksumSeed()).
+                            filterMode(_isDelete ? FilterMode.SEND
+                                                 : FilterMode.NONE).
                             charset(_charset).
                             fileSelection(fileSelection).
                             isPreserveLinks(_isPreserveLinks).
@@ -792,6 +809,7 @@ public final class RsyncClient
         private AuthProvider _authProvider = new ConsoleAuthProvider();
         private boolean _isAlwaysItemize;
         private boolean _isDeferWrite;
+        private boolean _isDelete;
         private boolean _isIgnoreTimes;
         private boolean _isPreserveLinks;
         private boolean _isPreserveUser;
@@ -832,6 +850,12 @@ public final class RsyncClient
         public Builder isDeferWrite(boolean isDeferWrite)
         {
             _isDeferWrite = isDeferWrite;
+            return this;
+        }
+
+        public Builder isDelete(boolean isDelete)
+        {
+            _isDelete = isDelete;
             return this;
         }
 
@@ -920,6 +944,7 @@ public final class RsyncClient
     private final ClientSessionConfig.AuthProvider _authProvider;
     private final boolean _isAlwaysItemize;
     private final boolean _isDeferWrite;
+    private final boolean _isDelete;
     private final boolean _isIgnoreTimes;
     private final boolean _isOwnerOfExecutorService;
     private final boolean _isPreserveLinks;
@@ -941,6 +966,7 @@ public final class RsyncClient
         _authProvider = builder._authProvider;
         _isAlwaysItemize = builder._isAlwaysItemize;
         _isDeferWrite = builder._isDeferWrite;
+        _isDelete = builder._isDelete;
         _isIgnoreTimes = builder._isIgnoreTimes;
         _isPreserveUser = builder._isPreserveUser;
         _isPreserveGroup = builder._isPreserveGroup;

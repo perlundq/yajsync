@@ -24,6 +24,8 @@ Currently implemented rsync options:
 
 - Transfer directories (-d, --dirs)
 
+- Delete extraneous files (--delete)
+
 - Don't skip files that match size and time (-I, --ignore-times)
 
 - Read daemon-access password from FILE (--password-file=FILE) or environment variable RSYNC_PASSWORD
