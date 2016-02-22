@@ -20,6 +20,8 @@ Currently implemented rsync options:
 
 - Preserve times (-t, --times)
 
+- Preserve symbolic links (-l, --links)
+
 - Transfer directories (-d, --dirs)
 
 - Don't skip files that match size and time (-I, --ignore-times)

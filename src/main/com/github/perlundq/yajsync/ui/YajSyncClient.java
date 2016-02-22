@@ -49,6 +49,7 @@ import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
 import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
 import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
 import com.github.perlundq.yajsync.filelist.FileInfo;
+import com.github.perlundq.yajsync.filelist.SymlinkInfo;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
 import com.github.perlundq.yajsync.session.ClientSessionConfig;
 import com.github.perlundq.yajsync.session.FileSelection;
@@ -233,6 +234,15 @@ public class YajSyncClient
                 @Override public void handleAndContinue(Option option) {
                     _verbosity++;
                     _clientBuilder.verbosity(_verbosity);
+                }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "links", "l",
+                                      "preserve symlinks (default false)",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    _clientBuilder.isPreserveLinks(true);
                 }}));
 
         options.add(
@@ -679,11 +689,18 @@ public class YajSyncClient
         }
         Date t = new Date(FileTime.from(attrs.lastModifiedTime(),
                                         TimeUnit.SECONDS).toMillis());
+        if (f instanceof SymlinkInfo) {
+            return String.format("%s %11d %s %s -> %s",
+                                 FileOps.modeToString(attrs.mode()),
+                                 attrs.size(),
+                                 _timeFormatter.format(t),
+                                 pathName, ((SymlinkInfo) f).targetPath());
+        }
         return String.format("%s %11d %s %s",
-                             FileOps.modeToString(attrs.mode()),
-                             attrs.size(),
-                             _timeFormatter.format(t),
-                             pathName);
+                FileOps.modeToString(attrs.mode()),
+                attrs.size(),
+                _timeFormatter.format(t),
+                pathName);
     }
 
 

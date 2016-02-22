@@ -19,6 +19,7 @@
 package com.github.perlundq.yajsync.util;
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -395,5 +396,31 @@ public class FileOps
         } catch (UnsupportedOperationException e) {
             throw new IOException(e);
         }
+    }
+
+    public static void unlink(Path path) throws IOException
+    {
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+            try (DirectoryStream<Path> stream =
+                    Files.newDirectoryStream(path)) {
+                for (Path entry : stream) {
+                    if (!entry.equals(path)) {
+                        assert (entry.normalize().startsWith(path.normalize()));
+                        unlink(entry);
+                    }
+                }
+            }
+        }
+        Files.deleteIfExists(path);
+    }
+
+    // rsync explicitly disallows empty symlinks
+    public static Path readLinkTarget(Path path) throws IOException
+    {
+        Path symlinkTarget = Files.readSymbolicLink(path);
+        if (symlinkTarget.equals(PathOps.EMPTY)) {
+            throw new IOException("symlink target is the empty string");
+        }
+        return symlinkTarget;
     }
 }

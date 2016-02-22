@@ -55,6 +55,7 @@ public class ServerSessionConfig extends SessionConfig
     private Path _receiverDestination;
     private boolean _isIncrementalRecurse = false;
     private boolean _isSender = false;
+    private boolean _isPreserveLinks = false;
     private boolean _isPreservePermissions = false;
     private boolean _isPreserveTimes = false;
     private boolean _isPreserveUser = false;
@@ -303,6 +304,14 @@ public class ServerSessionConfig extends SessionConfig
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
+            "links", "l", "",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    setIsPreserveLinks();
+                }}));
+
+        argsParser.add(Option.newWithoutArgument(
+            Option.Policy.OPTIONAL,
             "owner", "o", "",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
@@ -459,6 +468,11 @@ public class ServerSessionConfig extends SessionConfig
         _peerConnection.putInt(BitOps.toBigEndianInt(_checksumSeed));
     }
 
+    private void setIsPreserveLinks()
+    {
+        _isPreserveLinks = true;
+    }
+
     private void setIsPreservePermissions()
     {
         _isPreservePermissions = true;
@@ -497,6 +511,11 @@ public class ServerSessionConfig extends SessionConfig
     public List<Path> sourceFiles()
     {
         return _sourceFiles;
+    }
+
+    public boolean isPreserveLinks()
+    {
+        return _isPreserveLinks;
     }
 
     public boolean isPreservePermissions()

@@ -53,6 +53,7 @@ import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.Group;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
+import com.github.perlundq.yajsync.filelist.SymlinkInfo;
 import com.github.perlundq.yajsync.filelist.User;
 import com.github.perlundq.yajsync.io.FileView;
 import com.github.perlundq.yajsync.io.FileViewNotFound;
@@ -62,6 +63,7 @@ import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.text.TextConversionException;
 import com.github.perlundq.yajsync.text.TextDecoder;
 import com.github.perlundq.yajsync.text.TextEncoder;
+import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.MD5;
 import com.github.perlundq.yajsync.util.PathOps;
 import com.github.perlundq.yajsync.util.Rolling;
@@ -79,6 +81,7 @@ public final class Sender implements RsyncTask, MessageHandler
         private boolean _isExitAfterEOF;
         private boolean _isExitEarlyIfEmptyList;
         private boolean _isInterruptible = true;
+        private boolean _isPreserveLinks;
         private boolean _isPreserveUser;
         private boolean _isPreserveGroup;
         private boolean _isNumericIds;
@@ -149,6 +152,12 @@ public final class Sender implements RsyncTask, MessageHandler
             return this;
         }
 
+        public Builder isPreserveLinks(boolean isPreserveLinks)
+        {
+            _isPreserveLinks = isPreserveLinks;
+            return this;
+        }
+
         public Builder isNumericIds(boolean isNumericIds)
         {
             _isNumericIds = isNumericIds;
@@ -198,6 +207,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private final boolean _isExitAfterEOF;
     private final boolean _isExitEarlyIfEmptyList;
     private final boolean _isInterruptible;
+    private final boolean _isPreserveLinks;
     private final boolean _isPreserveUser;
     private final boolean _isPreserveGroup;
     private final boolean _isNumericIds;
@@ -228,6 +238,7 @@ public final class Sender implements RsyncTask, MessageHandler
         _isExitAfterEOF = builder._isExitAfterEOF;
         _isExitEarlyIfEmptyList = builder._isExitEarlyIfEmptyList;
         _isInterruptible = builder._isInterruptible;
+        _isPreserveLinks = builder._isPreserveLinks;
         _isPreserveUser = builder._isPreserveUser;
         _isPreserveGroup = builder._isPreserveGroup;
         _isNumericIds = builder._isNumericIds;
@@ -769,8 +780,16 @@ public final class Sender implements RsyncTask, MessageHandler
                 byte[] nameBytes =
                         _characterEncoder.encode(p.getFileName().toString());
                 // throws IllegalArgumentException but that cannot happen
-                FileInfo fileInfo = new FileInfo(p, p.getFileName(), nameBytes,
-                                                 attrs);
+
+                FileInfo fileInfo;
+                if (_isPreserveLinks && attrs.isSymbolicLink()) {
+                    Path symlinkTarget = FileOps.readLinkTarget(p);
+                    fileInfo = new SymlinkInfo(p, p.getFileName(), nameBytes,
+                                               attrs, symlinkTarget);
+                } else {
+                    fileInfo = new FileInfo(p, p.getFileName(), nameBytes,
+                                            attrs);
+                }
                 if (_fileSelection == FileSelection.EXACT &&
                     fileInfo.attrs().isDirectory())
                 {
@@ -856,9 +875,17 @@ public final class Sender implements RsyncTask, MessageHandler
                 byte[] pathNameBytes =
                     _characterEncoder.encodeOrNull(relativePathName);
                 if (pathNameBytes != null) {
-                    // throws IllegalArgumentException but that cannot happen
-                    FileInfo f = new FileInfo(entry, relativePath,
-                                              pathNameBytes, attrs);
+                    FileInfo f;
+                    if (_isPreserveLinks && attrs.isSymbolicLink()) {
+                        Path symlinkTarget = FileOps.readLinkTarget(entry);
+                        f = new SymlinkInfo(entry, relativePath, pathNameBytes,
+                                            attrs, symlinkTarget);
+                    } else {
+                        // throws IllegalArgumentException but that cannot
+                        // happen here
+                        f = new FileInfo(entry, relativePath, pathNameBytes,
+                                         attrs);
+                    }
                     fileset.add(f);
                 } else {
                     if (_log.isLoggable(Level.WARNING)) {
@@ -962,7 +989,6 @@ public final class Sender implements RsyncTask, MessageHandler
             _log.fine("sending meta data for " + fileInfo.pathOrNull());
         }
 
-        boolean preserveLinks = false;
         char xflags = 0;
 
         RsyncFileAttributes attrs = fileInfo.attrs();
@@ -1086,10 +1112,12 @@ public final class Sender implements RsyncTask, MessageHandler
             }
         }
 
-        // TODO: assert fileName is equal to symbolic link name in native
-        if (preserveLinks && attrs.isSymbolicLink()) {
-            sendEncodedInt(fileNameBytes.length);
-            _duplexChannel.put(ByteBuffer.wrap(fileNameBytes));
+        if (_isPreserveLinks && fileInfo instanceof SymlinkInfo) {
+            Path symlinkTarget = ((SymlinkInfo) fileInfo).targetPath();
+            byte[] symlinkTargetBytes =
+                    _characterEncoder.encode(symlinkTarget.toString());
+            sendEncodedInt(symlinkTargetBytes.length);
+            _duplexChannel.put(ByteBuffer.wrap(symlinkTargetBytes));
         }
     }
 

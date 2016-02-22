@@ -109,6 +109,7 @@ public class RsyncServer
                     cfg.checksumSeed()).
                     charset(cfg.charset()).
                     fileSelection(cfg.fileSelection()).
+                    isPreserveLinks(cfg.isPreserveLinks()).
                     isPreserveUser(cfg.isPreserveUser()).
                     isPreserveGroup(cfg.isPreserveGroup()).
                     isNumericIds(cfg.isNumericIds()).
@@ -120,6 +121,7 @@ public class RsyncServer
                     cfg.checksumSeed()).
                     charset(cfg.charset()).
                     fileSelection(cfg.fileSelection()).
+                    isPreserveLinks(cfg.isPreserveLinks()).
                     isPreservePermissions(cfg.isPreservePermissions()).
                     isPreserveTimes(cfg.isPreserveTimes()).
                     isPreserveUser(cfg.isPreserveUser()).

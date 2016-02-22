@@ -52,6 +52,7 @@ import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.Group;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
+import com.github.perlundq.yajsync.filelist.SymlinkInfo;
 import com.github.perlundq.yajsync.filelist.User;
 import com.github.perlundq.yajsync.io.AutoDeletable;
 import com.github.perlundq.yajsync.text.Text;
@@ -164,6 +165,7 @@ public class Receiver implements RsyncTask, MessageHandler
         private final String _pathName;
         private final byte[] _pathNameBytes;
         private RsyncFileAttributes _attrs;
+        private Path _symlinkTargetOrNull;
 
         private FileInfoStub(String pathName, byte[] pathNameBytes,
                              RsyncFileAttributes attrs) {
@@ -203,6 +205,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private final boolean _isExitEarlyIfEmptyList;
     private final boolean _isInterruptible;
     private final boolean _isListOnly;
+    private final boolean _isPreserveLinks;
     private final boolean _isPreservePermissions;
     private final boolean _isPreserveTimes;
     private final boolean _isPreserveUser;
@@ -235,6 +238,7 @@ public class Receiver implements RsyncTask, MessageHandler
         _generator = builder._generator;
         _isInterruptible = _generator.isInterruptible();
         _isListOnly = _generator.isListOnly();
+        _isPreserveLinks = _generator.isPreserveLinks();
         _isPreservePermissions = _generator.isPreservePermissions();
         _isPreserveTimes = _generator.isPreserveTimes();
         _isPreserveUser = _generator.isPreserveUser();
@@ -481,18 +485,20 @@ public class Receiver implements RsyncTask, MessageHandler
             boolean isTargetExistingDir =
                 isTargetExisting && attrs.isDirectory();
             boolean isTargetExistingFile =
-                isTargetExisting && attrs.isRegularFile();
+                isTargetExisting && !attrs.isDirectory();
             boolean isSourceSingleFile =
-                stubs.size() == 1 && stubs.get(0)._attrs.isRegularFile();
+                stubs.size() == 1 && !stubs.get(0)._attrs.isDirectory();
             boolean isTargetNonExistingFile =
                 !isTargetExisting && !targetPath.endsWith(PathOps.DOT_DIR);
 
             if (_log.isLoggable(Level.FINER)) {
                 _log.finer(String.format(
                         "targetPath=%s attrs=%s isTargetExisting=%s " +
-                        "isSourceSingleFile=%s isTargetNonExistingFile=%s " +
+                        "isSourceSingleFile=%s " +
+                        "isTargetNonExistingFile=%s " +
                         "#stubs=%d",
-                        targetPath, attrs, isTargetExisting, isSourceSingleFile,
+                        targetPath, attrs, isTargetExisting,
+                        isSourceSingleFile,
                         isTargetNonExistingFile, stubs.size()));
             }
             if (_log.isLoggable(Level.FINEST)) {
@@ -553,7 +559,7 @@ public class Receiver implements RsyncTask, MessageHandler
             }
 
             if (isTargetExisting && !attrs.isDirectory() &&
-                !attrs.isRegularFile())
+                !attrs.isRegularFile() && !attrs.isSymbolicLink())
             {
                 throw new PathResolverException(String.format(
                     "refusing to overwrite existing target path %s which is " +
@@ -1116,6 +1122,16 @@ public class Receiver implements RsyncTask, MessageHandler
 
             FileInfoStub stub = new FileInfoStub(pathName, pathNameBytes,
                                                  attrs);
+
+            if (_isPreserveLinks && attrs.isSymbolicLink()) {
+                try {
+                    String symlinkTarget = receiveSymlinkTarget();
+                    stub._symlinkTargetOrNull = Paths.get(symlinkTarget);
+                } catch (InvalidPathException e) {
+                    throw new RsyncProtocolException(e);
+                }
+            }
+
             builder.add(stub);
         }
 
@@ -1123,6 +1139,14 @@ public class Receiver implements RsyncTask, MessageHandler
                            _in.numBytesPrefetched() - numBytesRead;
         _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
         return ioError;
+    }
+
+    private String receiveSymlinkTarget() throws ChannelException
+    {
+        int length = receiveAndDecodeInt();
+        ByteBuffer buf = _in.get(length);
+        String name = _characterDecoder.decode(buf);
+        return name;
     }
 
     private int extractFileMetadata(List<FileInfoStub> stubs,
@@ -1188,10 +1212,20 @@ public class Receiver implements RsyncTask, MessageHandler
                     if (PathOps.isPathPreservable(fullPath)) {
                         // throws IllegalArgumentException but this is avoided
                         // due to previous checks
-                        fileInfo = new FileInfo(fullPath,
-                                                relativePath,
-                                                pathNameBytes,
-                                                attrs);
+                        if (attrs.isSymbolicLink() &&
+                            stub._symlinkTargetOrNull != null)
+                        {
+                            fileInfo = new SymlinkInfo(fullPath,
+                                                       relativePath,
+                                                       pathNameBytes,
+                                                       attrs,
+                                                       stub._symlinkTargetOrNull);
+                        } else {
+                            fileInfo = new FileInfo(fullPath,
+                                                    relativePath,
+                                                    pathNameBytes,
+                                                    attrs);
+                        }
                         if (_log.isLoggable(Level.FINE)) {
                             _log.fine("Finished receiving " + fileInfo);
                         }

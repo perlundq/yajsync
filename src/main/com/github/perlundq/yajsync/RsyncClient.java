@@ -165,6 +165,7 @@ public final class RsyncClient
                                                                     cfg.checksumSeed()).
                                 charset(cfg.charset()).
                                 fileSelection(fileSelection).
+                                isPreserveLinks(_isPreserveLinks).
                                 isPreservePermissions(_isPreservePermissions).
                                 isPreserveTimes(_isPreserveTimes).
                                 isPreserveUser(_isPreserveUser).
@@ -365,6 +366,7 @@ public final class RsyncClient
                                                seed).
                     isExitEarlyIfEmptyList(true).
                     charset(_charset).
+                    isPreserveLinks(_isPreserveLinks).
                     isPreserveUser(_isPreserveUser).
                     isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
@@ -372,6 +374,7 @@ public final class RsyncClient
             Generator generator = new Generator.Builder(toSender.sink(), seed).
                     charset(_charset).
                     fileSelection(fileSelection).
+                    isPreserveLinks(_isPreserveLinks).
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
                     isPreserveUser(_isPreserveUser).
@@ -415,6 +418,7 @@ public final class RsyncClient
                                                seed).
                     isExitEarlyIfEmptyList(true).
                     charset(_charset).
+                    isPreserveLinks(_isPreserveLinks).
                     isPreserveUser(_isPreserveUser).
                     isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
@@ -422,6 +426,7 @@ public final class RsyncClient
             Generator generator = new Generator.Builder(toSender.sink(), seed).
                     charset(_charset).
                     fileSelection(fileSelection).
+                    isPreserveLinks(_isPreserveLinks).
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
                     isPreserveUser(_isPreserveUser).
@@ -609,6 +614,9 @@ public final class RsyncClient
             for (int i = 0; i < _verbosity; i++) {
                 sb.append("v");
             }
+            if (_isPreserveLinks) {
+                sb.append("l");
+            }
             if (fileSelection == FileSelection.TRANSFER_DIRS) {
                 sb.append("d");
             }
@@ -635,10 +643,8 @@ public final class RsyncClient
             if (fileSelection == FileSelection.RECURSE) {
                 sb.append("i");
             }
-            // revisit (add L) if we add support for symlinks and can set timestamps for symlinks itself
             sb.append("s");
             sb.append("f");
-            // revisit if we add support for --iconv
             serverArgs.add(sb.toString());
 
             if (_isNumericIds) {
@@ -707,6 +713,7 @@ public final class RsyncClient
                                                                 cfg.checksumSeed()).
                             charset(cfg.charset()).
                             fileSelection(fileSelection).
+                            isPreserveLinks(_isPreserveLinks).
                             isPreservePermissions(_isPreservePermissions).
                             isPreserveTimes(_isPreserveTimes).
                             isPreserveUser(_isPreserveUser).
@@ -734,6 +741,7 @@ public final class RsyncClient
                                                              cfg.checksumSeed()).
                             charset(_charset).
                             fileSelection(fileSelection).
+                            isPreserveLinks(_isPreserveLinks).
                             isPreserveUser(_isPreserveUser).
                             isPreserveGroup(_isPreserveGroup).
                             isNumericIds(_isNumericIds).
@@ -785,6 +793,7 @@ public final class RsyncClient
         private boolean _isAlwaysItemize;
         private boolean _isDeferWrite;
         private boolean _isIgnoreTimes;
+        private boolean _isPreserveLinks;
         private boolean _isPreserveUser;
         private boolean _isPreserveGroup;
         private boolean _isNumericIds;
@@ -829,6 +838,12 @@ public final class RsyncClient
         public Builder isIgnoreTimes(boolean isIgnoreTimes)
         {
             _isIgnoreTimes = isIgnoreTimes;
+            return this;
+        }
+
+        public Builder isPreserveLinks(boolean isPreserveLinks)
+        {
+            _isPreserveLinks = isPreserveLinks;
             return this;
         }
 
@@ -907,6 +922,7 @@ public final class RsyncClient
     private final boolean _isDeferWrite;
     private final boolean _isIgnoreTimes;
     private final boolean _isOwnerOfExecutorService;
+    private final boolean _isPreserveLinks;
     private final boolean _isPreserveUser;
     private final boolean _isPreserveGroup;
     private final boolean _isNumericIds;
@@ -928,6 +944,7 @@ public final class RsyncClient
         _isIgnoreTimes = builder._isIgnoreTimes;
         _isPreserveUser = builder._isPreserveUser;
         _isPreserveGroup = builder._isPreserveGroup;
+        _isPreserveLinks = builder._isPreserveLinks;
         _isNumericIds = builder._isNumericIds;
         _isPreservePermissions = builder._isPreservePermissions;
         _isPreserveTimes = builder._isPreserveTimes;

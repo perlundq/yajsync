@@ -27,11 +27,14 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
+import java.text.SimpleDateFormat;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -39,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -50,6 +54,7 @@ import com.github.perlundq.yajsync.filelist.ConcurrentFilelist;
 import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
+import com.github.perlundq.yajsync.filelist.SymlinkInfo;
 import com.github.perlundq.yajsync.io.FileView;
 import com.github.perlundq.yajsync.io.FileViewOpenFailed;
 import com.github.perlundq.yajsync.io.FileViewReadError;
@@ -72,6 +77,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         private boolean _isIgnoreTimes;
         private boolean _isInterruptible = true;
         private boolean _isListOnly;
+        private boolean _isPreserveLinks;
         private boolean _isPreservePermissions;
         private boolean _isPreserveTimes;
         private boolean _isPreserveUser;
@@ -109,6 +115,12 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         public Builder isListOnly(boolean isListOnly)
         {
             _isListOnly = isListOnly;
+            return this;
+        }
+
+        public Builder isPreserveLinks(boolean isPreserveLinks)
+        {
+            _isPreserveLinks = isPreserveLinks;
             return this;
         }
 
@@ -177,6 +189,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private final boolean _isIgnoreTimes;
     private final boolean _isInterruptible;
     private final boolean _isListOnly;
+    private final boolean _isPreserveLinks;
     private final boolean _isPreservePermissions;
     private final boolean _isPreserveTimes;
     private final boolean _isPreserveUser;
@@ -191,6 +204,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             new LinkedBlockingQueue<>();
     private final List<Filelist.Segment> _generated = new LinkedList<>();
     private final RsyncOutChannel _senderOutChannel;
+    private final SimpleDateFormat _dateFormat = new SimpleDateFormat();
     private final TextEncoder _characterEncoder;
 
     private boolean _isRunning = true;
@@ -218,6 +232,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         _isIgnoreTimes = builder._isIgnoreTimes;
         _isInterruptible = builder._isInterruptible;
         _isListOnly = builder._isListOnly;
+        _isPreserveLinks = builder._isPreserveLinks;
         _isPreservePermissions = builder._isPreservePermissions;
         _isPreserveTimes = builder._isPreserveTimes;
         _isPreserveUser = builder._isPreserveUser;
@@ -485,8 +500,8 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             public void process() throws ChannelException {
                 try {
                     boolean isTransfer =
-                        sendFileMetadata(fileIndex, fileInfo,
-                                          Checksum.MAX_DIGEST_LENGTH);
+                            itemizeFile(fileIndex, fileInfo,
+                                        Checksum.MAX_DIGEST_LENGTH);
                     if (!isTransfer) {
                         segment.remove(fileIndex);
                         removeAllFinishedSegmentsAndNotifySender();
@@ -540,19 +555,18 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     {
         assert dir != null;
         assert dir.isTransferrable();
-        if (_log.isLoggable(Level.FINE)) {
-            _log.fine("(Generator) creating directory " + dir.pathOrNull());
-        }
         RsyncFileAttributes attrs =
                 RsyncFileAttributes.statOrNull(dir.pathOrNull());
         if (attrs == null) {
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine("(Generator) creating directory " + dir.pathOrNull());
+            }
             Files.createDirectories(dir.pathOrNull());
         }
         deferUpdateAttrsIfDiffer(dir.pathOrNull(), attrs, dir.attrs());
     }
 
-    private int sendChecksumForSegmentFiles(Filelist.Segment segment)
-        throws ChannelException
+    private int itemizeSegment(Filelist.Segment segment) throws ChannelException
     {
         int numErrors = 0;
         List<Integer> toRemove = new LinkedList<>();
@@ -563,14 +577,20 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             boolean isTransfer = false;
             try {
                 if (f.isTransferrable()) {
+                    if (_log.isLoggable(Level.FINE)) {
+                        _log.fine(String.format(
+                                "(Generator) generating %s, index %d",
+                                f.pathOrNull(), index));
+                    }
                     if (f.attrs().isRegularFile()) {
-                        isTransfer = sendFileMetadata(
-                                         index,
-                                         f,
-                                         Checksum.MIN_DIGEST_LENGTH);
-                    } else if (_fileSelection != FileSelection.RECURSE &&
-                               f.attrs().isDirectory()) {
-                        sendDirectoryMetadata(index, f);
+                        isTransfer = itemizeFile(index, f,
+                                                 Checksum.MIN_DIGEST_LENGTH);
+                    } else if (f.attrs().isDirectory()) {
+                        if (_fileSelection != FileSelection.RECURSE) {
+                            itemizeDirectory(index, f);
+                        }
+                    } else if (_isPreserveLinks && f instanceof SymlinkInfo) {
+                        itemizeSymlink(index, (SymlinkInfo) f);
                     } else {
                         if (_log.isLoggable(Level.FINE)) {
                             _log.fine("(Generator) Skipping " + f.pathOrNull());
@@ -658,9 +678,9 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 mkdir(dir);
             }
             if (!isInitialFileList) {
-                sendDirectoryMetadata(dirIndex, dir);
+                itemizeDirectory(dirIndex, dir);
             }
-            _returnStatus += sendChecksumForSegmentFiles(segment);
+            _returnStatus += itemizeSegment(segment);
         } catch (IOException e) {
             if (_log.isLoggable(Level.WARNING)) {
                 _log.warning(String.format(
@@ -680,64 +700,6 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         return curAttrsOrNull == null ||
                curAttrsOrNull.size() != newAttrs.size() ||
                curAttrsOrNull.lastModifiedTime() != newAttrs.lastModifiedTime();
-    }
-
-    private void sendDirectoryMetadata(int index, FileInfo fileInfo)
-        throws ChannelException,IOException
-    {
-        assert index >= 0;
-        assert fileInfo != null;
-        assert fileInfo.isTransferrable();
-        assert fileInfo.attrs().isDirectory();
-
-        if (_log.isLoggable(Level.FINE)) {
-            _log.fine("(Generator) generating directory " +
-                      fileInfo.pathOrNull());
-        }
-        // null if file does not exist; throws IOException on any other error
-        RsyncFileAttributes curAttrsOrNull =
-            RsyncFileAttributes.statIfExists(fileInfo.pathOrNull());
-        // throws IOException if it fails to remove existing
-        boolean isRemoved = removeExistingIfDifferentType(fileInfo,
-                                                          curAttrsOrNull);
-        if (isRemoved) {
-            curAttrsOrNull = null;
-        }
-        itemizeDirectory(index, fileInfo, curAttrsOrNull);
-    }
-
-    private boolean sendFileMetadata(int index,
-                                     FileInfo fileInfo,
-                                     int digestLength)
-        throws ChannelException,IOException
-    {
-        assert index >= 0;
-        assert fileInfo != null;
-        assert fileInfo.isTransferrable();
-        assert fileInfo.attrs().isRegularFile();
-
-        if (_log.isLoggable(Level.FINE)) {
-            _log.fine(String.format("(Generator) generating file %s, index %d",
-                                    fileInfo.pathOrNull(), index));
-        }
-        // null if file does not exist; throws IOException on any other error
-        RsyncFileAttributes curAttrsOrNull =
-            RsyncFileAttributes.statIfExists(fileInfo.pathOrNull());
-        // throws IOException if fails to remove existing
-        boolean isRemoved = removeExistingIfDifferentType(fileInfo,
-                                                          curAttrsOrNull);
-        if (isRemoved) {
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("(Generator) removed existing file of different " +
-                          "type " + curAttrsOrNull);
-            }
-            curAttrsOrNull = null;
-        }
-        if (_log.isLoggable(Level.FINE)) {
-            _log.fine(String.format("(Generator) %s -> %s",
-                                    curAttrsOrNull, fileInfo.attrs()));
-        }
-        return itemizeFile(index, fileInfo, curAttrsOrNull, digestLength);
     }
 
     private void sendChecksumHeader(Checksum.Header header)
@@ -846,9 +808,10 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format(
-                    "(Generator) updating file permissions %o -> %o on %s",
-                    curAttrsOrNull == null ? 0 : curAttrsOrNull.mode(),
-                    newAttrs.mode(), path));
+                        "(Generator) %s: updating mode %o -> %o",
+                        path,
+                        curAttrsOrNull == null ? 0 : curAttrsOrNull.mode(),
+                        newAttrs.mode()));
             }
             FileOps.setFileMode(path, newAttrs.mode(),
                                 LinkOption.NOFOLLOW_LINKS);
@@ -859,11 +822,24 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format(
-                    "(Generator) updating mtime %d -> %d on %s",
+                    "(Generator) %s: updating mtime %s -> %s",
+                    path,
                     curAttrsOrNull == null
-                            ? 0
-                            : curAttrsOrNull.lastModifiedTime(),
-                    newAttrs.lastModifiedTime(), path));
+                            ? _dateFormat.format(
+                                    new Date(
+                                       FileTime.from(
+                                            0L,
+                                            TimeUnit.SECONDS).toMillis()))
+                            : _dateFormat.format(
+                                    new Date(
+                                        FileTime.from(
+                                            curAttrsOrNull.lastModifiedTime(),
+                                            TimeUnit.SECONDS).toMillis())),
+                    _dateFormat.format(
+                            new Date(FileTime.from(
+                                            newAttrs.lastModifiedTime(),
+                                            TimeUnit.SECONDS).toMillis()))));
+
             }
             FileOps.setLastModifiedTime(path, newAttrs.lastModifiedTime(),
                                         LinkOption.NOFOLLOW_LINKS);
@@ -880,10 +856,10 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
-                            "(Generator) updating ownership %s -> %s on %s",
-                            curAttrsOrNull == null
-                                ? "" : curAttrsOrNull.user(),
-                            newAttrs.user(), path));
+                        "(Generator) %s: updating ownership %s -> %s",
+                        path,
+                        curAttrsOrNull == null ? "" : curAttrsOrNull.user(),
+                        newAttrs.user()));
                 }
                 // NOTE: side effect of chown in Linux is that set user/group id
                 // bit might be cleared.
@@ -894,10 +870,10 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                         curAttrsOrNull.user().id() != newAttrs.user().id())) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
-                            "(Generator) updating uid %s -> %d on %s",
-                            curAttrsOrNull == null
-                                ? "" : curAttrsOrNull.user().id(),
-                            newAttrs.user().id(), path));
+                        "(Generator) %s: updating ownership %s -> %s",
+                        path,
+                        curAttrsOrNull == null ? "" : curAttrsOrNull.user().id(),
+                        newAttrs.user().id()));
                 }
                 // NOTE: side effect of chown in Linux is that set user/group id
                 // bit might be cleared.
@@ -912,10 +888,11 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                  !curAttrsOrNull.group().name().equals(newAttrs.group().name()))) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
-                            "(Generator) updating group %s -> %s on %s",
+                            "(Generator) %s: updating group %s -> %s",
+                            path,
                             curAttrsOrNull == null
                                 ? "" : curAttrsOrNull.group(),
-                            newAttrs.group(), path));
+                            newAttrs.group()));
                 }
                 FileOps.setGroup(path, newAttrs.group(),
                                  LinkOption.NOFOLLOW_LINKS);
@@ -924,10 +901,11 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                         curAttrsOrNull.group().id() != newAttrs.group().id())) {
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
-                            "(Generator) updating gid %s -> %d on %s",
+                            "(Generator) %s: updating gid %s -> %d",
+                            path,
                             curAttrsOrNull == null
                                 ? "" : curAttrsOrNull.group().id(),
-                            newAttrs.group().id(), path));
+                            newAttrs.group().id()));
                 }
                 FileOps.setGroupId(path, newAttrs.group().id(),
                                    LinkOption.NOFOLLOW_LINKS);
@@ -961,14 +939,13 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         _deferredFileAttrUpdates.addFirst(j);
     }
 
-    private boolean itemizeFile(int index,
-                                FileInfo fileInfo,
-                                RsyncFileAttributes curAttrsOrNull,
-                                int digestLength)
-        throws ChannelException
+    private boolean itemizeFile(int index, FileInfo fileInfo, int digestLength)
+        throws ChannelException, IOException
     {
         assert fileInfo != null;
         assert fileInfo.isTransferrable();
+
+        RsyncFileAttributes curAttrsOrNull = deleteIfDifferentType(fileInfo);
 
         // NOTE: native opens the file first though even if its file size is
         // zero
@@ -1060,14 +1037,13 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         _senderOutChannel.putChar(iFlags);
     }
 
-    private void itemizeDirectory(int index,
-                                  FileInfo fileInfo,
-                                  RsyncFileAttributes curAttrsOrNull)
+    private void itemizeDirectory(int index, FileInfo fileInfo)
         throws ChannelException,IOException
     {
         assert fileInfo != null;
         assert fileInfo.isTransferrable();
 
+        RsyncFileAttributes curAttrsOrNull = deleteIfDifferentType(fileInfo);
         if (curAttrsOrNull == null) {
             sendItemizeInfo(index, null /* curAttrsOrNull */, fileInfo.attrs(),
                             Item.LOCAL_CHANGE);
@@ -1077,26 +1053,32 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 sendItemizeInfo(index, curAttrsOrNull, fileInfo.attrs(),
                                 Item.NO_CHANGE);
             }
-            deferUpdateAttrsIfDiffer(fileInfo.pathOrNull(),
-                                     curAttrsOrNull, fileInfo.attrs());
+            if (!curAttrsOrNull.equals(fileInfo.attrs())) {
+                deferUpdateAttrsIfDiffer(fileInfo.pathOrNull(),
+                                         curAttrsOrNull, fileInfo.attrs());
+            }
         }
     }
 
-    private boolean removeExistingIfDifferentType(
-                                            FileInfo fileInfo,
-                                            RsyncFileAttributes curAttrsOrNull)
-        throws IOException
+    RsyncFileAttributes deleteIfDifferentType(FileInfo fileInfo)
+            throws IOException
     {
-        assert fileInfo != null;
-        assert fileInfo.isTransferrable();
-
+        // null if file does not exist; throws IOException on any other error
+        RsyncFileAttributes curAttrsOrNull =
+                RsyncFileAttributes.statIfExists(fileInfo.pathOrNull());
         if (curAttrsOrNull != null &&
             curAttrsOrNull.fileType() != fileInfo.attrs().fileType()) {
-            // TODO: BUG: this won't properly delete non-empty directories
-            Files.deleteIfExists(fileInfo.pathOrNull());
-            return true;
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(String.format(
+                        "deleting %s %s (expecting a %s)",
+                        FileOps.fileType(curAttrsOrNull.mode()),
+                        fileInfo.pathOrNull(),
+                        FileOps.fileType(fileInfo.attrs().mode())));
+            }
+            FileOps.unlink(fileInfo.pathOrNull());
+            return null;
         } else {
-            return false;
+            return curAttrsOrNull;
         }
     }
 
@@ -1199,5 +1181,48 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     public boolean isPruned(int index)
     {
         return _pruned.get(index);
+    }
+
+    public boolean isPreserveLinks()
+    {
+        return _isPreserveLinks;
+    }
+
+    private void itemizeSymlink(int index, SymlinkInfo linkInfo)
+            throws IOException, ChannelException
+    {
+        try {
+            RsyncFileAttributes curAttrsOrNull = deleteIfDifferentType(linkInfo);
+            if (curAttrsOrNull != null) {
+                Path curTarget = Files.readSymbolicLink(linkInfo.pathOrNull());
+                if (curTarget.equals(linkInfo.targetPath())) {
+                    if (_isAlwaysItemize) {
+                        sendItemizeInfo(index, curAttrsOrNull, linkInfo.attrs(),
+                                        Item.NO_CHANGE);
+                    }
+                    return;
+                }
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine(String.format(
+                            "deleting symlink %s -> %s",
+                            linkInfo.pathOrNull(), curTarget));
+                }
+                Files.deleteIfExists(linkInfo.pathOrNull());
+            }
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(String.format("creating symlink %s -> %s",
+                                        linkInfo.pathOrNull(),
+                                        linkInfo.targetPath()));
+            }
+            Files.createSymbolicLink(linkInfo.pathOrNull(),
+                                     linkInfo.targetPath());
+
+            sendItemizeInfo(index,
+                            null /* curAttrsOrNull */,
+                            linkInfo.attrs(),
+                            (char) (Item.LOCAL_CHANGE | Item.REPORT_CHANGE));
+        } catch (UnsupportedOperationException e) {
+            throw new IOException(e);
+        }
     }
 }

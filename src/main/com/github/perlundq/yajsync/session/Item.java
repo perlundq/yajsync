@@ -40,10 +40,15 @@ final class Item
     public static final char LOCAL_CHANGE       = (1<<14); // used
     public static final char TRANSFER           = (1<<15); // used
 
-    private static final char _supported = REPORT_SIZE | REPORT_TIME |
-                                           REPORT_PERMS | REPORT_OWNER |
-                                           REPORT_GROUP | IS_NEW |
-                                           LOCAL_CHANGE | TRANSFER;
+    private static final char _supported = IS_NEW |
+                                           LOCAL_CHANGE |
+                                           REPORT_CHANGE |
+                                           REPORT_OWNER |
+                                           REPORT_GROUP |
+                                           REPORT_PERMS |
+                                           REPORT_SIZE |
+                                           REPORT_TIME |
+                                           TRANSFER;
 
     public static boolean isValidItem(int flags)
     {
