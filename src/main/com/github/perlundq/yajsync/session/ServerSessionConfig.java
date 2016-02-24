@@ -56,8 +56,10 @@ public class ServerSessionConfig extends SessionConfig
     private boolean _isDelete = false;
     private boolean _isIncrementalRecurse = false;
     private boolean _isSender = false;
+    private boolean _isPreserveDevices = false;
     private boolean _isPreserveLinks = false;
     private boolean _isPreservePermissions = false;
+    private boolean _isPreserveSpecials = false;
     private boolean _isPreserveTimes = false;
     private boolean _isPreserveUser = false;
     private boolean _isPreserveGroup = false;
@@ -324,6 +326,23 @@ public class ServerSessionConfig extends SessionConfig
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
+            "", "D", "",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    _isPreserveDevices = true;
+                    _isPreserveSpecials = true;
+                }}));
+
+        argsParser.add(Option.newWithoutArgument(
+            Option.Policy.OPTIONAL,
+            "no-specials", "", "",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    _isPreserveSpecials = false;
+                }}));
+
+        argsParser.add(Option.newWithoutArgument(
+            Option.Policy.OPTIONAL,
             "links", "l", "",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
@@ -385,6 +404,7 @@ public class ServerSessionConfig extends SessionConfig
         assert rc == ArgumentParser.Status.CONTINUE;
         assert _fileSelection != FileSelection.RECURSE || _isIncrementalRecurse :
                "We support only incremental recursive transfers for now";
+        assert !_isPreserveSpecials;
 
         if (!isSender() && !_module.isWritable()) {
             throw new RsyncProtocolException(
@@ -541,6 +561,11 @@ public class ServerSessionConfig extends SessionConfig
     public boolean isDelete()
     {
         return _isDelete;
+    }
+
+    public boolean isPreserveDevices()
+    {
+        return _isPreserveDevices;
     }
 
     public boolean isPreserveLinks()

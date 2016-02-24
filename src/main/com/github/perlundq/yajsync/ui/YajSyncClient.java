@@ -238,6 +238,16 @@ public class YajSyncClient
 
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "devices", "",
+                                      "_simulate_ preserve devices (default " +
+                                      "false)",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    _clientBuilder.isPreserveDevices(true);
+                }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "links", "l",
                                       "preserve symlinks (default false)",
             new Option.ContinuingHandler() {

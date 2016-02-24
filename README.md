@@ -34,6 +34,10 @@ Currently implemented rsync options:
 
 yajsync is compliant with at least rsync version 3.0.9.
 
+Simulated options:
+
+- Preserve devices (--devices) - will currently return an error when reading a
+  device file or trying to create a device file
 
 Features
 --------

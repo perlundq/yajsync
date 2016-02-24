@@ -54,6 +54,7 @@ import com.github.perlundq.yajsync.channels.Message;
 import com.github.perlundq.yajsync.channels.MessageCode;
 import com.github.perlundq.yajsync.channels.RsyncOutChannel;
 import com.github.perlundq.yajsync.filelist.ConcurrentFilelist;
+import com.github.perlundq.yajsync.filelist.DeviceInfo;
 import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
@@ -81,6 +82,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         private boolean _isInterruptible = true;
         private boolean _isDelete;
         private boolean _isListOnly;
+        private boolean _isPreserveDevices;
         private boolean _isPreserveLinks;
         private boolean _isPreservePermissions;
         private boolean _isPreserveTimes;
@@ -125,6 +127,12 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         public Builder isListOnly(boolean isListOnly)
         {
             _isListOnly = isListOnly;
+            return this;
+        }
+
+        public Builder isPreserveDevices(boolean isPreserveDevices)
+        {
+            _isPreserveDevices = isPreserveDevices;
             return this;
         }
 
@@ -201,6 +209,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private final boolean _isIgnoreTimes;
     private final boolean _isInterruptible;
     private final boolean _isListOnly;
+    private final boolean _isPreserveDevices;
     private final boolean _isPreserveLinks;
     private final boolean _isPreservePermissions;
     private final boolean _isPreserveTimes;
@@ -247,6 +256,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         _isIgnoreTimes = builder._isIgnoreTimes;
         _isInterruptible = builder._isInterruptible;
         _isListOnly = builder._isListOnly;
+        _isPreserveDevices = builder._isPreserveDevices;
         _isPreserveLinks = builder._isPreserveLinks;
         _isPreservePermissions = builder._isPreservePermissions;
         _isPreserveTimes = builder._isPreserveTimes;
@@ -604,6 +614,11 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                         if (_fileSelection != FileSelection.RECURSE) {
                             itemizeDirectory(index, f);
                         }
+                    } else if (_isPreserveDevices &&
+                               f instanceof DeviceInfo &&
+                               (f.attrs().isBlockDevice() ||
+                                f.attrs().isCharacterDevice())) {
+                        itemizeDevice(index, (DeviceInfo) f);
                     } else if (_isPreserveLinks && f instanceof SymlinkInfo) {
                         itemizeSymlink(index, (SymlinkInfo) f);
                     } else {
@@ -1212,9 +1227,20 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         return _pruned.get(index);
     }
 
+    public boolean isPreserveDevices()
+    {
+        return _isPreserveDevices;
+    }
+
     public boolean isPreserveLinks()
     {
         return _isPreserveLinks;
+    }
+
+    private void itemizeDevice(int index, DeviceInfo dev) throws IOException
+    {
+        throw new IOException("unable to generate device file - operation " +
+                              "not supported");
     }
 
     private void itemizeSymlink(int index, SymlinkInfo linkInfo)

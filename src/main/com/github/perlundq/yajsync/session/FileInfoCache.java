@@ -24,6 +24,7 @@ import com.github.perlundq.yajsync.filelist.User;
 
 class FileInfoCache
 {
+    private int _prevMajor = -1;
     private int _prevMode = -1;
     private byte[] _prevFileName = {};
     private long _prevLastModified = 0;
@@ -80,5 +81,15 @@ class FileInfoCache
     public void setPrevGroup(Group group)
     {
         _prevGroup = group;
+    }
+
+    public void setPrevMajor(int major)
+    {
+        _prevMajor = major;
+    }
+
+    public int getPrevMajor()
+    {
+        return _prevMajor;
     }
 }

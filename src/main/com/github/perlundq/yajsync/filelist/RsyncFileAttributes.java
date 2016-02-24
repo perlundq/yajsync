@@ -210,6 +210,26 @@ public class RsyncFileAttributes
         return FileOps.isOther(_mode);
     }
 
+    public boolean isBlockDevice()
+    {
+        return FileOps.isBlockDevice(_mode);
+    }
+
+    public boolean isCharacterDevice()
+    {
+        return FileOps.isCharacterDevice(_mode);
+    }
+
+    public boolean isFifo()
+    {
+        return FileOps.isFIFO(_mode);
+    }
+
+    public boolean isSocket()
+    {
+        return FileOps.isSocket(_mode);
+    }
+
     public int fileType()
     {
         return FileOps.fileType(_mode);

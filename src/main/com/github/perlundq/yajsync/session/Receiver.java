@@ -48,6 +48,7 @@ import com.github.perlundq.yajsync.channels.MessageCode;
 import com.github.perlundq.yajsync.channels.MessageHandler;
 import com.github.perlundq.yajsync.channels.RsyncInChannel;
 import com.github.perlundq.yajsync.filelist.AbstractPrincipal;
+import com.github.perlundq.yajsync.filelist.DeviceInfo;
 import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.Group;
@@ -166,6 +167,8 @@ public class Receiver implements RsyncTask, MessageHandler
         private final byte[] _pathNameBytes;
         private RsyncFileAttributes _attrs;
         private Path _symlinkTargetOrNull;
+        private int _major = -1;
+        private int _minor = -1;
 
         private FileInfoStub(String pathName, byte[] pathNameBytes,
                              RsyncFileAttributes attrs) {
@@ -205,6 +208,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private final boolean _isExitEarlyIfEmptyList;
     private final boolean _isInterruptible;
     private final boolean _isListOnly;
+    private final boolean _isPreserveDevices;
     private final boolean _isPreserveLinks;
     private final boolean _isPreservePermissions;
     private final boolean _isPreserveTimes;
@@ -237,6 +241,7 @@ public class Receiver implements RsyncTask, MessageHandler
         _generator = builder._generator;
         _isInterruptible = _generator.isInterruptible();
         _isListOnly = _generator.isListOnly();
+        _isPreserveDevices = _generator.isPreserveDevices();
         _isPreserveLinks = _generator.isPreserveLinks();
         _isPreservePermissions = _generator.isPreservePermissions();
         _isPreserveTimes = _generator.isPreserveTimes();
@@ -1146,7 +1151,14 @@ public class Receiver implements RsyncTask, MessageHandler
             FileInfoStub stub = new FileInfoStub(pathName, pathNameBytes,
                                                  attrs);
 
-            if (_isPreserveLinks && attrs.isSymbolicLink()) {
+            if (_isPreserveDevices &&
+                (attrs.isBlockDevice() || attrs.isCharacterDevice()))
+            {
+                if ((flags & TransmitFlags.SAME_RDEV_MAJOR) == 0) {
+                    stub._major = receiveAndDecodeInt();
+                }
+                stub._minor = receiveAndDecodeInt();
+            } else if (_isPreserveLinks && attrs.isSymbolicLink()) {
                 try {
                     String symlinkTarget = receiveSymlinkTarget();
                     stub._symlinkTargetOrNull = Paths.get(symlinkTarget);
@@ -1235,9 +1247,15 @@ public class Receiver implements RsyncTask, MessageHandler
                     if (PathOps.isPathPreservable(fullPath)) {
                         // throws IllegalArgumentException but this is avoided
                         // due to previous checks
-                        if (attrs.isSymbolicLink() &&
-                            stub._symlinkTargetOrNull != null)
+                        if ((attrs.isBlockDevice() ||
+                             attrs.isCharacterDevice()) &&
+                            stub._major >= 0 && stub._minor >= 0)
                         {
+                            fileInfo = new DeviceInfo(fullPath, relativePath,
+                                                      pathNameBytes, attrs,
+                                                      stub._major, stub._minor);
+                        } else if (attrs.isSymbolicLink() &&
+                                   stub._symlinkTargetOrNull != null) {
                             fileInfo = new SymlinkInfo(fullPath,
                                                        relativePath,
                                                        pathNameBytes,

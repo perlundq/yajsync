@@ -49,6 +49,7 @@ import com.github.perlundq.yajsync.channels.MessageCode;
 import com.github.perlundq.yajsync.channels.MessageHandler;
 import com.github.perlundq.yajsync.channels.RsyncInChannel;
 import com.github.perlundq.yajsync.channels.RsyncOutChannel;
+import com.github.perlundq.yajsync.filelist.DeviceInfo;
 import com.github.perlundq.yajsync.filelist.FileInfo;
 import com.github.perlundq.yajsync.filelist.Filelist;
 import com.github.perlundq.yajsync.filelist.Group;
@@ -81,6 +82,7 @@ public final class Sender implements RsyncTask, MessageHandler
         private boolean _isExitAfterEOF;
         private boolean _isExitEarlyIfEmptyList;
         private boolean _isInterruptible = true;
+        private boolean _isPreserveDevices;
         private boolean _isPreserveLinks;
         private boolean _isPreserveUser;
         private boolean _isPreserveGroup;
@@ -142,6 +144,12 @@ public final class Sender implements RsyncTask, MessageHandler
         {
             assert filterMode != null;
             _filterMode = filterMode;
+            return this;
+        }
+
+        public Builder isPreserveDevices(boolean isPreserveDevices)
+        {
+            _isPreserveDevices = isPreserveDevices;
             return this;
         }
 
@@ -212,6 +220,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private final boolean _isExitAfterEOF;
     private final boolean _isExitEarlyIfEmptyList;
     private final boolean _isInterruptible;
+    private final boolean _isPreserveDevices;
     private final boolean _isPreserveLinks;
     private final boolean _isPreserveUser;
     private final boolean _isPreserveGroup;
@@ -243,6 +252,7 @@ public final class Sender implements RsyncTask, MessageHandler
         _isExitAfterEOF = builder._isExitAfterEOF;
         _isExitEarlyIfEmptyList = builder._isExitEarlyIfEmptyList;
         _isInterruptible = builder._isInterruptible;
+        _isPreserveDevices = builder._isPreserveDevices;
         _isPreserveLinks = builder._isPreserveLinks;
         _isPreserveUser = builder._isPreserveUser;
         _isPreserveGroup = builder._isPreserveGroup;
@@ -799,6 +809,14 @@ public final class Sender implements RsyncTask, MessageHandler
                     Path symlinkTarget = FileOps.readLinkTarget(p);
                     fileInfo = new SymlinkInfo(p, p.getFileName(), nameBytes,
                                                attrs, symlinkTarget);
+                } else if (_isPreserveDevices &&
+                           (attrs.isBlockDevice() ||
+                            attrs.isCharacterDevice())) {
+                    throw new IOException("unable to retrieve major and " +
+                                          "minor ID of device " + p);
+//                    fileInfo = new DeviceInfo(p, p.getFileName(), nameBytes,
+//                                              attrs, symlinkTarget,
+//                                              major, minor);
                 } else {
                     fileInfo = new FileInfo(p, p.getFileName(), nameBytes,
                                             attrs);
@@ -893,6 +911,18 @@ public final class Sender implements RsyncTask, MessageHandler
                         Path symlinkTarget = FileOps.readLinkTarget(entry);
                         f = new SymlinkInfo(entry, relativePath, pathNameBytes,
                                             attrs, symlinkTarget);
+                    } else if (_isPreserveDevices &&
+                               (attrs.isBlockDevice() ||
+                                attrs.isCharacterDevice())) {
+                        if (_log.isLoggable(Level.WARNING)) {
+                            _log.warning("unable to retrieve major and minor " +
+                                         "ID of device " + entry);
+                        }
+                        isOK = false;
+                        continue;
+//                        f = new DeviceInfo(entry, relativePath, pathNameBytes,
+//                                           attrs, major, minor);
+
                     } else {
                         // throws IllegalArgumentException but that cannot
                         // happen here
@@ -995,7 +1025,6 @@ public final class Sender implements RsyncTask, MessageHandler
         return new StatusResult<Integer>(isOK, numFilesSent);
     }
 
-    // flist.c:send_file_entry
     private void sendFileMetaData(FileInfo fileInfo) throws ChannelException
     {
         if (_log.isLoggable(Level.FINE)) {
@@ -1007,6 +1036,17 @@ public final class Sender implements RsyncTask, MessageHandler
         RsyncFileAttributes attrs = fileInfo.attrs();
         if (attrs.isDirectory()) {
             xflags = 1;
+        }
+
+        if (_isPreserveDevices && fileInfo instanceof DeviceInfo &&
+            (attrs.isBlockDevice() || attrs.isCharacterDevice()))
+        {
+            DeviceInfo dev = (DeviceInfo) fileInfo;
+            if (dev.major() == _fileInfoCache.getPrevMajor()) {
+                xflags |= TransmitFlags.SAME_RDEV_MAJOR;
+            } else {
+                _fileInfoCache.setPrevMajor(dev.major());
+            }
         }
 
         int mode = attrs.mode();
@@ -1125,7 +1165,13 @@ public final class Sender implements RsyncTask, MessageHandler
             }
         }
 
-        if (_isPreserveLinks && fileInfo instanceof SymlinkInfo) {
+        if (_isPreserveDevices && fileInfo instanceof DeviceInfo) {
+            DeviceInfo dev = (DeviceInfo) fileInfo;
+            if ((xflags & TransmitFlags.SAME_RDEV_MAJOR) == 0) {
+                sendEncodedInt(dev.major());
+            }
+            sendEncodedInt(dev.minor());
+        } else if (_isPreserveLinks && fileInfo instanceof SymlinkInfo) {
             Path symlinkTarget = ((SymlinkInfo) fileInfo).targetPath();
             byte[] symlinkTargetBytes =
                     _characterEncoder.encode(symlinkTarget.toString());

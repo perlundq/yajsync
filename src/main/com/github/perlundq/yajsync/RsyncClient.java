@@ -167,6 +167,7 @@ public final class RsyncClient
                                 charset(cfg.charset()).
                                 fileSelection(fileSelection).
                                 isDelete(_isDelete).
+                                isPreserveDevices(_isPreserveDevices).
                                 isPreserveLinks(_isPreserveLinks).
                                 isPreservePermissions(_isPreservePermissions).
                                 isPreserveTimes(_isPreserveTimes).
@@ -368,6 +369,7 @@ public final class RsyncClient
                                                seed).
                     isExitEarlyIfEmptyList(true).
                     charset(_charset).
+                    isPreserveDevices(_isPreserveDevices).
                     isPreserveLinks(_isPreserveLinks).
                     isPreserveUser(_isPreserveUser).
                     isPreserveGroup(_isPreserveGroup).
@@ -377,6 +379,7 @@ public final class RsyncClient
                     charset(_charset).
                     fileSelection(fileSelection).
                     isDelete(_isDelete).
+                    isPreserveDevices(_isPreserveDevices).
                     isPreserveLinks(_isPreserveLinks).
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
@@ -421,6 +424,7 @@ public final class RsyncClient
                                                seed).
                     isExitEarlyIfEmptyList(true).
                     charset(_charset).
+                    isPreserveDevices(_isPreserveDevices).
                     isPreserveLinks(_isPreserveLinks).
                     isPreserveUser(_isPreserveUser).
                     isPreserveGroup(_isPreserveGroup).
@@ -430,6 +434,7 @@ public final class RsyncClient
                     charset(_charset).
                     fileSelection(fileSelection).
                     isDelete(_isDelete).
+                    isPreserveDevices(_isPreserveDevices).
                     isPreserveLinks(_isPreserveLinks).
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
@@ -636,6 +641,9 @@ public final class RsyncClient
             if (_isPreserveGroup) {
                 sb.append("g");
             }
+            if (_isPreserveDevices) {
+                sb.append("D");
+            }
             if (_isIgnoreTimes) {
                 sb.append("I");
             }
@@ -663,6 +671,9 @@ public final class RsyncClient
                 // seems like it's only safe to use --delete and --dirs with
                 // rsync versions that happens to support --no-r
                 serverArgs.add("--no-r");
+            }
+            if (_isPreserveDevices) {
+                serverArgs.add("--no-specials");
             }
 
             serverArgs.add("."); // arg delimiter
@@ -811,6 +822,7 @@ public final class RsyncClient
         private boolean _isDeferWrite;
         private boolean _isDelete;
         private boolean _isIgnoreTimes;
+        private boolean _isPreserveDevices;
         private boolean _isPreserveLinks;
         private boolean _isPreserveUser;
         private boolean _isPreserveGroup;
@@ -862,6 +874,12 @@ public final class RsyncClient
         public Builder isIgnoreTimes(boolean isIgnoreTimes)
         {
             _isIgnoreTimes = isIgnoreTimes;
+            return this;
+        }
+
+        public Builder isPreserveDevices(boolean isPreserveDevices)
+        {
+            _isPreserveDevices = isPreserveDevices;
             return this;
         }
 
@@ -947,6 +965,7 @@ public final class RsyncClient
     private final boolean _isDelete;
     private final boolean _isIgnoreTimes;
     private final boolean _isOwnerOfExecutorService;
+    private final boolean _isPreserveDevices;
     private final boolean _isPreserveLinks;
     private final boolean _isPreserveUser;
     private final boolean _isPreserveGroup;
@@ -968,6 +987,7 @@ public final class RsyncClient
         _isDeferWrite = builder._isDeferWrite;
         _isDelete = builder._isDelete;
         _isIgnoreTimes = builder._isIgnoreTimes;
+        _isPreserveDevices = builder._isPreserveDevices;
         _isPreserveUser = builder._isPreserveUser;
         _isPreserveGroup = builder._isPreserveGroup;
         _isPreserveLinks = builder._isPreserveLinks;
