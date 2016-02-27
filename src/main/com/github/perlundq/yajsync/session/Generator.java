@@ -225,7 +225,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private final boolean _isPreserveGroup;
     private final boolean _isNumericIds;
     private final byte[] _checksumSeed;
-    private final Deque<Runnable> _deferredFileAttrUpdates = new ArrayDeque<>();
+    private final Deque<Job> _deferredFileAttrUpdates = new ArrayDeque<>();
     private final Filelist _fileList;
     private final FileSelection _fileSelection;
     private final LinkedBlockingQueue<Job> _jobs = new LinkedBlockingQueue<>();
@@ -412,11 +412,11 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
 
     public void stop() throws InterruptedException
     {
-        Job j = new Job() {
+        Job job = new Job() {
             @Override
-            public void process() {
-                for (Runnable r : _deferredFileAttrUpdates) {
-                    r.run();
+            public void process() throws ChannelException {
+                for (Job j : _deferredFileAttrUpdates) {
+                    j.process();
                 }
                 _isRunning = false;
             }
@@ -425,7 +425,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 return "stop()";
             }
         };
-        appendJob(j);
+        appendJob(job);
     }
 
     // used for sending empty filter rules only
@@ -545,13 +545,17 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                         segment.remove(fileIndex);
                         removeAllFinishedSegmentsAndNotifySender();
                     }
-                } catch (IOException e) { // sendFileMetadata
+                } catch (IOException e) {
+                    String msg = String.format("failed to generate file meta " +
+                                               "data for %s (index %d): %s",
+                                               fileInfo.pathOrNull(),
+                                               fileIndex,
+                                               e.getMessage());
                     if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning(String.format(
-                            "(Generator) failed to generate file meta data " +
-                            "for %s (index %d): %s",
-                            fileInfo.pathOrNull(), fileIndex, e.getMessage()));
+                        _log.warning(msg);
                     }
+                    _out.putMessage(toMessage(MessageCode.ERROR_XFER,
+                                              msg + '\n'));
                     _returnStatus++;
                 }
             }
@@ -652,11 +656,16 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                     // not have received it yet
                     prune(index);
                 }
+                String msg = String.format(
+                        "failed to generate %s %s (index %d): %s",
+                        FileOps.fileTypeToString(f.attrs().mode()),
+                        f.pathOrNull(),
+                        index,
+                        e.getMessage());
                 if (_log.isLoggable(Level.WARNING)) {
-                    _log.warning(String.format(
-                        "(Generator) failed to generate file %s (index %d): %s",
-                        f.pathOrNull(), index, e.getMessage()));
+                    _log.warning(msg);
                 }
+                _out.putMessage(toMessage(MessageCode.ERROR_XFER, msg + '\n'));
                 numErrors++;
             }
             if (!isTransfer) {
@@ -727,11 +736,14 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 unlinkFilesInDirNotAtSender(dir.pathOrNull(), segment.files());
             } catch (IOException e) {
                 if (Files.exists(dir.pathOrNull(), LinkOption.NOFOLLOW_LINKS)) {
+                    String msg = String.format("failed to delete %s and all " +
+                                               "its files: %s",
+                                               dir, e);
                     if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning(String.format(
-                                "failed to delete %s and all its files: %s",
-                                dir, e));
+                        _log.warning(msg);
                     }
+                    _out.putMessage(toMessage(MessageCode.ERROR_XFER,
+                                              msg + '\n'));
                     _returnStatus++;
                 }
             }
@@ -745,12 +757,13 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             }
             _returnStatus += itemizeSegment(segment);
         } catch (IOException e) {
+            String msg = String.format(
+                    "failed to generate files below dir %s (index %d): %s",
+                    dir.pathOrNull(), dirIndex, e.getMessage());
             if (_log.isLoggable(Level.WARNING)) {
-                _log.warning(String.format(
-                    "(Generator) failed to generate files below dir %s " +
-                    "(index %d): %s",
-                    dir.pathOrNull(), dirIndex, e.getMessage()));
+                _log.warning(msg);
             }
+            _out.putMessage(toMessage(MessageCode.ERROR_XFER, msg + '\n'));
             segment.removeAll();
             _returnStatus++;
         }
@@ -984,17 +997,20 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         assert path != null;
         assert newAttrs != null;
 
-        Runnable j = new Runnable() {
+        Job j = new Job() {
             @Override
-            public void run() {
+            public void process() throws ChannelException {
                 try {
                     updateAttrsIfDiffer(path, curAttrsOrNull, newAttrs);
                 } catch (IOException e) {
+                    String msg = String.format(
+                            "received I/O error while applying " +
+                            "attributes on %s: %s", path, e.getMessage());
                     if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning(String.format(
-                            "(Generator) received I/O error while applying " +
-                            "attributes on %s: %s", path, e.getMessage()));
+                        _log.warning(msg);
                     }
+                    _out.putMessage(toMessage(MessageCode.ERROR_XFER,
+                                              msg + '\n'));
                     _returnStatus++;
                 }
             }
@@ -1036,12 +1052,13 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             updateAttrsIfDiffer(fileInfo.pathOrNull(), curAttrsOrNull,
                                 fileInfo.attrs());
         } catch (IOException e) {
+            String msg = String.format(
+                    "received an I/O error while applying attributes on %s: %s",
+                    fileInfo.pathOrNull(), e.getMessage());
             if (_log.isLoggable(Level.WARNING)) {
-                _log.warning(String.format(
-                    "(Generator) received I/O error while applying " +
-                    "attributes on %s: %s",
-                    fileInfo.pathOrNull(), e.getMessage()));
+                _log.warning(msg);
             }
+            _out.putMessage(toMessage(MessageCode.ERROR_XFER, msg + '\n'));
             _returnStatus++;
         }
         return false;
@@ -1306,7 +1323,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
 
     private void unlinkFilesInDirNotAtSender(Path dir,
                                              Collection<FileInfo> files)
-            throws IOException
+            throws IOException, ChannelException
     {
         assert _isDelete && _isDeletionsEnabled;
         Set<Path> senderPaths = new HashSet<>(files.size());
@@ -1325,11 +1342,15 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                         }
                         FileOps.unlink(entry);
                     } catch (IOException e) {
+                        String msg = String.format("failed to delete %s: %s",
+                                                   entry, e);
                         if (_log.isLoggable(Level.WARNING)) {
-                            _log.warning(String.format(
-                                    "failed to delete %s: %s", entry, e));
+                            _log.warning(msg);
                         }
+                        _out.putMessage(toMessage(MessageCode.ERROR_XFER,
+                                                  msg + '\n'));
                         _returnStatus++;
+
                     }
                 }
             }

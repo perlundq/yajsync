@@ -94,6 +94,7 @@ public final class Sender implements RsyncTask, MessageHandler
         private FileSelection _fileSelection = FileSelection.EXACT;
         private FilterMode _filterMode = FilterMode.NONE;
 
+
         public Builder(ReadableByteChannel in,
                        WritableByteChannel out,
                        Iterable<Path> sourceFiles,
@@ -862,17 +863,22 @@ public final class Sender implements RsyncTask, MessageHandler
                     }
                 }
             } catch (IOException e) {
+                String msg = String.format("Failed to add %s to initial file " +
+                                           "list: %s", p, e.getMessage());
                 if (_log.isLoggable(Level.WARNING)) {
-                    _log.warning(String.format(
-                        "Failed to add %s to initial file list: %s",
-                        p, e.getMessage()));
+                    _log.warning(msg);
                 }
+                _duplexChannel.putMessage(toMessage(MessageCode.ERROR_XFER,
+                                                    msg + '\n'));
                 isOK = false;
             } catch (TextConversionException e) {
+                String msg = String.format("Failed to encode %s using %s",
+                                            p, _characterEncoder.charset());
                 if (_log.isLoggable(Level.WARNING)) {
-                    _log.warning(String.format("Failed to encode %s using %s",
-                                               p, _characterEncoder.charset()));
+                    _log.warning(msg);
                 }
+                _duplexChannel.putMessage(toMessage(MessageCode.ERROR_XFER,
+                                                    msg + '\n'));
                 isOK = false;
             }
         }
@@ -895,11 +901,14 @@ public final class Sender implements RsyncTask, MessageHandler
 
             for (Path entry : stream) {
                 if (!PathOps.isPathPreservable(entry.getFileName())) {
+                    String msg = String.format("Skipping %s - unable to " +
+                                               "preserve file name",
+                                               entry.getFileName());
                     if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning(String.format(
-                            "Skipping %s - unable to preserve file name",
-                            entry.getFileName()));
+                        _log.warning(msg);
                     }
+                    _duplexChannel.putMessage(toMessage(MessageCode.ERROR_XFER,
+                                                        msg + '\n'));
                     isOK = false;
                     continue;
                 }
@@ -908,10 +917,13 @@ public final class Sender implements RsyncTask, MessageHandler
                 try {
                     attrs = RsyncFileAttributes.stat(entry);
                 } catch (IOException e) {
+                    String msg = String.format("Failed to stat %s: %s",
+                                               entry, e.getMessage());
                     if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning(String.format("Failed to stat %s: %s",
-                                                   entry, e.getMessage()));
+                        _log.warning(msg);
                     }
+                    _duplexChannel.putMessage(toMessage(MessageCode.ERROR_XFER,
+                                                        msg + '\n'));
                     isOK = false;
                     continue;
                 }
@@ -930,10 +942,15 @@ public final class Sender implements RsyncTask, MessageHandler
                     } else if (_isPreserveDevices &&
                                (attrs.isBlockDevice() ||
                                 attrs.isCharacterDevice())) {
+                        String msg = String.format(
+                                "unable to retrieve major and minor ID of " +
+                                "%s %s", FileOps.fileTypeToString(attrs.mode()),
+                                entry);
                         if (_log.isLoggable(Level.WARNING)) {
-                            _log.warning("unable to retrieve major and minor " +
-                                         "ID of device " + entry);
+                            _log.warning(msg);
                         }
+                        _duplexChannel.putMessage(
+                                toMessage(MessageCode.ERROR_XFER, msg + '\n'));
                         isOK = false;
                         continue;
 //                        f = new DeviceInfo(entry, relativePath, pathNameBytes,
@@ -960,20 +977,26 @@ public final class Sender implements RsyncTask, MessageHandler
                     }
                     fileset.add(f);
                 } else {
+                    String msg = String.format("Failed to encode %s using %s",
+                                               relativePathName,
+                                               _characterEncoder.charset());
                     if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning(String.format(
-                            "Failed to encode %s using %s",
-                            relativePathName, _characterEncoder.charset()));
+                        _log.warning(msg);
                     }
+                    _duplexChannel.putMessage(toMessage(MessageCode.ERROR_XFER,
+                                                        msg + '\n'));
                     isOK = false;
                 }
             }
         } catch (IOException e) {
+            String msg = String.format("Got I/O error during expansion " +
+                                       "of %s: %s", directory.pathOrNull(),
+                                       e.getMessage());
             if (_log.isLoggable(Level.WARNING)) {
-                _log.warning(String.format("Got I/O error during expansion " +
-                                           "of %s: %s",
-                                           directory.pathOrNull(), e.getMessage()));
+                _log.warning(msg);
             }
+            _duplexChannel.putMessage(toMessage(MessageCode.ERROR_XFER,
+                                                msg + '\n'));
             isOK = false;
         }
         return new StatusResult<List<FileInfo>>(isOK, fileset);
