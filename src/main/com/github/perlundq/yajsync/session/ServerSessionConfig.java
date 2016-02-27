@@ -2,7 +2,7 @@
  * Rsync server -> client handshaking protocol
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013-2015 Per Lundqvist
+ * Copyright (C) 2013-2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -335,6 +335,14 @@ public class ServerSessionConfig extends SessionConfig
 
         argsParser.add(Option.newWithoutArgument(
             Option.Policy.OPTIONAL,
+            "specials", "", "",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    _isPreserveSpecials = true;
+                }}));
+
+        argsParser.add(Option.newWithoutArgument(
+            Option.Policy.OPTIONAL,
             "no-specials", "", "",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
@@ -404,7 +412,6 @@ public class ServerSessionConfig extends SessionConfig
         assert rc == ArgumentParser.Status.CONTINUE;
         assert _fileSelection != FileSelection.RECURSE || _isIncrementalRecurse :
                "We support only incremental recursive transfers for now";
-        assert !_isPreserveSpecials;
 
         if (!isSender() && !_module.isWritable()) {
             throw new RsyncProtocolException(
@@ -576,6 +583,11 @@ public class ServerSessionConfig extends SessionConfig
     public boolean isPreservePermissions()
     {
         return _isPreservePermissions;
+    }
+
+    public boolean isPreserveSpecials()
+    {
+        return _isPreserveSpecials;
     }
 
     public boolean isPreserveTimes()

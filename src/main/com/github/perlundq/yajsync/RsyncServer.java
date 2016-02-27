@@ -112,6 +112,7 @@ public class RsyncServer
                     charset(cfg.charset()).
                     fileSelection(cfg.fileSelection()).
                     isPreserveDevices(cfg.isPreserveDevices()).
+                    isPreserveSpecials(cfg.isPreserveSpecials()).
                     isPreserveLinks(cfg.isPreserveLinks()).
                     isPreserveUser(cfg.isPreserveUser()).
                     isPreserveGroup(cfg.isPreserveGroup()).
@@ -126,6 +127,7 @@ public class RsyncServer
                     fileSelection(cfg.fileSelection()).
                     isDelete(cfg.isDelete()).
                     isPreserveDevices(cfg.isPreserveDevices()).
+                    isPreserveSpecials(cfg.isPreserveSpecials()).
                     isPreserveLinks(cfg.isPreserveLinks()).
                     isPreservePermissions(cfg.isPreservePermissions()).
                     isPreserveTimes(cfg.isPreserveTimes()).

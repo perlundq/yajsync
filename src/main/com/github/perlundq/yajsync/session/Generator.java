@@ -3,7 +3,7 @@
  * checksum info to peer Sender
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013-2015 Per Lundqvist
+ * Copyright (C) 2013-2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -85,6 +85,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         private boolean _isPreserveDevices;
         private boolean _isPreserveLinks;
         private boolean _isPreservePermissions;
+        private boolean _isPreserveSpecials;
         private boolean _isPreserveTimes;
         private boolean _isPreserveUser;
         private boolean _isPreserveGroup;
@@ -145,6 +146,12 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         public Builder isPreservePermissions(boolean isPreservePermissions)
         {
             _isPreservePermissions = isPreservePermissions;
+            return this;
+        }
+
+        public Builder isPreserveSpecials(boolean isPreserveSpecials)
+        {
+            _isPreserveSpecials = isPreserveSpecials;
             return this;
         }
 
@@ -212,6 +219,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private final boolean _isPreserveDevices;
     private final boolean _isPreserveLinks;
     private final boolean _isPreservePermissions;
+    private final boolean _isPreserveSpecials;
     private final boolean _isPreserveTimes;
     private final boolean _isPreserveUser;
     private final boolean _isPreserveGroup;
@@ -224,7 +232,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private final BlockingQueue<Pair<Boolean, FileInfo>> _listing =
             new LinkedBlockingQueue<>();
     private final List<Filelist.Segment> _generated = new LinkedList<>();
-    private final RsyncOutChannel _senderOutChannel;
+    private final RsyncOutChannel _out;
     private final SimpleDateFormat _dateFormat = new SimpleDateFormat();
     private final TextEncoder _characterEncoder;
 
@@ -247,8 +255,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         _fileList =
                 new ConcurrentFilelist(_fileSelection == FileSelection.RECURSE,
                                        true);
-        _senderOutChannel = new RsyncOutChannel(builder._out,
-                                                OUTPUT_CHANNEL_BUF_SIZE);
+        _out = new RsyncOutChannel(builder._out, OUTPUT_CHANNEL_BUF_SIZE);
         _characterEncoder = TextEncoder.newStrict(builder._charset);
         _isAlwaysItemize = builder._isAlwaysItemize;
         _isDelete = builder._isDelete;
@@ -259,6 +266,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         _isPreserveDevices = builder._isPreserveDevices;
         _isPreserveLinks = builder._isPreserveLinks;
         _isPreservePermissions = builder._isPreservePermissions;
+        _isPreserveSpecials = builder._isPreserveSpecials;
         _isPreserveTimes = builder._isPreserveTimes;
         _isPreserveUser = builder._isPreserveUser;
         _isPreserveGroup = builder._isPreserveGroup;
@@ -274,7 +282,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     @Override
     public void closeChannel() throws ChannelException
     {
-        _senderOutChannel.close();
+        _out.close();
     }
 
     public boolean isListOnly()
@@ -351,9 +359,9 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
                         "(Generator) flushing %d bytes",
-                        _senderOutChannel.numBytesBuffered()));
+                        _out.numBytesBuffered()));
                 }
-                _senderOutChannel.flush();
+                _out.flush();
             }
         }
     }
@@ -428,7 +436,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         Job j = new Job() {
             @Override
             public void process() throws ChannelException {
-                _senderOutChannel.put(buf);
+                _out.put(buf);
             }
 
             @Override
@@ -442,20 +450,26 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     /**
      * @throws TextConversionException
      */
+    private Message toMessage(MessageCode code, String text)
+    {
+        ByteBuffer payload = ByteBuffer.wrap(_characterEncoder.encode(text));
+        return new Message(code, payload);
+    }
+
+    /**
+     * @throws TextConversionException
+     */
     public void sendMessage(final MessageCode code, final String text)
         throws InterruptedException
     {
         assert code != null;
         assert text != null;
-
-        final ByteBuffer payload =
-            ByteBuffer.wrap(_characterEncoder.encode(text));
-        final Message message = new Message(code, payload);
+        final Message message = toMessage(code, text);
 
         Job j = new Job() {
             @Override
             public void process() throws ChannelException {
-                _senderOutChannel.putMessage(message);
+                _out.putMessage(message);
             }
 
             @Override
@@ -557,7 +571,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         Job j = new Job() {
             @Override
             public void process() throws ChannelException {
-                _senderOutChannel.encodeIndex(Filelist.DONE);
+                _out.encodeIndex(Filelist.DONE);
             }
 
             @Override
@@ -614,10 +628,15 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                         if (_fileSelection != FileSelection.RECURSE) {
                             itemizeDirectory(index, f);
                         }
-                    } else if (_isPreserveDevices &&
-                               f instanceof DeviceInfo &&
+                    } else if (f instanceof DeviceInfo &&
+                               _isPreserveDevices &&
                                (f.attrs().isBlockDevice() ||
                                 f.attrs().isCharacterDevice())) {
+                        itemizeDevice(index, (DeviceInfo) f);
+                    } else if (f instanceof DeviceInfo &&
+                               _isPreserveSpecials &&
+                               (f.attrs().isFifo() ||
+                                f.attrs().isSocket())) {
                         itemizeDevice(index, (DeviceInfo) f);
                     } else if (_isPreserveLinks && f instanceof SymlinkInfo) {
                         itemizeSymlink(index, (SymlinkInfo) f);
@@ -749,7 +768,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private void sendChecksumHeader(Checksum.Header header)
         throws ChannelException
     {
-        Connection.sendChecksumHeader(_senderOutChannel, header);
+        Connection.sendChecksumHeader(_out, header);
     }
 
     private static int getBlockLengthFor(long fileSize)
@@ -813,10 +832,10 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 int rolling = Rolling.compute(fv.array(),
                                               fv.startOffset(),
                                               fv.windowLength());
-                _senderOutChannel.putInt(rolling);
+                _out.putInt(rolling);
                 md.update(fv.array(), fv.startOffset(), fv.windowLength());
                 md.update(_checksumSeed);
-                _senderOutChannel.put(md.digest(), 0, digestLength);
+                _out.put(md.digest(), 0, digestLength);
                 fv.slide(fv.windowLength());
             }
         } catch (FileViewOpenFailed | Checksum.ChunkOverflow e) {
@@ -1072,13 +1091,12 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
         throws ChannelException
     {
         assert newAttrs != null;
-
         char iFlags = (char) (iMask | itemizeFlags(curAttrsOrNull, newAttrs));
         if (_log.isLoggable(Level.FINE)) {
             _log.fine("(Generator) sending itemizeFlags=" + (int) iFlags);
         }
-        _senderOutChannel.encodeIndex(index);
-        _senderOutChannel.putChar(iFlags);
+        _out.encodeIndex(index);
+        _out.putChar(iFlags);
     }
 
     private void itemizeDirectory(int index, FileInfo fileInfo)
@@ -1177,13 +1195,13 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             }
             // NOTE: remove before notifying peer
             it.remove();
-            _senderOutChannel.encodeIndex(Filelist.DONE);
+            _out.encodeIndex(Filelist.DONE);
         }
     }
 
     public synchronized long numBytesWritten()
     {
-        return _senderOutChannel.numBytesWritten();
+        return _out.numBytesWritten();
     }
 
     @Override
@@ -1235,6 +1253,11 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     public boolean isPreserveLinks()
     {
         return _isPreserveLinks;
+    }
+
+    public boolean isPreserveSpecials()
+    {
+        return _isPreserveSpecials;
     }
 
     private void itemizeDevice(int index, DeviceInfo dev) throws IOException

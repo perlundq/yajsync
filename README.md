@@ -36,8 +36,15 @@ yajsync is compliant with at least rsync version 3.0.9.
 
 Simulated options:
 
-- Preserve devices (--devices) - will currently return an error when reading a
-  device file or trying to create a device file
+- Preserve character device files and block device files (--devices)
+
+- Preserve named sockets and named pipes (--specials)
+
+These will currently return an error when trying to actually read device
+metadata of a device file or trying to create a device file. The reason for this
+is the inability to handle device files in Java. We still want to support these
+options in order to be able to support --archive.
+
 
 Features
 --------
@@ -228,7 +235,7 @@ License
 
 Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
 
-Copyright (C) 2013-2015 Per Lundqvist
+Copyright (C) 2013-2016 Per Lundqvist
 
 yajsync is licensed under GNU General Public License version 3 or
 later. See the file LICENSE or http://www.gnu.org/licenses/gpl.txt for

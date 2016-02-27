@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2015 Per Lundqvist
+ * Copyright (C) 2013-2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -168,6 +168,7 @@ public final class RsyncClient
                                 fileSelection(fileSelection).
                                 isDelete(_isDelete).
                                 isPreserveDevices(_isPreserveDevices).
+                                isPreserveSpecials(_isPreserveSpecials).
                                 isPreserveLinks(_isPreserveLinks).
                                 isPreservePermissions(_isPreservePermissions).
                                 isPreserveTimes(_isPreserveTimes).
@@ -370,6 +371,7 @@ public final class RsyncClient
                     isExitEarlyIfEmptyList(true).
                     charset(_charset).
                     isPreserveDevices(_isPreserveDevices).
+                    isPreserveSpecials(_isPreserveSpecials).
                     isPreserveLinks(_isPreserveLinks).
                     isPreserveUser(_isPreserveUser).
                     isPreserveGroup(_isPreserveGroup).
@@ -380,6 +382,7 @@ public final class RsyncClient
                     fileSelection(fileSelection).
                     isDelete(_isDelete).
                     isPreserveDevices(_isPreserveDevices).
+                    isPreserveSpecials(_isPreserveSpecials).
                     isPreserveLinks(_isPreserveLinks).
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
@@ -425,6 +428,7 @@ public final class RsyncClient
                     isExitEarlyIfEmptyList(true).
                     charset(_charset).
                     isPreserveDevices(_isPreserveDevices).
+                    isPreserveSpecials(_isPreserveSpecials).
                     isPreserveLinks(_isPreserveLinks).
                     isPreserveUser(_isPreserveUser).
                     isPreserveGroup(_isPreserveGroup).
@@ -435,6 +439,7 @@ public final class RsyncClient
                     fileSelection(fileSelection).
                     isDelete(_isDelete).
                     isPreserveDevices(_isPreserveDevices).
+                    isPreserveSpecials(_isPreserveSpecials).
                     isPreserveLinks(_isPreserveLinks).
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
@@ -672,7 +677,7 @@ public final class RsyncClient
                 // rsync versions that happens to support --no-r
                 serverArgs.add("--no-r");
             }
-            if (_isPreserveDevices) {
+            if (_isPreserveDevices && !_isPreserveSpecials) {
                 serverArgs.add("--no-specials");
             }
 
@@ -823,6 +828,7 @@ public final class RsyncClient
         private boolean _isDelete;
         private boolean _isIgnoreTimes;
         private boolean _isPreserveDevices;
+        private boolean _isPreserveSpecials;
         private boolean _isPreserveLinks;
         private boolean _isPreserveUser;
         private boolean _isPreserveGroup;
@@ -880,6 +886,12 @@ public final class RsyncClient
         public Builder isPreserveDevices(boolean isPreserveDevices)
         {
             _isPreserveDevices = isPreserveDevices;
+            return this;
+        }
+
+        public Builder isPreserveSpecials(boolean isPreserveSpecials)
+        {
+            _isPreserveSpecials = isPreserveSpecials;
             return this;
         }
 
@@ -966,6 +978,7 @@ public final class RsyncClient
     private final boolean _isIgnoreTimes;
     private final boolean _isOwnerOfExecutorService;
     private final boolean _isPreserveDevices;
+    private final boolean _isPreserveSpecials;
     private final boolean _isPreserveLinks;
     private final boolean _isPreserveUser;
     private final boolean _isPreserveGroup;
@@ -988,6 +1001,7 @@ public final class RsyncClient
         _isDelete = builder._isDelete;
         _isIgnoreTimes = builder._isIgnoreTimes;
         _isPreserveDevices = builder._isPreserveDevices;
+        _isPreserveSpecials = builder._isPreserveSpecials;
         _isPreserveUser = builder._isPreserveUser;
         _isPreserveGroup = builder._isPreserveGroup;
         _isPreserveLinks = builder._isPreserveLinks;

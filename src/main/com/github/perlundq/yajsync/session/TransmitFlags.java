@@ -3,7 +3,7 @@
  * Sender and Receiver
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013-2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

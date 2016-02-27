@@ -3,7 +3,7 @@
  * Generator and sending of file lists and file data to peer Receiver
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013-2015 Per Lundqvist
+ * Copyright (C) 2013-2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -84,6 +84,7 @@ public final class Sender implements RsyncTask, MessageHandler
         private boolean _isInterruptible = true;
         private boolean _isPreserveDevices;
         private boolean _isPreserveLinks;
+        private boolean _isPreserveSpecials;
         private boolean _isPreserveUser;
         private boolean _isPreserveGroup;
         private boolean _isNumericIds;
@@ -206,6 +207,12 @@ public final class Sender implements RsyncTask, MessageHandler
         {
             return new Sender(this);
         }
+
+        public Builder isPreserveSpecials(boolean isPreserveSpecials)
+        {
+            _isPreserveSpecials = isPreserveSpecials;
+            return this;
+        }
     }
 
     private static final Logger _log =
@@ -222,6 +229,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private final boolean _isInterruptible;
     private final boolean _isPreserveDevices;
     private final boolean _isPreserveLinks;
+    private final boolean _isPreserveSpecials;
     private final boolean _isPreserveUser;
     private final boolean _isPreserveGroup;
     private final boolean _isNumericIds;
@@ -254,6 +262,7 @@ public final class Sender implements RsyncTask, MessageHandler
         _isInterruptible = builder._isInterruptible;
         _isPreserveDevices = builder._isPreserveDevices;
         _isPreserveLinks = builder._isPreserveLinks;
+        _isPreserveSpecials = builder._isPreserveSpecials;
         _isPreserveUser = builder._isPreserveUser;
         _isPreserveGroup = builder._isPreserveGroup;
         _isNumericIds = builder._isNumericIds;
@@ -787,7 +796,7 @@ public final class Sender implements RsyncTask, MessageHandler
     // NOTE: doesn't do any check of the validity of files or normalization -
     // it's up to the caller to do so, e.g. ServerSessionConfig.parseArguments
     private StatusResult<List<FileInfo>>
-    initialExpand(Iterable<Path> files)
+    initialExpand(Iterable<Path> files) throws ChannelException
     {
         boolean isOK = true;
         List<FileInfo> fileset = new LinkedList<>();
@@ -812,11 +821,17 @@ public final class Sender implements RsyncTask, MessageHandler
                 } else if (_isPreserveDevices &&
                            (attrs.isBlockDevice() ||
                             attrs.isCharacterDevice())) {
-                    throw new IOException("unable to retrieve major and " +
-                                          "minor ID of device " + p);
+                    throw new IOException(String.format(
+                            "unable to retrieve major and minor ID of %s %s",
+                            FileOps.fileTypeToString(attrs.mode()), p));
 //                    fileInfo = new DeviceInfo(p, p.getFileName(), nameBytes,
 //                                              attrs, symlinkTarget,
 //                                              major, minor);
+                } else if (_isPreserveSpecials &&
+                           (attrs.isFifo() || attrs.isSocket())) {
+                    throw new IOException(String.format(
+                            "unable to retrieve major ID of %s %s",
+                            FileOps.fileTypeToString(attrs.mode()), p));
                 } else {
                     fileInfo = new FileInfo(p, p.getFileName(), nameBytes,
                                             attrs);
@@ -865,6 +880,7 @@ public final class Sender implements RsyncTask, MessageHandler
     }
 
     private StatusResult<List<FileInfo>> expand(FileInfo directory)
+            throws ChannelException
     {
         assert directory != null;
 
@@ -923,6 +939,19 @@ public final class Sender implements RsyncTask, MessageHandler
 //                        f = new DeviceInfo(entry, relativePath, pathNameBytes,
 //                                           attrs, major, minor);
 
+                    } else if (_isPreserveSpecials &&
+                               (attrs.isFifo() || attrs.isSocket())) {
+                        String msg = String.format(
+                                "unable to retrieve major ID of %s %s",
+                                FileOps.fileTypeToString(attrs.mode()),
+                                entry);
+                        if (_log.isLoggable(Level.WARNING)) {
+                            _log.warning(msg);
+                        }
+                        _duplexChannel.putMessage(
+                                toMessage(MessageCode.ERROR_XFER, msg + '\n'));
+                        isOK = false;
+                        continue;
                     } else {
                         // throws IllegalArgumentException but that cannot
                         // happen here
@@ -1047,6 +1076,9 @@ public final class Sender implements RsyncTask, MessageHandler
             } else {
                 _fileInfoCache.setPrevMajor(dev.major());
             }
+        } else if (_isPreserveSpecials && fileInfo instanceof DeviceInfo &&
+                   (attrs.isFifo() || attrs.isSocket())) {
+            xflags |= TransmitFlags.SAME_RDEV_MAJOR;
         }
 
         int mode = attrs.mode();
@@ -1165,7 +1197,9 @@ public final class Sender implements RsyncTask, MessageHandler
             }
         }
 
-        if (_isPreserveDevices && fileInfo instanceof DeviceInfo) {
+        if ((_isPreserveDevices || _isPreserveSpecials) &&
+            fileInfo instanceof DeviceInfo)
+        {
             DeviceInfo dev = (DeviceInfo) fileInfo;
             if ((xflags & TransmitFlags.SAME_RDEV_MAJOR) == 0) {
                 sendEncodedInt(dev.major());
@@ -1480,5 +1514,14 @@ public final class Sender implements RsyncTask, MessageHandler
     private boolean isTransferred(int index)
     {
         return _transferred.get(index);
+    }
+
+    /**
+     * @throws TextConversionException
+     */
+    private Message toMessage(MessageCode code, String text)
+    {
+        ByteBuffer payload = ByteBuffer.wrap(_characterEncoder.encode(text));
+        return new Message(code, payload);
     }
 }

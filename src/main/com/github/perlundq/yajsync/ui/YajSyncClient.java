@@ -239,11 +239,23 @@ public class YajSyncClient
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "devices", "",
-                                      "_simulate_ preserve devices (default " +
+                                      "_simulate_ preserve character device " +
+                                      "files and block device files (default " +
                                       "false)",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
                     _clientBuilder.isPreserveDevices(true);
+                }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "specials", "",
+                                      "_simulate_ preserve special device " +
+                                      "files - named sockets and named pipes " +
+                                      "(default false)",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    _clientBuilder.isPreserveSpecials(true);
                 }}));
 
         options.add(

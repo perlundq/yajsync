@@ -2,7 +2,7 @@
  * Processing of incoming file lists and file data from Sender
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013-2015 Per Lundqvist
+ * Copyright (C) 2013-2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -211,6 +211,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private final boolean _isPreserveDevices;
     private final boolean _isPreserveLinks;
     private final boolean _isPreservePermissions;
+    private final boolean _isPreserveSpecials;
     private final boolean _isPreserveTimes;
     private final boolean _isPreserveUser;
     private final boolean _isPreserveGroup;
@@ -244,6 +245,7 @@ public class Receiver implements RsyncTask, MessageHandler
         _isPreserveDevices = _generator.isPreserveDevices();
         _isPreserveLinks = _generator.isPreserveLinks();
         _isPreservePermissions = _generator.isPreservePermissions();
+        _isPreserveSpecials = _generator.isPreserveSpecials();
         _isPreserveTimes = _generator.isPreserveTimes();
         _isPreserveUser = _generator.isPreserveUser();
         _isPreserveGroup = _generator.isPreserveGroup();
@@ -1151,8 +1153,10 @@ public class Receiver implements RsyncTask, MessageHandler
             FileInfoStub stub = new FileInfoStub(pathName, pathNameBytes,
                                                  attrs);
 
-            if (_isPreserveDevices &&
-                (attrs.isBlockDevice() || attrs.isCharacterDevice()))
+            if ((_isPreserveDevices &&
+                 (attrs.isBlockDevice() || attrs.isCharacterDevice())) ||
+                (_isPreserveSpecials &&
+                 (attrs.isFifo() || attrs.isSocket())))
             {
                 if ((flags & TransmitFlags.SAME_RDEV_MAJOR) == 0) {
                     stub._major = receiveAndDecodeInt();
@@ -1248,7 +1252,9 @@ public class Receiver implements RsyncTask, MessageHandler
                         // throws IllegalArgumentException but this is avoided
                         // due to previous checks
                         if ((attrs.isBlockDevice() ||
-                             attrs.isCharacterDevice()) &&
+                             attrs.isCharacterDevice() ||
+                             attrs.isFifo() ||
+                             attrs.isSocket()) &&
                             stub._major >= 0 && stub._minor >= 0)
                         {
                             fileInfo = new DeviceInfo(fullPath, relativePath,
