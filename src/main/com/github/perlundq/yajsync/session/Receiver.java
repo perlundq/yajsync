@@ -917,7 +917,7 @@ public class Receiver implements RsyncTask, MessageHandler
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe(msg);
             }
-            _generator.sendMessage(MessageCode.IO_ERROR, msg);
+            _generator.sendMessage(MessageCode.ERROR_XFER, msg);
             _ioError |= IoError.GENERAL;
         }
     }
@@ -1025,7 +1025,7 @@ public class Receiver implements RsyncTask, MessageHandler
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe(msg);
             }
-            _generator.sendMessage(MessageCode.IO_ERROR, msg);
+            _generator.sendMessage(MessageCode.ERROR_XFER, msg + '\n');
             discardData(checksumHeader);
             _in.skip(Checksum.MAX_DIGEST_LENGTH);
             _ioError |= IoError.GENERAL;
