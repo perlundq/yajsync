@@ -2,7 +2,7 @@
  * A simple rsync command line client implementation
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013-2015 Per Lundqvist
+ * Copyright (C) 2013-2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -319,6 +319,24 @@ public class YajSyncClient
                 @Override public void handleAndContinue(Option option) {
                     _clientBuilder.isPreserveGroup(true);
                 }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "archive", "a",
+                                      "archive mode - same as -rlptgoD " +
+                                      "(default false)",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    _clientBuilder.fileSelection(FileSelection.RECURSE).
+                                   isPreserveLinks(true).
+                                   isPreservePermissions(true).
+                                   isPreserveTimes(true).
+                                   isPreserveGroup(true).
+                                   isPreserveUser(true).
+                                   isPreserveDevices(true).
+                                   isPreserveSpecials(true);
+                }}));
+
 
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,

@@ -32,7 +32,7 @@ Currently implemented rsync options:
 
 - Module file listings
 
-yajsync is compliant with at least rsync version 3.0.9.
+- Archive mode (-a, --archive)
 
 Simulated options:
 
@@ -44,6 +44,8 @@ These will currently return an error when trying to actually read device
 metadata of a device file or trying to create a device file. The reason for this
 is the inability to handle device files in Java. We still want to support these
 options in order to be able to support --archive.
+
+yajsync is compliant with at least rsync version 3.0.9.
 
 
 Features
