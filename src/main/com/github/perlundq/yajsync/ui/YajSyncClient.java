@@ -260,6 +260,17 @@ public class YajSyncClient
 
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
+                                      "", "D",
+                                      "same as --devices and --specials " +
+                                      "(default false)",
+            new Option.ContinuingHandler() {
+                @Override public void handleAndContinue(Option option) {
+                    _clientBuilder.isPreserveDevices(true);
+                    _clientBuilder.isPreserveSpecials(true);
+                }}));
+
+        options.add(
+            Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "links", "l",
                                       "preserve symlinks (default false)",
             new Option.ContinuingHandler() {
