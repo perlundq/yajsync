@@ -371,7 +371,7 @@ public class ArgumentParser
         if (shortName.isEmpty()) {
             sb.append("    ");
         } else {
-            sb.append(shortName).append(", ");
+            sb.append(shortName).append(longName.isEmpty() ? "  " : ", ");
         }
         sb.append(longName);
         return sb.toString();
