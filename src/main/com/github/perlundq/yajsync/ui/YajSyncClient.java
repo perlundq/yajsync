@@ -25,11 +25,15 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.text.SimpleDateFormat;
@@ -49,8 +53,8 @@ import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
 import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
 import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
 import com.github.perlundq.yajsync.filelist.FileInfo;
-import com.github.perlundq.yajsync.filelist.SymlinkInfo;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
+import com.github.perlundq.yajsync.filelist.SymlinkInfo;
 import com.github.perlundq.yajsync.session.ClientSessionConfig;
 import com.github.perlundq.yajsync.session.FileSelection;
 import com.github.perlundq.yajsync.session.RsyncException;
@@ -63,6 +67,7 @@ import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.Option;
 import com.github.perlundq.yajsync.util.Pair;
+import com.github.perlundq.yajsync.util.PathOps;
 import com.github.perlundq.yajsync.util.Triple;
 import com.github.perlundq.yajsync.util.Util;
 
@@ -132,17 +137,21 @@ public class YajSyncClient
     private boolean _isTLS;
     private boolean _readStdin = false;
     private FileSelection _fileSelection;
+    private FileSystem _fs = FileSystems.getDefault();
     private int _remotePort = PORT_UNDEFINED;
     private int _verbosity;
+    private Path _cwd;
     private PrintStream _stderr = System.out;
     private PrintStream _stdout = System.out;
     private final RsyncClient.Builder _clientBuilder =
             new RsyncClient.Builder().authProvider(_authProvider);
     private Statistics _statistics = new Statistics();
+    private String _cwdName = Environment.getWorkingDirectoryName();
     private String _passwordFile;
     private String _userName;
     private TextDecoder _characterDecoder =
             TextDecoder.newStrict(Charset.forName(Text.UTF8_NAME));
+
 
     public YajSyncClient setStandardOut(PrintStream out)
     {
@@ -451,10 +460,39 @@ public class YajSyncClient
             }
         }));
 
+        options.add(Option.newStringOption(
+                Option.Policy.OPTIONAL, "cwd", "",
+                "change current working directory (usable in combination " +
+                "with --fs)",
+                new Option.ContinuingHandler() {
+                    @Override
+                    public void handleAndContinue(Option option) {
+                        _cwdName = (String) option.getValue();
+                    }
+                }));
+
+        options.add(Option.newStringOption(
+                Option.Policy.OPTIONAL, "fs", "",
+                "use a non-default Java nio FileSystem implementation " +
+                "(see also --cwd)",
+                new Option.ContinuingHandler() {
+                    @Override
+                    public void handleAndContinue(Option option)
+                            throws ArgumentParsingError {
+                        try {
+                            String fsName = (String) option.getValue();
+                            _fs = PathOps.fileSystemOf(fsName);
+                            _cwdName = Util.firstOf(_fs.getRootDirectories()).toString();
+                        } catch (IOException | URISyntaxException e) {
+                            throw new ArgumentParsingError(e);
+                        }
+                    }
+                }));
+
         return options;
     }
 
-    private static Triple<Mode, RsyncUrls, RsyncUrl>
+    private Triple<Mode, RsyncUrls, RsyncUrl>
     parseUnnamedArgs(List<String> unnamed) throws ArgumentParsingError
     {
         try {
@@ -469,7 +507,7 @@ public class YajSyncClient
             }
             int numSrcArgs = len == 1 ? 1 : len - 1;
             List<String> srcFileNames = unnamed.subList(0, numSrcArgs);
-            RsyncUrls srcUrls = new RsyncUrls(srcFileNames);
+            RsyncUrls srcUrls = new RsyncUrls(_cwd, srcFileNames);
             if (len == 1) {
                 if (srcUrls.isRemote()) {
                     return new Triple<>(Mode.REMOTE_LIST, srcUrls, null);
@@ -479,7 +517,7 @@ public class YajSyncClient
 
             int indexOfLast = len - 1;
             String dstFileName = unnamed.get(indexOfLast);
-            RsyncUrl dstUrl = RsyncUrl.parse(dstFileName);
+            RsyncUrl dstUrl = RsyncUrl.parse(_cwd, dstFileName);
             if (srcUrls.isRemote() && dstUrl.isRemote()) {
                 throw new ArgumentParsingError(String.format(
                         "source arguments %s and destination argument %s must" +
@@ -536,6 +574,16 @@ public class YajSyncClient
         }
     }
 
+    private Iterable<Path> getPaths(Iterable<String> pathNames)
+    {
+        List<Path> paths = new LinkedList<>();
+        for (String pathName : pathNames) {
+            Path p = PathOps.get(_cwd.getFileSystem(), pathName);
+            paths.add(p);
+        }
+        return paths;
+    }
+
     private RsyncClient.Result remoteTransfer(Mode mode,
                                               RsyncUrls srcArgs,
                                               RsyncUrl dstArgOrNull)
@@ -555,7 +603,7 @@ public class YajSyncClient
         try (DuplexByteChannel sock = socketFactory.open(connInfo.address(),
                                                          connInfo.portNumber())) {  // throws IOException
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine("connected to" + sock);
+                _log.fine("connected to " + sock);
             }
             _userName = connInfo.userName();
 
@@ -566,13 +614,14 @@ public class YajSyncClient
                                                isInterruptible);
             switch (mode) {
             case REMOTE_SEND:
-                return client.send(srcArgs.pathNames()).
+                return client.send(getPaths(srcArgs.pathNames())).
                               to(dstArgOrNull.moduleName(),
                                  dstArgOrNull.pathName());
             case REMOTE_RECEIVE:
                 return client.receive(srcArgs.moduleName(),
                                       srcArgs.pathNames()).
-                              to(dstArgOrNull.pathName());
+                              to(PathOps.get(_cwd.getFileSystem(),
+                                             dstArgOrNull.pathName()));
             case REMOTE_LIST:
                 if (srcArgs.moduleName().isEmpty()) {
                     RsyncClient.ModuleListing listing = client.listModules();
@@ -628,6 +677,8 @@ public class YajSyncClient
             if (rc != ArgumentParser.Status.CONTINUE) {
                 return rc == ArgumentParser.Status.EXIT_OK ? 0 : 1;
             }
+            _cwd = _fs.getPath(_cwdName);
+
             List<String> unnamed = new LinkedList<>();
             if (_readStdin) {
                 unnamed.addAll(readLinesFromStdin());
@@ -640,7 +691,8 @@ public class YajSyncClient
             RsyncUrl dstArgOrNull = res.third();
 
             if (_remotePort != PORT_UNDEFINED && mode.isRemote()) {
-                Pair<RsyncUrls, RsyncUrl> res2 = updateRemotePort(_remotePort,
+                Pair<RsyncUrls, RsyncUrl> res2 = updateRemotePort(_cwd,
+                                                                  _remotePort,
                                                                   srcArgs,
                                                                   dstArgOrNull);
                 srcArgs = res2.first();
@@ -666,10 +718,13 @@ public class YajSyncClient
                               "probably lower than rsync)");
                 }
                 result = _clientBuilder.buildLocal().
-                                            copy(srcArgs.pathNames()).
-                                            to(dstArgOrNull.pathName());
+                                            copy(getPaths(srcArgs.pathNames())).
+                                            to(PathOps.get(_cwd.getFileSystem(),
+                                                           dstArgOrNull.pathName()));
             } else if (mode == Mode.LOCAL_LIST) {
-                RsyncClient.FileListing listing = _clientBuilder.buildLocal().list(srcArgs.pathNames());
+                RsyncClient.FileListing listing = _clientBuilder.
+                        buildLocal().
+                        list(getPaths(srcArgs.pathNames()));
                 for (FileInfo f : listing.files()) {
                     System.out.println(fileInfoToListingString(f));
                 }
@@ -704,7 +759,8 @@ public class YajSyncClient
     }
 
     private static Pair<RsyncUrls, RsyncUrl>
-    updateRemotePort(int newPortNumber, RsyncUrls srcArgs, RsyncUrl dstArgOrNull)
+    updateRemotePort(Path cwd, int newPortNumber, RsyncUrls srcArgs,
+                     RsyncUrl dstArgOrNull)
             throws ArgumentParsingError
     {
         try {
@@ -729,7 +785,7 @@ public class YajSyncClient
                                   dstArgOrNull);
             } // else if (dstArg.isRemote()) {
             return new Pair<>(srcArgs,
-                              new RsyncUrl(newConnInfo,
+                              new RsyncUrl(cwd, newConnInfo,
                                            dstArgOrNull.moduleName(),
                                            dstArgOrNull.pathName()));
         } catch (IllegalUrlException e) {

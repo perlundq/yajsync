@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.github.perlundq.yajsync.filelist.Group;
 import com.github.perlundq.yajsync.filelist.User;
+import com.github.perlundq.yajsync.text.Text;
 
 public class FileOps
 {
@@ -418,7 +419,8 @@ public class FileOps
     public static Path readLinkTarget(Path path) throws IOException
     {
         Path symlinkTarget = Files.readSymbolicLink(path);
-        if (symlinkTarget.equals(PathOps.EMPTY)) {
+        Path empty = path.getFileSystem().getPath(Text.EMPTY);
+        if (symlinkTarget.equals(empty)) {
             throw new IOException("symlink target is the empty string");
         }
         return symlinkTarget;

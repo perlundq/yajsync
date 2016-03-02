@@ -44,11 +44,11 @@ import com.github.perlundq.yajsync.session.Modules;
 import com.github.perlundq.yajsync.session.RestrictedModule;
 import com.github.perlundq.yajsync.session.RestrictedPath;
 import com.github.perlundq.yajsync.session.Statistics;
+import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.ui.YajSyncClient;
 import com.github.perlundq.yajsync.ui.YajSyncServer;
 import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.Option;
-import com.github.perlundq.yajsync.util.PathOps;
 
 
 
@@ -245,7 +245,7 @@ class SimpleModule implements Module
     private final boolean _isReadable;
     private final boolean _isWritable;
 
-    SimpleModule(Path name, Path root, String comment,
+    SimpleModule(String name, Path root, String comment,
                  boolean isReadable, boolean isWritable)
     {
         _name = name.toString();
@@ -528,7 +528,7 @@ public class SystemTest
     {
         Path src = _tempDir.newFile().toPath();
         Path srcDotDot = _tempDir.newFolder().toPath().
-                resolve(PathOps.DOT_DOT_DIR).
+                resolve(Paths.get(Text.DOT_DOT)).
                 resolve(src.getFileName());
         Path dst = _tempDir.newFile().toPath();
         FileUtil.writeToFiles(0, src);
@@ -825,7 +825,7 @@ public class SystemTest
             public Integer call() throws Exception
             {
                 Path modulePath = _tempDir.newFolder().toPath();
-                Module m = new SimpleModule(Paths.get("test"), modulePath,
+                Module m = new SimpleModule("test", modulePath,
                                             "a test module", true, false);
                 int rc = newServer(new TestModules(m)).
                         setIsListeningLatch(isListeningLatch).
@@ -852,7 +852,7 @@ public class SystemTest
             public Integer call() throws Exception
             {
                 Path modulePath = _tempDir.newFolder().toPath();
-                Module m = new SimpleModule(Paths.get(restrictedModuleName),
+                Module m = new SimpleModule(restrictedModuleName,
                                             modulePath,
                                             "a test module", true, false);
                 RestrictedModule rm = new SimpleRestrictedModule(
@@ -889,7 +889,7 @@ public class SystemTest
             public Integer call() throws Exception
             {
                 Path modulePath = _tempDir.newFolder().toPath();
-                Module m = new SimpleModule(Paths.get(restrictedModuleName),
+                Module m = new SimpleModule(restrictedModuleName,
                                             modulePath,
                                             "a test module", true, false);
                 RestrictedModule rm = new SimpleRestrictedModule(

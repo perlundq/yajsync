@@ -26,10 +26,11 @@ import java.nio.ByteOrder;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -296,7 +297,7 @@ public final class Sender implements RsyncTask, MessageHandler
                 new Filelist(_fileSelection == FileSelection.RECURSE, false);
         try {
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine("Sender.transfer:");
+                _log.fine("Sender.transfer: " + _sourceFiles);
             }
 
             if (_filterMode == FilterMode.RECEIVE) {
@@ -892,13 +893,10 @@ public final class Sender implements RsyncTask, MessageHandler
 
         List<FileInfo> fileset = new ArrayList<>();
         boolean isOK = true;
-        // throws RuntimeException if unable to get local path prefix of
-        // directory, but that should never happen
-        final Path localPart = getLocalPathOf(directory);
+        final Path dir = directory.pathOrNull();
+        final Path localDir = localPathTo(directory);
 
-        try (DirectoryStream<Path> stream =
-                Files.newDirectoryStream(directory.pathOrNull())) {
-
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path entry : stream) {
                 if (!PathOps.isPathPreservable(entry.getFileName())) {
                     String msg = String.format("Skipping %s - unable to " +
@@ -928,9 +926,9 @@ public final class Sender implements RsyncTask, MessageHandler
                     continue;
                 }
 
-                Path relativePath = localPart.relativize(entry);
+                Path relativePath = localDir.relativize(entry);
                 String relativePathName =
-                    Text.withSlashAsPathSepator(relativePath.toString());
+                    Text.withSlashAsPathSepator(relativePath);
                 byte[] pathNameBytes =
                     _characterEncoder.encodeOrNull(relativePathName);
                 if (pathNameBytes != null) {
@@ -1497,20 +1495,22 @@ public final class Sender implements RsyncTask, MessageHandler
         sendEncodedLong(stats.fileListTransferTime(), 3);
     }
 
-    private Path getLocalPathOf(FileInfo fileInfo)
+    // i.e. if full path is /a/b/c/d and pathNamebytes is c/d this returns /a/b
+    private Path localPathTo(FileInfo fileInfo)
     {
-        String pathName =
-                _characterDecoder.decodeOrNull(fileInfo.pathNameBytes());
-        if (pathName == null) {
-            throw new RuntimeException(String.format(
-                "unable to decode path name of %s using %s",
-                fileInfo, _characterDecoder.charset()));
-        }
-        Path relativePath = Paths.get(pathName);
-        return PathOps.subtractPath(fileInfo.pathOrNull(), relativePath);
+         String pathName =
+                 _characterDecoder.decodeOrNull(fileInfo.pathNameBytes());
+         if (pathName == null) {
+             throw new RuntimeException(String.format(
+                 "unable to decode path name of %s using %s",
+                 fileInfo, _characterDecoder.charset()));
+         }
+         FileSystem fs = fileInfo.pathOrNull().getFileSystem();
+         Path relativePath = fs.getPath(pathName);
+         return PathOps.subtractPathOrNull(fileInfo.pathOrNull(), relativePath);
     }
 
-    // FIXME: code duplication with Receiver, move to Connection?
+    // NOTE: code duplication with Receiver
     public void readAllMessagesUntilEOF() throws ChannelException
     {
         try {

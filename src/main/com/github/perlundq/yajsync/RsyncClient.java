@@ -24,7 +24,6 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.UnsupportedCharsetException;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -63,11 +62,6 @@ public final class RsyncClient
     private enum Mode
     {
         LOCAL_COPY, LOCAL_LIST, REMOTE_SEND, REMOTE_RECEIVE, REMOTE_LIST;
-
-        public boolean isList()
-        {
-            return this == REMOTE_LIST || this == LOCAL_LIST;
-        }
     }
 
     public static class Result
@@ -183,7 +177,7 @@ public final class RsyncClient
                         _isListingAvailable.countDown();
                         Receiver receiver = new Receiver.Builder(generator,
                                                                  in,
-                                                                 CURRENT_DIR).
+                                                                 _cwd).
                                 filterMode(FilterMode.SEND).
                                 isDeferWrite(_isDeferWrite).
                                 isExitAfterEOF(true).
@@ -307,59 +301,43 @@ public final class RsyncClient
         }
     }
 
-    private List<Path> toListOfPaths(Iterable<String> pathNames)
-            throws RsyncException
-    {
-        try {
-            List<Path> result = new LinkedList<>();
-            for (String pathName : pathNames) {
-                result.add(Paths.get(pathName));
-            }
-            return result;
-        } catch (InvalidPathException e) {
-            throw new RsyncException(e);
-        }
-    }
-
     public class Local
     {
         public class Copy
         {
-            private final Iterable<String> _srcPathNames;
+            private final Iterable<Path> _srcPaths;
 
-            private Copy(Iterable<String> pathNames)
+            private Copy(Iterable<Path> srcPaths)
             {
-                assert pathNames != null;
-                _srcPathNames = pathNames;
+                assert srcPaths != null;
+                _srcPaths = srcPaths;
             }
 
-            public Result to(String dstPathName) throws RsyncException,
-                                                        InterruptedException
+            public Result to(Path dstPath) throws RsyncException,
+                                                  InterruptedException
             {
-                assert dstPathName != null;
-                return localTransfer(_srcPathNames, dstPathName);
+                assert dstPath != null;
+                return localTransfer(_srcPaths, dstPath);
             }
         }
 
-        public Copy copy(Iterable<String> pathNames)
+        public Copy copy(Iterable<Path> paths)
         {
-            assert pathNames != null;
-            return new Copy(pathNames);
+            assert paths != null;
+            return new Copy(paths);
         }
 
-        public Copy copy(String[] pathNames)
+        public Copy copy(Path[] paths)
         {
-            return copy(Arrays.asList(pathNames));
+            return copy(Arrays.asList(paths));
         }
 
-        public FileListing list(Iterable<String> srcPathNames)
-                throws RsyncException
+        public FileListing list(Iterable<Path> srcPaths)
         {
-            assert srcPathNames != null;
+            assert srcPaths != null;
             Pipe[] pipePair = pipePair();
             Pipe toSender = pipePair[0];
             Pipe toReceiver = pipePair[1];
-            List<Path> srcPaths = toListOfPaths(srcPathNames);
             FileSelection fileSelection =
                     Util.defaultIfNull(_fileSelectionOrNull,
                                        FileSelection.TRANSFER_DIRS);
@@ -394,29 +372,26 @@ public final class RsyncClient
                     isAlwaysItemize(_isAlwaysItemize).build();
             Receiver receiver = new Receiver.Builder(generator,
                                                      toReceiver.source(),
-                                                     CURRENT_DIR).
+                                                     _cwd).
                     isExitEarlyIfEmptyList(true).
                     isDeferWrite(_isDeferWrite).build();
 
             return new FileListing(sender, generator, receiver);
         }
 
-        public FileListing list(String[] pathNames)
-                throws RsyncException
+        public FileListing list(Path[] paths)
         {
-            return list(Arrays.asList(pathNames));
+            return list(Arrays.asList(paths));
         }
 
-        private Result localTransfer(Iterable<String> srcPathNames,
-                                     String dstPathName)
+        private Result localTransfer(Iterable<Path> srcPaths, Path dstPath)
                 throws RsyncException, InterruptedException
         {
-            assert srcPathNames != null;
-            assert dstPathName != null;
+            assert srcPaths != null;
+            assert dstPath != null;
             Pipe[] pipePair = pipePair();
             Pipe toSender = pipePair[0];
             Pipe toReceiver = pipePair[1];
-            List<Path> srcPaths = toListOfPaths(srcPathNames);
             FileSelection fileSelection =
                     Util.defaultIfNull(_fileSelectionOrNull,
                                        FileSelection.EXACT);
@@ -451,7 +426,7 @@ public final class RsyncClient
                     isAlwaysItemize(_isAlwaysItemize).build();
             Receiver receiver = new Receiver.Builder(generator,
                                                      toReceiver.source(),
-                                                     dstPathName).
+                                                     dstPath).
                     isExitEarlyIfEmptyList(true).
                     isDeferWrite(_isDeferWrite).build();
             try {
@@ -493,11 +468,11 @@ public final class RsyncClient
             List<String> serverArgs = createServerArgs(Mode.REMOTE_LIST,
                                                        fileSelection,
                                                        srcPathNames,
-                                                       CURRENT_DIR);
+                                                       _cwd.toString());
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format(
                         "file selection: %s, src: %s, dst: %s, remote args: %s",
-                        fileSelection, srcPathNames, CURRENT_DIR, serverArgs));
+                        fileSelection, srcPathNames, _cwd, serverArgs));
             }
             ClientSessionConfig cfg = new ClientSessionConfig(_in,
                                                               _out,
@@ -514,9 +489,9 @@ public final class RsyncClient
                                    fileSelection);
         }
 
-        public FileListing list(String moduleName, String[] pathNames)
+        public FileListing list(String moduleName, String[] paths)
         {
-            return list(moduleName, Arrays.asList(pathNames));
+            return list(moduleName, Arrays.asList(paths));
         }
 
         public ModuleListing listModules()
@@ -527,12 +502,12 @@ public final class RsyncClient
             List<String> serverArgs = createServerArgs(Mode.REMOTE_LIST,
                                                        fileSelection,
                                                        srcPathNames,
-                                                       CURRENT_DIR);
+                                                       _cwd.toString());
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("file selection: %s, src: %s, dst: " +
                                         "%s, remote args: %s",
                                         fileSelection, srcPathNames,
-                                        CURRENT_DIR, serverArgs));
+                                        _cwd, serverArgs));
             }
             ClientSessionConfig cfg = new ClientSessionConfig(_in,
                                                               _out,
@@ -542,15 +517,15 @@ public final class RsyncClient
             return new ModuleListing(cfg, serverArgs);
         }
 
-        public Send send(Iterable<String> pathNames)
+        public Send send(Iterable<Path> paths)
         {
-            assert pathNames != null;
-            return new Send(pathNames);
+            assert paths != null;
+            return new Send(paths);
         }
 
-        public Send send(String[] pathNames)
+        public Send send(Path[] paths)
         {
-            return send(Arrays.asList(pathNames));
+            return send(Arrays.asList(paths));
         }
 
         public Receive receive(String moduleName, Iterable<String> pathNames)
@@ -567,12 +542,12 @@ public final class RsyncClient
 
         public class Send
         {
-            private final Iterable<String> _srcPathNames;
+            private final Iterable<Path> _srcPaths;
 
-            private Send(Iterable<String> pathNames)
+            private Send(Iterable<Path> srcPaths)
             {
-                assert pathNames != null;
-                _srcPathNames = pathNames;
+                assert srcPaths != null;
+                _srcPaths = srcPaths;
             }
 
             public Result to(String moduleName, String dstPathName)
@@ -580,8 +555,65 @@ public final class RsyncClient
             {
                 assert moduleName != null;
                 assert dstPathName != null;
-                return transfer(Mode.REMOTE_SEND, _srcPathNames, dstPathName,
-                                moduleName);
+
+                FileSelection fileSelection =
+                    Util.defaultIfNull(_fileSelectionOrNull,
+                                       FileSelection.EXACT);
+                List<String> serverArgs =
+                        createServerArgs(Mode.REMOTE_SEND,
+                                         fileSelection,
+                                         toListOfStrings(_srcPaths),
+                                         dstPathName);
+
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine(String.format(
+                            "file selection: %s, src: %s, dst: %s, remote " +
+                            "args: %s",
+                            fileSelection, _srcPaths, dstPathName, serverArgs));
+                }
+
+                ClientSessionConfig cfg = new ClientSessionConfig(_in,
+                                                                  _out,
+                                                                  _charset,
+                                                                  fileSelection == FileSelection.RECURSE,
+                                                                  _stderr);
+                SessionStatus status = cfg.handshake(moduleName, serverArgs,
+                                                     _authProvider);
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine("handshake status: " + status);
+                }
+
+                if (status == SessionStatus.ERROR) {
+                    return Result.failure();
+                } else if (status == SessionStatus.EXIT) {
+                    return Result.success();
+                }
+
+                try {
+                    Sender sender = Sender.Builder.newClient(_in,
+                                                             _out,
+                                                             _srcPaths,
+                                                             cfg.checksumSeed()).
+                            filterMode(_isDelete ? FilterMode.SEND
+                                                 : FilterMode.NONE).
+                            charset(_charset).
+                            fileSelection(fileSelection).
+                            isPreserveLinks(_isPreserveLinks).
+                            isPreserveUser(_isPreserveUser).
+                            isPreserveGroup(_isPreserveGroup).
+                            isNumericIds(_isNumericIds).
+                            isInterruptible(_isInterruptible).
+                            isSafeFileList(cfg.isSafeFileList()).build();
+                    boolean isOK = _rsyncTaskExecutor.exec(sender);
+                    return new Result(isOK, sender.statistics());
+                } finally {
+                    if (_isOwnerOfExecutorService) {
+                        if (_log.isLoggable(Level.FINE)) {
+                            _log.fine("shutting down " + _executorService);
+                        }
+                        _executorService.shutdown();
+                    }
+                }
             }
         }
 
@@ -598,24 +630,97 @@ public final class RsyncClient
                 _srcPathNames = srcPathNames;
             }
 
-            public Result to(String dstPathName)
+            public Result to(Path dstPath)
                     throws RsyncException, InterruptedException
             {
-                assert dstPathName != null;
-                return transfer(Mode.REMOTE_RECEIVE ,_srcPathNames, dstPathName,
-                                _moduleName);
+                assert dstPath != null;
+                FileSelection fileSelection =
+                        Util.defaultIfNull(_fileSelectionOrNull,
+                                           FileSelection.EXACT);
+                List<String> serverArgs =
+                        createServerArgs(Mode.REMOTE_RECEIVE,
+                                         fileSelection,
+                                         _srcPathNames,
+                                         dstPath.toString());
+
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine(String.format("file selection: %s, src: %s, dst: " +
+                                            "%s, remote args: %s",
+                                            fileSelection, _srcPathNames,
+                                            dstPath, serverArgs));
+                }
+
+                ClientSessionConfig cfg = new ClientSessionConfig(_in,
+                                                                  _out,
+                                                                  _charset,
+                                                                  fileSelection == FileSelection.RECURSE,
+                                                                  _stderr);
+                SessionStatus status = cfg.handshake(_moduleName, serverArgs,
+                                                     _authProvider);
+                if (_log.isLoggable(Level.FINE)) {
+                    _log.fine("handshake status: " + status);
+                }
+
+                if (status == SessionStatus.ERROR) {
+                    return Result.failure();
+                } else if (status == SessionStatus.EXIT) {
+                    return Result.success();
+                }
+
+                try {
+                    Generator generator = new Generator.Builder(_out,
+                                                                cfg.checksumSeed()).
+                            charset(cfg.charset()).
+                            fileSelection(fileSelection).
+                            isDelete(_isDelete).
+                            isPreserveLinks(_isPreserveLinks).
+                            isPreservePermissions(_isPreservePermissions).
+                            isPreserveTimes(_isPreserveTimes).
+                            isPreserveUser(_isPreserveUser).
+                            isPreserveGroup(_isPreserveGroup).
+                            isNumericIds(_isNumericIds).
+                            isIgnoreTimes(_isIgnoreTimes).
+                            isAlwaysItemize(_verbosity > 1).
+                            isInterruptible(_isInterruptible).build();
+                    Receiver receiver = new Receiver.Builder(generator, _in,
+                                                             dstPath).
+                            filterMode(FilterMode.SEND).
+                            isDeferWrite(_isDeferWrite).
+                            isExitAfterEOF(true).
+                            isExitEarlyIfEmptyList(true).
+                            isReceiveStatistics(true).
+                            isSafeFileList(cfg.isSafeFileList()).build();
+                    boolean isOK = _rsyncTaskExecutor.exec(generator, receiver);
+                    return new Result(isOK, receiver.statistics());
+                } finally {
+                    if (_isOwnerOfExecutorService) {
+                        if (_log.isLoggable(Level.FINE)) {
+                            _log.fine("shutting down " + _executorService);
+                        }
+                        _executorService.shutdown();
+                    }
+                }
             }
+        }
+
+        List<String> toListOfStrings(Iterable<Path> paths)
+        {
+            List<String> srcPathNames = new LinkedList<>();
+            for (Path p : paths) {
+                srcPathNames.add(p.toString());
+            }
+            return srcPathNames;
         }
 
         private List<String> createServerArgs(Mode mode,
                                               FileSelection fileSelection,
-                                              Iterable<String> srcArgs,
-                                              String dstArg)
+                                              Iterable<String> srcPathNames,
+                                              String dstPathName)
         {
             assert mode != null;
             assert fileSelection != null;
-            assert srcArgs != null;
-            assert dstArg != null;
+            assert srcPathNames != null;
+            assert dstPathName != null;
             List<String> serverArgs = new LinkedList<>();
             serverArgs.add("--server");
             boolean isPeerSender = mode != Mode.REMOTE_SEND;
@@ -684,115 +789,13 @@ public final class RsyncClient
             serverArgs.add("."); // arg delimiter
 
             if (mode == Mode.REMOTE_SEND) {
-                serverArgs.add(dstArg);
+                serverArgs.add(dstPathName);
             } else {
-                for (String src : srcArgs) {
+                for (String src : srcPathNames) {
                     serverArgs.add(src);
                 }
             }
             return serverArgs;
-        }
-
-        private Result transfer(Mode mode, Iterable<String> srcPathNames,
-                                String dstPathName, String moduleName)
-                throws RsyncException, InterruptedException
-        {
-            assert mode != null;
-            assert srcPathNames != null;
-            assert moduleName != null;
-            assert dstPathName != null;
-            FileSelection fileSelection =
-                    Util.defaultIfNull(_fileSelectionOrNull,
-                                       mode.isList()
-                                           ? FileSelection.TRANSFER_DIRS
-                                           : FileSelection.EXACT);
-            List<String> serverArgs = createServerArgs(mode,
-                                                       fileSelection,
-                                                       srcPathNames,
-                                                       dstPathName);
-
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format("file selection: %s, src: %s, dst: " +
-                                        "%s, remote args: %s",
-                                        fileSelection, srcPathNames,
-                                        dstPathName, serverArgs));
-            }
-
-            ClientSessionConfig cfg = new ClientSessionConfig(_in,
-                                                              _out,
-                                                              _charset,
-                                                              fileSelection == FileSelection.RECURSE,
-                                                              _stderr);
-            SessionStatus status = cfg.handshake(moduleName, serverArgs,
-                                                 _authProvider);
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine("handshake status: " + status);
-            }
-
-            if (status == SessionStatus.ERROR) {
-                return Result.failure();
-            } else if (status == SessionStatus.EXIT) {
-                return Result.success();
-            }
-
-            try {
-                switch (mode) {
-                case REMOTE_RECEIVE:
-                case REMOTE_LIST:
-                    Generator generator = new Generator.Builder(_out,
-                                                                cfg.checksumSeed()).
-                            charset(cfg.charset()).
-                            fileSelection(fileSelection).
-                            isDelete(_isDelete).
-                            isPreserveLinks(_isPreserveLinks).
-                            isPreservePermissions(_isPreservePermissions).
-                            isPreserveTimes(_isPreserveTimes).
-                            isPreserveUser(_isPreserveUser).
-                            isPreserveGroup(_isPreserveGroup).
-                            isNumericIds(_isNumericIds).
-                            isIgnoreTimes(_isIgnoreTimes).
-                            isAlwaysItemize(_verbosity > 1).
-                            isListOnly(mode == Mode.REMOTE_LIST).
-                            isInterruptible(_isInterruptible).build();
-                    Receiver receiver = new Receiver.Builder(generator, _in,
-                                                             dstPathName).
-                            filterMode(FilterMode.SEND).
-                            isDeferWrite(_isDeferWrite).
-                            isExitAfterEOF(true).
-                            isExitEarlyIfEmptyList(true).
-                            isReceiveStatistics(true).
-                            isSafeFileList(cfg.isSafeFileList()).build();
-                    boolean isOK = _rsyncTaskExecutor.exec(generator, receiver);
-                    return new Result(isOK, receiver.statistics());
-                case REMOTE_SEND:
-                    List<Path> srcPaths = toListOfPaths(srcPathNames);
-                    Sender sender = Sender.Builder.newClient(_in,
-                                                             _out,
-                                                             srcPaths,
-                                                             cfg.checksumSeed()).
-                            filterMode(_isDelete ? FilterMode.SEND
-                                                 : FilterMode.NONE).
-                            charset(_charset).
-                            fileSelection(fileSelection).
-                            isPreserveLinks(_isPreserveLinks).
-                            isPreserveUser(_isPreserveUser).
-                            isPreserveGroup(_isPreserveGroup).
-                            isNumericIds(_isNumericIds).
-                            isInterruptible(_isInterruptible).
-                            isSafeFileList(cfg.isSafeFileList()).build();
-                    isOK = _rsyncTaskExecutor.exec(sender);
-                    return new Result(isOK, sender.statistics());
-                default:
-                    throw new IllegalStateException();
-                }
-            } finally {
-                if (_isOwnerOfExecutorService) {
-                    if (_log.isLoggable(Level.FINE)) {
-                        _log.fine("shutting down " + _executorService);
-                    }
-                    _executorService.shutdown();
-                }
-            }
         }
     }
 
@@ -969,9 +972,9 @@ public final class RsyncClient
 
     private static final Logger _log =
             Logger.getLogger(RsyncClient.class.getName());
-    private static final String CURRENT_DIR =
-            Environment.getWorkingDirectory().resolve(".").toString();
     private final ClientSessionConfig.AuthProvider _authProvider;
+    // a dummy - only used for file listings
+    private static final Path _cwd = Paths.get(Environment.getWorkingDirectoryName());
     private final boolean _isAlwaysItemize;
     private final boolean _isDeferWrite;
     private final boolean _isDelete;
@@ -1020,6 +1023,5 @@ public final class RsyncClient
         _fileSelectionOrNull = builder._fileSelection;
         _verbosity = builder._verbosity;
         _stderr = builder._stderr;
-
     }
 }

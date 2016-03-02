@@ -16,6 +16,7 @@
  */
 package com.github.perlundq.yajsync.ui;
 
+import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -33,13 +34,13 @@ final class RsyncUrls
         _pathNames = pathNames;
     }
 
-    public RsyncUrls(Iterable<String> urls) throws IllegalUrlException
+    public RsyncUrls(Path cwd, Iterable<String> urls) throws IllegalUrlException
     {
         List<String> pathNames = new LinkedList<>();
         RsyncUrl prevUrl = null;
         String moduleName = null;
         for (String s : urls) {
-            RsyncUrl url = RsyncUrl.parse(s);
+            RsyncUrl url = RsyncUrl.parse(cwd, s);
             boolean isFirst = prevUrl == null;
             boolean curAndPrevAreLocal = !isFirst &&
                                          url.isLocal() && prevUrl.isLocal();

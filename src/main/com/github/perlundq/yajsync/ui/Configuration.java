@@ -2,7 +2,7 @@
  * Parsing of /etc/rsyncd.conf configuration files
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013, 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,9 +22,13 @@ package com.github.perlundq.yajsync.ui;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.Principal;
 import java.util.Collection;
@@ -46,6 +50,7 @@ import com.github.perlundq.yajsync.session.RestrictedPath;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.Option;
+import com.github.perlundq.yajsync.util.PathOps;
 
 public class Configuration implements Modules
 {
@@ -63,6 +68,7 @@ public class Configuration implements Modules
         private static final String DEFAULT_CONFIGURATION_FILE_NAME =
             "yajsyncd.conf";
         private static final String MODULE_KEY_COMMENT = "comment";
+        private static final String MODULE_KEY_FS = "fs";
         private static final String MODULE_KEY_PATH = "path";
         private static final String MODULE_KEY_IS_READABLE = "is_readable";
         private static final String MODULE_KEY_IS_WRITABLE = "is_writable";
@@ -115,8 +121,8 @@ public class Configuration implements Modules
             // NOP
         }
 
-        private static Map<String, Module> getModules(String fileName)
-            throws ModuleException
+        private Map<String, Module> getModules(String fileName)
+                throws ModuleException
         {
             Map<String, Map<String, String>> modules;
             try (BufferedReader reader = Files.newBufferedReader(
@@ -151,9 +157,16 @@ public class Configuration implements Modules
                 }
 
                 try {
-                    RestrictedPath vp =
-                        new RestrictedPath(Paths.get(moduleName),
-                                           Paths.get(pathValue));
+                    String fsValue = moduleContent.get(MODULE_KEY_FS);
+                    FileSystem fs;
+                    if (fsValue != null) {
+                        fs = PathOps.fileSystemOf(fsValue);
+                    } else {
+                        fs = FileSystems.getDefault();
+                    }
+
+                    Path p = PathOps.get(fs, pathValue);
+                    RestrictedPath vp = new RestrictedPath(moduleName, p);
                     SimpleModule m = new SimpleModule(moduleName, vp);
                     String comment = Text.nullToEmptyStr(moduleContent.get(MODULE_KEY_COMMENT));
                     m._comment = comment;
@@ -166,7 +179,8 @@ public class Configuration implements Modules
                         m._isWritable = isWritable;
                     }
                     result.put(moduleName, m);
-                } catch (InvalidPathException | IllegalValueException e) {
+                } catch (InvalidPathException | IllegalValueException |
+                         IOException | URISyntaxException e) {
                     if (_log.isLoggable(Level.WARNING)) {
                         _log.warning(String.format("skipping module %s: %s",
                                                    moduleName, e.getMessage()));
@@ -197,7 +211,8 @@ public class Configuration implements Modules
                     continue;
                 }
 
-                if (!Environment.IS_PATH_SEPARATOR_BACK_SLASH &&
+                String sep = FileSystems.getDefault().getSeparator();
+                if (!sep.equals(Text.BACK_SLASH) &&
                     trimmedLine.endsWith(Text.BACK_SLASH))
                 {
                     prevLine = Text.stripLast(trimmedLine);

@@ -1,7 +1,7 @@
 /*
  * Properties utility routines
  *
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013, 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,18 +18,11 @@
  */
 package com.github.perlundq.yajsync.util;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.attribute.GroupPrincipal;
-import java.nio.file.attribute.UserPrincipal;
 
 import com.github.perlundq.yajsync.filelist.AbstractPrincipal;
 import com.github.perlundq.yajsync.filelist.Group;
 import com.github.perlundq.yajsync.filelist.User;
-import com.github.perlundq.yajsync.text.Text;
 
 public final class Environment
 {
@@ -48,12 +41,7 @@ public final class Environment
     public static final int UMASK = umask();
     public static final int DEFAULT_DIR_PERMS = 0777 & ~ UMASK;
     public static final int DEFAULT_FILE_PERMS = 0666 & ~ UMASK;
-    public static final String PATH_SEPARATOR = FileSystems.getDefault().getSeparator();
-    public static final boolean IS_PATH_SEPARATOR_SLASH = PATH_SEPARATOR.equals(Text.SLASH);
-    public static final boolean IS_PATH_SEPARATOR_BACK_SLASH = PATH_SEPARATOR.equals(Text.BACK_SLASH);
     public static final boolean IS_RUNNING_WINDOWS = isRunningWindows();
-    public static final boolean IS_UNIX_FS = FileSystems.getDefault().supportedFileAttributeViews().contains("unix");
-    public static final boolean IS_POSIX_FS = FileSystems.getDefault().supportedFileAttributeViews().contains("posix");
 
     private Environment() {}
 
@@ -94,31 +82,9 @@ public final class Environment
         return getPropertyOrDefault(PROPERTY_KEY_GROUP_NAME, Group.NOBODY.name());
     }
 
-    public static UserPrincipal getUserPrincipal()
+    public static String getWorkingDirectoryName()
     {
-        try {
-            return FileSystems.getDefault().
-                       getUserPrincipalLookupService().
-                       lookupPrincipalByName(Environment.getUserName());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static GroupPrincipal getGroupPrincipal()
-    {
-        try {
-            return FileSystems.getDefault().
-                       getUserPrincipalLookupService().
-                       lookupPrincipalByGroupName(Environment.getGroupName());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static Path getWorkingDirectory()
-    {
-        return Paths.get(getNonNullProperty(PROPERTY_KEY_CWD));
+        return getNonNullProperty(PROPERTY_KEY_CWD);
     }
 
     public static String getServerConfig(String defName)

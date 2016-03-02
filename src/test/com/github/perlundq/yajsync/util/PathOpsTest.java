@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 
 import org.junit.Rule;
@@ -69,6 +70,6 @@ public class PathOpsTest
     @Test(expected=InvalidPathException.class)
     public void testNormalizeIllegal()
     {
-        PathOps.normalizeStrict(PathOps.DOT_DOT_DIR);
+        PathOps.normalizeStrict(Paths.get(".."));
     }
 }

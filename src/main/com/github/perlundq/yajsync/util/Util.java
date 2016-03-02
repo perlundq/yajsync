@@ -241,4 +241,12 @@ public final class Util
 
         return true;
     }
+
+    public static <T> T firstOf(Iterable<T> list)
+    {
+        for (T val : list) {
+            return val;
+        }
+        return null;
+    }
 }

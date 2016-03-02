@@ -24,12 +24,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.Arrays;
@@ -59,7 +59,6 @@ import com.github.perlundq.yajsync.io.AutoDeletable;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.text.TextConversionException;
 import com.github.perlundq.yajsync.text.TextDecoder;
-import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.MD5;
 import com.github.perlundq.yajsync.util.PathOps;
@@ -72,7 +71,7 @@ public class Receiver implements RsyncTask, MessageHandler
     {
         private final Generator _generator;
         private final ReadableByteChannel _in;
-        private final String _targetPathName;
+        private final Path _targetPath;
         private boolean _isDeferWrite;
         private boolean _isExitAfterEOF;
         private boolean _isExitEarlyIfEmptyList;
@@ -81,22 +80,22 @@ public class Receiver implements RsyncTask, MessageHandler
         private FilterMode _filterMode = FilterMode.NONE;
 
         public Builder(Generator generator, ReadableByteChannel in,
-                       String targetPathName)
+                       Path targetPath)
         {
             assert generator != null;
             assert in != null;
-            assert targetPathName != null;
-            assert Paths.get(targetPathName).isAbsolute() : targetPathName;
+            assert targetPath != null;
+            assert targetPath.isAbsolute() : targetPath;
             _generator = generator;
             _in = in;
-            _targetPathName = targetPathName;
+            _targetPath = targetPath;
         }
 
         public static Builder newServer(Generator generator,
                                         ReadableByteChannel in,
-                                        String targetPathName)
+                                        Path targetPath)
         {
-            return new Builder(generator, in, targetPathName).
+            return new Builder(generator, in, targetPath).
                     isReceiveStatistics(false).
                     isExitEarlyIfEmptyList(false).
                     isExitAfterEOF(false);
@@ -104,9 +103,9 @@ public class Receiver implements RsyncTask, MessageHandler
 
         public static Builder newClient(Generator generator,
                                         ReadableByteChannel in,
-                                        String targetPathName)
+                                        Path targetPath)
         {
-            return new Builder(generator, in, targetPathName).
+            return new Builder(generator, in, targetPath).
                     isReceiveStatistics(true).
                     isExitEarlyIfEmptyList(true).
                     isExitAfterEOF(true);
@@ -226,7 +225,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private final Map<Integer, Group> _gidGroupMap = new HashMap<>();
     private final RsyncInChannel _in;
     private final Statistics _stats = new Statistics();
-    private final String _targetPathName;
+    private final Path _targetPath;
     private final TextDecoder _characterDecoder;
 
     private int _ioError;
@@ -253,7 +252,7 @@ public class Receiver implements RsyncTask, MessageHandler
         _fileSelection = _generator.fileSelection();
         _filterMode = builder._filterMode;
         _in = new RsyncInChannel(builder._in, this, INPUT_CHANNEL_BUF_SIZE);
-        _targetPathName = builder._targetPathName;
+        _targetPath = builder._targetPath;
         _characterDecoder = TextDecoder.newStrict(_generator.charset());
     }
 
@@ -274,14 +273,14 @@ public class Receiver implements RsyncTask, MessageHandler
     {
         try {
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format("Receiver.receive(targetPathName=%s, " +
+                _log.fine(String.format("Receiver.receive(targetPath=%s, " +
                                         "isDeferWrite=%s," +
                                         " isListOnly=%s, isPreserveTimes=%s, " +
                                         "fileSelection=%s, " +
                                         "receiveStatistics=%s, " +
                                         "exitEarlyIfEmptyList=%s, " +
                                         "filterMode=%s",
-                                        _targetPathName, _isDeferWrite,
+                                        _targetPath, _isDeferWrite,
                                         _isListOnly, _isPreserveTimes,
                                         _fileSelection,
                                         _isReceiveStatistics,
@@ -337,10 +336,8 @@ public class Receiver implements RsyncTask, MessageHandler
                 return _ioError == 0;
             }
 
-            // throws InvalidPathException
-            Path targetPath = PathOps.get(_targetPathName);
             // throws PathResolverException
-            _pathResolver = getPathResolver(targetPath, stubs);
+            _pathResolver = getPathResolver(stubs);
             if (_log.isLoggable(Level.FINER)) {
                 _log.finer("Path Resolver: " + _pathResolver.toString());
             }
@@ -376,7 +373,7 @@ public class Receiver implements RsyncTask, MessageHandler
             throw new InterruptedException();
         } catch (InvalidPathException e) {
             throw new RsyncException(String.format(
-                "illegal target path name %s: %s", _targetPathName, e));
+                "illegal target path name %s: %s", _targetPath, e));
         } catch (PathResolverException e) {
             throw new RsyncException(e);
         } finally {
@@ -505,14 +502,13 @@ public class Receiver implements RsyncTask, MessageHandler
      *    empty_dir
      * yajsync does not try to mimic this
      */
-    private PathResolver getPathResolver(final Path targetPath,
-                                         final List<FileInfoStub> stubs)
+    private PathResolver getPathResolver(final List<FileInfoStub> stubs)
         throws PathResolverException
     {
         try {
             // throws IOException
             RsyncFileAttributes attrs =
-                RsyncFileAttributes.statIfExists(targetPath);
+                RsyncFileAttributes.statIfExists(_targetPath);
 
             boolean isTargetExisting = attrs != null;
             boolean isTargetExistingDir =
@@ -521,8 +517,8 @@ public class Receiver implements RsyncTask, MessageHandler
                 isTargetExisting && !attrs.isDirectory();
             boolean isSourceSingleFile =
                 stubs.size() == 1 && !stubs.get(0)._attrs.isDirectory();
-            boolean isTargetNonExistingFile =
-                !isTargetExisting && !targetPath.endsWith(PathOps.DOT_DIR);
+            boolean isTargetNonExistingFile = !isTargetExisting &&
+                                              !_targetPath.endsWith(Text.DOT);
 
             if (_log.isLoggable(Level.FINER)) {
                 _log.finer(String.format(
@@ -530,7 +526,7 @@ public class Receiver implements RsyncTask, MessageHandler
                         "isSourceSingleFile=%s " +
                         "isTargetNonExistingFile=%s " +
                         "#stubs=%d",
-                        targetPath, attrs, isTargetExisting,
+                        _targetPath, attrs, isTargetExisting,
                         isSourceSingleFile,
                         isTargetNonExistingFile, stubs.size()));
             }
@@ -544,10 +540,11 @@ public class Receiver implements RsyncTask, MessageHandler
             {
                 return new PathResolver() {
                     @Override public Path relativePathOf(String pathName) {
-                        return Paths.get(stubs.get(0)._pathName);
+                        FileSystem fs = _targetPath.getFileSystem();
+                        return fs.getPath(stubs.get(0)._pathName);
                     }
                     @Override public Path fullPathOf(Path relativePath) {
-                        return targetPath;
+                        return _targetPath;
                     }
                     @Override public String toString() {
                         return "PathResolver(Single Source)";
@@ -559,14 +556,15 @@ public class Receiver implements RsyncTask, MessageHandler
                 if (!isTargetExisting) {
                     if (_log.isLoggable(Level.FINER)) {
                         _log.finer("creating directory (with parents) " +
-                                   targetPath);
+                                   _targetPath);
                     }
-                    Files.createDirectories(targetPath);
+                    Files.createDirectories(_targetPath);
                 }
                 return new PathResolver() {
                     @Override public Path relativePathOf(String pathName) {
                         // throws InvalidPathException
-                        Path relativePath = Paths.get(pathName);
+                        FileSystem fs = _targetPath.getFileSystem();
+                        Path relativePath = fs.getPath(pathName);
                         if (relativePath.isAbsolute()) {
                             throw new RsyncSecurityException(relativePath +
                                 " is absolute");
@@ -577,11 +575,11 @@ public class Receiver implements RsyncTask, MessageHandler
                     }
                     @Override public Path fullPathOf(Path relativePath) {
                         Path fullPath =
-                            targetPath.resolve(relativePath).normalize();
-                        if (!fullPath.startsWith(targetPath.normalize())) {
+                            _targetPath.resolve(relativePath).normalize();
+                        if (!fullPath.startsWith(_targetPath.normalize())) {
                             throw new RsyncSecurityException(String.format(
                                 "%s is outside of receiver destination dir %s",
-                                fullPath, targetPath));
+                                fullPath, _targetPath));
                         }
                         return fullPath;
                     }
@@ -596,27 +594,27 @@ public class Receiver implements RsyncTask, MessageHandler
             {
                 throw new PathResolverException(String.format(
                     "refusing to overwrite existing target path %s which is " +
-                    "neither a file nor a directory (%s)", targetPath, attrs));
+                    "neither a file nor a directory (%s)", _targetPath, attrs));
             }
             if (isTargetExistingFile && stubs.size() >= 2) {
                 throw new PathResolverException(String.format(
                     "refusing to copy source files %s into file %s " +
-                    "(%s)", stubs, targetPath, attrs));
+                    "(%s)", stubs, _targetPath, attrs));
             }
             if (isTargetExistingFile && stubs.size() == 1 &&
                 stubs.get(0)._attrs.isDirectory()) {
                 throw new PathResolverException(String.format(
                     "refusing to recursively copy directory %s into " +
-                    "non-directory %s (%s)", stubs.get(0), targetPath, attrs));
+                    "non-directory %s (%s)", stubs.get(0), _targetPath, attrs));
             }
 
             throw new AssertionError(String.format(
                 "BUG: stubs=%s targetPath=%s attrs=%s",
-                stubs, targetPath, attrs));
+                stubs, _targetPath, attrs));
 
         } catch (IOException e) {
             throw new PathResolverException(String.format(
-                "unable to stat %s: %s", targetPath, e));
+                "unable to stat %s: %s", _targetPath, e));
         }
     }
 
@@ -1165,7 +1163,8 @@ public class Receiver implements RsyncTask, MessageHandler
             } else if (_isPreserveLinks && attrs.isSymbolicLink()) {
                 try {
                     String symlinkTarget = receiveSymlinkTarget();
-                    stub._symlinkTargetOrNull = Paths.get(symlinkTarget);
+                    FileSystem fs = _targetPath.getFileSystem();
+                    stub._symlinkTargetOrNull = fs.getPath(symlinkTarget);
                 } catch (InvalidPathException e) {
                     throw new RsyncProtocolException(e);
                 }
@@ -1193,6 +1192,8 @@ public class Receiver implements RsyncTask, MessageHandler
         throws InterruptedException
     {
         int ioError = 0;
+
+        String separator = _targetPath.getFileSystem().getSeparator();
 
         for (FileInfoStub stub : stubs) {
 
@@ -1223,7 +1224,8 @@ public class Receiver implements RsyncTask, MessageHandler
                         _log.log(Level.SEVERE, "", e);
                     }
                 }
-            } else if (!PathOps.isDirectoryStructurePreservable(pathName)) {
+            } else if (!PathOps.isDirectoryStructurePreservable(separator,
+                                                                pathName)) {
                 ioError |= IoError.GENERAL;
                 try {
                     _generator.sendMessage(MessageCode.ERROR,
@@ -1232,8 +1234,7 @@ public class Receiver implements RsyncTask, MessageHandler
                                       "\"%s\" and cannot be stored and " +
                                       "later retrieved using the same " +
                                       "name again\n",
-                                      pathName,
-                                      Environment.PATH_SEPARATOR));
+                                      pathName, separator));
                 } catch (TextConversionException e) {
                     if (_log.isLoggable(Level.SEVERE)) {
                         _log.log(Level.SEVERE, "", e);
@@ -1839,7 +1840,7 @@ public class Receiver implements RsyncTask, MessageHandler
         }
     }
 
-    // FIXME: code duplication with Receiver
+    // NOTE: code duplication with Sender
     public void readAllMessagesUntilEOF() throws ChannelException
     {
         try {

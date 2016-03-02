@@ -21,6 +21,7 @@ package com.github.perlundq.yajsync.text;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -79,30 +80,15 @@ public final class Text
         return sb.toString();
     }
 
-    // ""   -> .       to DOTDIR_NAME
-    // ./   -> .       to DOTDIR_NAME
-    // */   -> */.     to DOTDIR_NAME
-    // ..   -> ../.    to DOTDIR_NAME
-    // */.. -> */../.  to DOTDIR_NAME
-    // .               to DOTDIR_NAME
-    // */.             to DOTDIR_NAME
-    // else NORMAL_NAME
-    public static boolean isNameDotDir(String name)
+    public static String withSlashAsPathSepator(Path path)
     {
-        return name.equals(Text.DOT) ||
-               name.endsWith(Environment.PATH_SEPARATOR) ||
-               name.endsWith(Environment.PATH_SEPARATOR +
-                             Text.DOT) ||
-               name.endsWith(Environment.PATH_SEPARATOR +
-                             Text.DOT_DOT);
-    }
-
-    public static String withSlashAsPathSepator(String pathName)
-    {
-        if (Environment.IS_PATH_SEPARATOR_SLASH) {
-            return pathName;
+        assert !path.isAbsolute();
+        String separator = path.getFileSystem().getSeparator();
+        if (separator.equals(Text.SLASH)) {
+            return path.toString();
         }
-        String regex = Pattern.quote(Environment.PATH_SEPARATOR);
+        String regex = Pattern.quote(separator);
+        String pathName = path.toString();
         String[] split = pathName.split(regex);
         return join(Arrays.asList(split), Text.SLASH);
     }

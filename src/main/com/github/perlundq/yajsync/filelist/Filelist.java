@@ -31,8 +31,6 @@ import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.github.perlundq.yajsync.util.Environment;
-
 public class Filelist
 {
     public static class SegmentBuilder
@@ -159,8 +157,7 @@ public class Filelist
                     sb.append("   ").
                     append(e.getValue().pathOrNull()).
                     append(", ").
-                    append(e.getKey()).
-                    append(Environment.PATH_SEPARATOR);
+                    append(e.getKey());
                 }
             }
 

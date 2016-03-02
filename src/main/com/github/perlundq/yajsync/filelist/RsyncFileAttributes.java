@@ -88,9 +88,25 @@ public class RsyncFileAttributes
              new Group(attrs.group().getName(), Group.JVM_GROUP.id()));
     }
 
+    private static boolean isUnixFileSystem(Path path)
+    {
+        return path.
+                getFileSystem().
+                supportedFileAttributeViews().
+                contains("unix");
+    }
+
+    private static boolean isPosixFileSystem(Path path)
+    {
+        return path.
+                getFileSystem().
+                supportedFileAttributeViews().
+                contains("posix");
+    }
+
     public static RsyncFileAttributes stat(Path path) throws IOException
     {
-        if (Environment.IS_UNIX_FS) {
+        if (isUnixFileSystem(path)) {
             Map<String, Object> attrs =
                 Files.readAttributes(path, "unix:lastModifiedTime,mode,size,uid,owner,gid,group",
                                      LinkOption.NOFOLLOW_LINKS);
@@ -103,7 +119,7 @@ public class RsyncFileAttributes
             int gid = (int) attrs.get("gid");
             return new RsyncFileAttributes(mode, size, mtime,
                                            new User(user, uid), new Group(group, gid));
-        } else if (Environment.IS_POSIX_FS) {
+        } else if (isPosixFileSystem(path)) {
             PosixFileAttributes attrs =
                 Files.readAttributes(path, PosixFileAttributes.class,
                                      LinkOption.NOFOLLOW_LINKS);

@@ -24,7 +24,6 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
@@ -44,7 +43,6 @@ import com.github.perlundq.yajsync.util.Consts;
 import com.github.perlundq.yajsync.util.MemoryPolicy;
 import com.github.perlundq.yajsync.util.Option;
 import com.github.perlundq.yajsync.util.OverflowException;
-import com.github.perlundq.yajsync.util.PathOps;
 import com.github.perlundq.yajsync.util.Util;
 
 public class ServerSessionConfig extends SessionConfig
@@ -439,11 +437,7 @@ public class ServerSessionConfig extends SessionConfig
                         String.format("wildcards are not supported (%s)",
                                       fileName));
                 }
-                Path safePath =
-                    _module.restrictedPath().resolve(Paths.get(fileName));
-                if (Text.isNameDotDir(fileName)) {
-                    safePath = safePath.resolve(PathOps.DOT_DIR);
-                }
+                Path safePath = _module.restrictedPath().resolve(fileName);
                 _sourceFiles.add(safePath);
             }
             if (_log.isLoggable(Level.FINE)) {
@@ -456,7 +450,7 @@ public class ServerSessionConfig extends SessionConfig
                     unnamed, unnamed.size()));
             }
             String fileName = unnamed.get(0);
-            Path safePath = _module.restrictedPath().resolve(Paths.get(fileName));
+            Path safePath = _module.restrictedPath().resolve(fileName);
             _receiverDestination = safePath.normalize();
 
             if (_log.isLoggable(Level.FINE)) {

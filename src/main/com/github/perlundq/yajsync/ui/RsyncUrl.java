@@ -21,7 +21,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.github.perlundq.yajsync.text.Text;
-import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.PathOps;
 
 final class RsyncUrl
@@ -48,8 +47,8 @@ final class RsyncUrl
     private final String _moduleName;
     private final String _pathName;
 
-    public RsyncUrl(ConnInfo connInfo, String moduleName, String pathName)
-            throws IllegalUrlException
+    public RsyncUrl(Path cwd, ConnInfo connInfo, String moduleName,
+                    String pathName) throws IllegalUrlException
     {
         assert pathName != null;
         assert moduleName != null;
@@ -61,16 +60,16 @@ final class RsyncUrl
         _connInfo = connInfo;
         _moduleName = moduleName;
         if (connInfo == null) {
-            _pathName = toLocalPathName(pathName);
+            _pathName = toLocalPathName(cwd, pathName);
         } else {
             _pathName = toRemotePathName(_moduleName, pathName);
         }
     }
 
-    private static RsyncUrl local(String pathName)
+    private static RsyncUrl local(Path cwd, String pathName)
     {
         try {
-            return new RsyncUrl(null, "", pathName);
+            return new RsyncUrl(cwd, null, "", pathName);
         } catch (IllegalUrlException e) {
             throw new RuntimeException(e);
         }
@@ -110,7 +109,8 @@ final class RsyncUrl
         return _pathName;
     }
 
-    private static RsyncUrl matchModule(String arg) throws IllegalUrlException
+    private static RsyncUrl matchModule(Path cwd, String arg)
+            throws IllegalUrlException
     {
         Matcher mod = MODULE.matcher(arg);
         if (!mod.matches()) {
@@ -122,10 +122,11 @@ final class RsyncUrl
         String pathName = Text.nullToEmptyStr(mod.group(4));
         ConnInfo connInfo = new ConnInfo.Builder(address).
                 userName(userName).build();
-        return new RsyncUrl(connInfo, moduleName, pathName);
+        return new RsyncUrl(cwd, connInfo, moduleName, pathName);
     }
 
-    private static RsyncUrl matchUrl(String arg) throws IllegalUrlException
+    private static RsyncUrl matchUrl(Path cwd, String arg)
+            throws IllegalUrlException
     {
         Matcher url = URL.matcher(arg);
         if (!url.matches()) {
@@ -141,34 +142,30 @@ final class RsyncUrl
             connInfoBuilder.portNumber(portNumber);
         }
         String pathName = Text.nullToEmptyStr(url.group(5));
-        return new RsyncUrl(connInfoBuilder.build(), moduleName, pathName);
+        return new RsyncUrl(cwd, connInfoBuilder.build(), moduleName, pathName);
     }
 
-    public static RsyncUrl parse(String arg) throws IllegalUrlException
+    public static RsyncUrl parse(Path cwd, String arg) throws IllegalUrlException
     {
         assert arg != null;
         if (arg.isEmpty()) {
             throw new IllegalUrlException("empty string");
         }
-        RsyncUrl result = matchModule(arg);
+        RsyncUrl result = matchModule(cwd, arg);
         if (result != null) {
             return result;
         }
-        result = matchUrl(arg);
+        result = matchUrl(cwd, arg);
         if (result != null) {
             return result;
         }
-        return RsyncUrl.local(arg);
+        return RsyncUrl.local(cwd, arg);
     }
 
-    public static String toLocalPathName(String pathName)
+    private String toLocalPathName(Path cwd, String pathName)
     {
-        assert !pathName.isEmpty();
-        Path p = PathOps.get(pathName);
-        if (p.isAbsolute()) {
-            return p.toString();
-        }
-        return Environment.getWorkingDirectory().resolve(p).toString();
+        Path p = PathOps.get(cwd.getFileSystem(), pathName);
+        return cwd.resolve(p).toString();
     }
 
     private static String toRemotePathName(String moduleName, String pathName)

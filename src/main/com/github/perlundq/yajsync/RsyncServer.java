@@ -139,7 +139,7 @@ public class RsyncServer
                     isInterruptible(isChannelsInterruptible).build();
             Receiver receiver = Receiver.Builder.newServer(generator,
                                                            in,
-                                                           cfg.getReceiverDestination().toString()).
+                                                           cfg.getReceiverDestination()).
                     filterMode(cfg.isDelete() ? FilterMode.RECEIVE
                                               : FilterMode.NONE).
                     isDeferWrite(_isDeferWrite).

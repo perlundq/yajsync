@@ -118,6 +118,13 @@ comment = this text will be printed on module listings, it is optional
 [Uploads]
 path = /path/to/Uploads/
 is_writable = true
+
+# A non-default [Java file system provider](https://docs.oracle.com/javase/8/docs/api/java/nio/file/FileSystem.html) may be specified for a
+# module with ```fs```. Here is an example using tbe built in Zip file
+# system provider (see also the client option ```--fs```):
+[zipfs]
+fs = jar:file:/path/to/file.zip
+path = /
 ```
 
 Start the server:
@@ -159,12 +166,14 @@ Note
 - Wild cards are not supported.
 
 
-Extra feature
--------------
+Extra features
+--------------
 
-yajsync also adds the client/server local option ```--defer-write```
-which makes the receiver avoid writing into a temporary file if the
-target file is unchanged.
+- (Receiver) ```--defer-write``` - defer writing into a temporary file
+  until the content of the target file needs to be updated.
+
+- Support for custom [Java file system providers](https://docs.oracle.com/javase/8/docs/api/java/nio/file/FileSystem.html) with client option
+  ```--fs``` and server module parameter ```fs```.
 
 
 Build instructions

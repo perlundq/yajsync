@@ -1,7 +1,7 @@
 /*
  * Path utility routines
  *
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013, 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,20 +18,23 @@
  */
 package com.github.perlundq.yajsync.util;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystemNotFoundException;
+import java.nio.file.FileSystems;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import com.github.perlundq.yajsync.text.Text;
 
 public final class PathOps
 {
-    public static final Path EMPTY = Paths.get(Text.EMPTY);
-    public static final Path DOT_DIR = Paths.get(Text.DOT);
-    public static final Path DOT_DOT_DIR = Paths.get(Text.DOT_DOT);
-
     private PathOps() {}
 
     public static boolean isPathPreservable(Path path)
@@ -56,43 +59,38 @@ public final class PathOps
         return true;
     }
 
-    public static boolean isDirectoryStructurePreservable(String unixPathName)
+    public static boolean isDirectoryStructurePreservable(String separator,
+                                                          String unixPathName)
     {
         assert unixPathName != null;
-        if (Environment.IS_PATH_SEPARATOR_SLASH) {
+        if (separator.equals(Text.SLASH)) {
             return true;
         }
-        return !unixPathName.contains(Environment.PATH_SEPARATOR);
+        return !unixPathName.contains(separator);
     }
 
-    // does not allow parent to be /
-    public static Path subtractPath(Path parent, Path sub)
+    // / - / = /
+    // a - a = null
+    // /a - /a = /
+    // /a/b/c/d - c/d  = /a/b
+    //  a/b/c/d - c/d  = a/b
+    // ././. - . = ./.
+    public static Path subtractPathOrNull(Path parent, Path sub)
     {
-        if (parent.endsWith(sub)) {
-            // NOTE: name count of /home and home is 1
-            int endIndex = parent.getNameCount() - sub.getNameCount();
-            if (endIndex == 0 && parent.equals(sub)) {
-                throw new IllegalArgumentException(
-                    String.format("%s equals %s", parent, sub));
-            }
-
-            Path relativeParent;
-            if (endIndex == 0) {
-                relativeParent = PathOps.EMPTY;
-            } else {
-                relativeParent = parent.subpath(0, endIndex);
-            }
-
-            Path parentRoot = parent.getRoot();
-            boolean parentHasRoot = parentRoot != null;
-            if (parentHasRoot) {
-                return parentRoot.resolve(relativeParent);
-            } else {
-                return relativeParent;
-            }
+        if (!parent.endsWith(sub)) {
+            throw new IllegalArgumentException(String.format(
+                    "%s is not a parent path of %s", parent, sub));
         }
-        throw new IllegalArgumentException(
-            String.format("%s is not a parent path of %s", parent, sub));
+        if (parent.getNameCount() == sub.getNameCount()) {
+            return parent.getRoot(); // NOTE: return null if parent has no root
+        }
+        Path res = parent.subpath(0,
+                                  parent.getNameCount() - sub.getNameCount());
+        if (parent.isAbsolute()) {
+            return parent.getRoot().resolve(res);
+        } else {
+            return res;
+        }
     }
 
     public static boolean contains(Path path, Path searchPath)
@@ -105,32 +103,6 @@ public final class PathOps
         return false;
     }
 
-//    public static Path resolve(Path path, Path other)
-//    {
-//        if (other.isAbsolute()) {
-//            throw new IllegalArgumentException(other.toString());
-//        }
-//
-//        LinkedList<Path> paths = new LinkedList<>();
-//        for (Path p : other) {
-//            paths.add(p);
-//        }
-//        for (Path p : other) {
-//            if (p.equals(DOT_DOT_DIR)) {
-//                if (paths.isEmpty()) {
-//                    throw new InvalidPathException(path.toString() +
-//                                                   Environment.PATH_SEPARATOR +
-//                                                   other.toString(),
-//                                                   "cannot resolve ..");
-//                }
-//                paths.removeLast();
-//            } else if (!p.equals(DOT_DIR)) {
-//                paths.add(p);
-//            }
-//        }
-//        return joinPaths(path, paths);
-//    }
-
     public static Path normalizeStrict(Path path)
     {
         if (Environment.IS_RUNNING_WINDOWS) {
@@ -141,7 +113,8 @@ public final class PathOps
 
     private static Path joinPaths(Path path, List<Path> paths)
     {
-        Path result = path.isAbsolute() ? path.getRoot() : EMPTY;
+        Path empty = path.getFileSystem().getPath(Text.EMPTY);
+        Path result = path.isAbsolute() ? path.getRoot() : empty;
         for (Path p : paths) {
             result = result.resolve(p);
         }
@@ -155,8 +128,9 @@ public final class PathOps
     private static Path normalizePathWin(Path path)
     {
         LinkedList<Path> paths = new LinkedList<>();
+        Path dotDotDir = path.getFileSystem().getPath(Text.DOT_DOT);
         for (Path p : path) {
-            if (p.equals(DOT_DOT_DIR)) {
+            if (p.equals(dotDotDir)) {
                 if (paths.isEmpty()) {
                     throw new InvalidPathException(path.toString(),
                                                    "cannot resolve ..");
@@ -166,7 +140,7 @@ public final class PathOps
                 String normalized =
                     Text.deleteTrailingDots(p.toString()).toLowerCase();
                 if (!normalized.isEmpty()) {
-                    paths.add(Paths.get(normalized));
+                    paths.add(path.getFileSystem().getPath(normalized));
                 }
             }
         }
@@ -177,14 +151,16 @@ public final class PathOps
     private static Path normalizePathDefault(Path path)
     {
         LinkedList<Path> paths = new LinkedList<>();
+        Path dotDir = path.getFileSystem().getPath(Text.DOT);
+        Path dotDotDir = path.getFileSystem().getPath(Text.DOT_DOT);
         for (Path p : path) {
-            if (p.equals(DOT_DOT_DIR)) {
+            if (p.equals(dotDotDir)) {
                 if (paths.isEmpty()) {
                     throw new InvalidPathException(path.toString(),
                                                    "cannot resolve ..");
                 }
                 paths.removeLast();
-            } else if (!p.equals(DOT_DIR)) {
+            } else if (!p.equals(dotDir)) {
                 paths.add(p);
             }
         }
@@ -192,13 +168,33 @@ public final class PathOps
     }
 
     /**
+     * Preserves trailing slash information (FileSystem.getPath won't) and
+     * normalize empty paths to "."
+     *
      * @throws InvalidPathException
      */
-    public static Path get(String name)
+    public static Path get(FileSystem fs, String name)
     {
-        if (name.endsWith(Text.SLASH)) {
-            return Paths.get(name + Text.DOT);
+        Path normalized = fs.getPath(name).normalize();
+        if (normalized.toString().equals(Text.EMPTY)) {
+            return fs.getPath(Text.DOT);
+        } else if (name.endsWith(Text.SLASH) ||
+                   name.endsWith(Text.SLASH + Text.DOT)) {
+            return normalized.resolve(Text.DOT);
+        } else {
+            return normalized;
         }
-        return Paths.get(name);
+    }
+
+    public static FileSystem fileSystemOf(String fsPathName)
+            throws IOException, URISyntaxException
+    {
+        URI uri = new URI(fsPathName);
+        try {
+            return FileSystems.getFileSystem(uri);
+        } catch (FileSystemNotFoundException e) {
+            Map<String, Object> empty = Collections.emptyMap();
+            return FileSystems.newFileSystem(uri, empty);
+        }
     }
 }

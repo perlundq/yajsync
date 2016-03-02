@@ -1,7 +1,7 @@
 /*
  * Safe path resolving with a module root dir
  *
- * Copyright (C) 2014 Per Lundqvist
+ * Copyright (C) 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,8 +18,10 @@
  */
 package com.github.perlundq.yajsync.session;
 
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.util.PathOps;
@@ -34,22 +36,28 @@ import com.github.perlundq.yajsync.util.PathOps;
  */
 public final class RestrictedPath
 {
-    private final Path _moduleName;
+    private static final Pattern MODULE_REGEX = Pattern.compile("^\\w+$");
+    private final String _moduleName;
     private final Path _rootPath;
+    private final Path _dotDir;
+    private final Path _dotDotDir;
 
     /**
-     * @param moduleName non absolute name of Module as a path, must contain
-     *        only one relative path component.
+     * @param moduleName
      * @param rootPath the absolute path to the module top directory.
      */
-    public RestrictedPath(Path moduleName, Path rootPath)
+    public RestrictedPath(String moduleName, Path rootPath)
     {
-        assert !moduleName.isAbsolute();
-        assert moduleName.getNameCount() == 1;
-        assert rootPath.isAbsolute();
-        assert !moduleName.toString().contains(Text.SLASH);
+        if (!MODULE_REGEX.matcher(moduleName).matches()) {
+            throw new IllegalArgumentException(String.format(
+                    "rsync module must consist of alphanumeric characters " +
+                    "and underscore only: %s", moduleName));
+        }
+        assert rootPath.isAbsolute() : rootPath;
         _moduleName = moduleName;
-        _rootPath = rootPath;
+        _rootPath = rootPath.normalize();
+        _dotDir = _rootPath.getFileSystem().getPath(Text.DOT);
+        _dotDotDir = _rootPath.getFileSystem().getPath(Text.DOT_DOT);
     }
 
     @Override
@@ -76,37 +84,47 @@ public final class RestrictedPath
         return Objects.hash(_moduleName, _rootPath);
     }
 
+    public Path resolve(String pathName)
+    {
+        try {
+            Path otherPath = PathOps.get(_rootPath.getFileSystem(), pathName);
+            Path resolved = resolve(otherPath);
+            if (PathOps.contains(resolved, _dotDotDir)) {
+                throw new RsyncSecurityException(String.format(
+                        "resolved path of %s contains ..: %s",
+                        pathName, resolved));
+            }
+            return resolved;
+        } catch (InvalidPathException e) {
+            throw new RsyncSecurityException(e);
+        }
+    }
+
     /**
      * resolve other in a secure manner without any call to stat.
      * @throws RsyncSecurityException
      */
-    public Path resolve(Path other)
+    private Path resolve(Path path)
     {
-        Path normalized = normalizeEmptyToDotDir(other);                        // "" -> ".", "MODULE/.." -> ".", "MODULE/a/././../b" -> "MODULE/b"
+        Path result;
+        Path normalized = path.normalize();
         if (normalized.startsWith(_moduleName)) {
             if (normalized.getNameCount() == 1) {
-                return _rootPath;
+                result = _rootPath;
+            } else {
+                Path strippedOfModulePrefix =
+                        normalized.subpath(1, normalized.getNameCount());
+                result = _rootPath.resolve(strippedOfModulePrefix).normalize();
             }
-            Path strippedOfModulePrefix =
-                normalized.subpath(1, normalized.getNameCount());
-            return _rootPath.resolve(strippedOfModulePrefix);
         } else {
             throw new RsyncSecurityException(String.format(
                 "\"%s\" is outside virtual dir for module %s",
-                other, _moduleName));
+                path, _moduleName));
         }
-    }
-
-    // NOTE: might return path prefixed with ..
-    private static Path normalizeEmptyToDotDir(Path path)
-    {
-        if (path.equals(PathOps.EMPTY)) { // otherwise path.normalize will throw an exception
-            return PathOps.DOT_DIR;
+        if (path.endsWith(_dotDir)) {
+            return result.resolve(_dotDir);
+        } else {
+            return result;
         }
-        Path normalized = path.normalize();
-        if (normalized.equals(PathOps.EMPTY)) {
-            return PathOps.DOT_DIR;
-        }
-        return normalized;
     }
 }
