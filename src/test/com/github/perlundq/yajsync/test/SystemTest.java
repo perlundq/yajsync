@@ -387,6 +387,19 @@ public class SystemTest
         return server;
     }
 
+    private ReturnStatus listFiles(Path src, String ... args)
+    {
+        YajSyncClient client = newClient();
+        String[] nargs = new String[args.length + 1];
+        int i = 0;
+        for (String arg : args) {
+            nargs[i++] = arg;
+        }
+        nargs[i++] = src.toString();
+        int rc = client.start(nargs);
+        return new ReturnStatus(rc, client.statistics());
+    }
+
     private ReturnStatus fileCopy(Path src, Path dst, String ... args)
     {
         YajSyncClient client = newClient();
@@ -504,6 +517,37 @@ public class SystemTest
     {
         int rc = newClient().start(new String[] { "--help" });
         assertTrue(rc == 0);
+    }
+
+    @Test
+    public void testLocalListDotDirEmpty() throws IOException
+    {
+        Path src = _tempDir.newFolder().toPath();
+        ReturnStatus status = listFiles(Paths.get("."), "--cwd=" + src);
+        int numFiles = 1;
+        long fileSize = 0;
+        assertTrue(status.rc == 0);
+        assertTrue(status.stats != null);
+        assertTrue(status.stats.numFiles() == numFiles);
+        assertTrue(status.stats.numTransferredFiles() == 0);
+        assertTrue(status.stats.totalLiteralSize() == fileSize);
+        assertTrue(status.stats.totalMatchedSize() == 0);
+    }
+
+    @Test
+    public void testLocalListDotDir() throws IOException
+    {
+        Path dir = _tempDir.newFolder("dir").toPath();
+        Files.createFile(dir.resolve("file"));
+        ReturnStatus status = listFiles(Paths.get("."), "--cwd=" + dir);
+        int numFiles = 2;
+        long fileSize = 0;
+        assertTrue(status.rc == 0);
+        assertTrue(status.stats != null);
+        assertTrue(status.stats.numFiles() == numFiles);
+        assertTrue(status.stats.numTransferredFiles() == 0);
+        assertTrue(status.stats.totalLiteralSize() == fileSize);
+        assertTrue(status.stats.totalMatchedSize() == 0);
     }
 
     @Test
