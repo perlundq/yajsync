@@ -383,8 +383,6 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     public void purgeFile(final Filelist.Segment segment, final int index)
         throws InterruptedException
     {
-        assert segment != null;
-
         Job j = new Job() {
             @Override
             public void process() throws ChannelException {
