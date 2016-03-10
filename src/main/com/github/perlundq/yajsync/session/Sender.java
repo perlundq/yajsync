@@ -987,9 +987,14 @@ public final class Sender implements RsyncTask, MessageHandler
                 }
             }
         } catch (IOException e) {
-            String msg = String.format("Got I/O error during expansion " +
-                                       "of %s: %s", directory.pathOrNull(),
-                                       e.getMessage());
+            String msg;
+            if (e instanceof AccessDeniedException) {
+                msg = String.format("Failed to read directory %s: %s",
+                                    directory.pathOrNull(), e);
+            } else {
+                msg = String.format("Got I/O error during expansion of %s: %s",
+                                    directory.pathOrNull(), e);
+            }
             if (_log.isLoggable(Level.WARNING)) {
                 _log.warning(msg);
             }
