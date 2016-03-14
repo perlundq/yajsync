@@ -79,7 +79,8 @@ final class RsyncUrls
     public String toString()
     {
         if (isRemote()) {
-            return _connInfo + "/" + _pathNames;
+            return String.format("%s/%s%s",
+                                 _connInfo, _moduleName, _pathNames.toString());
         }
         return _pathNames.toString();
     }

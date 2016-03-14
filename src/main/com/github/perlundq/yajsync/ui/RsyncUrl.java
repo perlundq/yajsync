@@ -104,7 +104,7 @@ final class RsyncUrl
     public String toString()
     {
         if (_connInfo != null) {
-            return String.format("%s/%s/%s", _connInfo, _moduleName, _pathName);
+            return String.format("%s/%s%s", _connInfo, _moduleName, _pathName);
         }
         return _pathName;
     }
