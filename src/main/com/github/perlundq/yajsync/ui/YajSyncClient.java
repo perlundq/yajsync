@@ -521,7 +521,7 @@ public class YajSyncClient
             if (srcUrls.isRemote() && dstUrl.isRemote()) {
                 throw new ArgumentParsingError(String.format(
                         "source arguments %s and destination argument %s must" +
-                        " not both be remote (%s vs %s)", srcUrls, dstUrl));
+                        " not both be remote", srcUrls, dstUrl));
             } else if (srcUrls.isRemote()) {
                 return new Triple<>(Mode.REMOTE_RECEIVE, srcUrls, dstUrl);
             } else if (dstUrl.isRemote()) {
