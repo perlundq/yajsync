@@ -62,7 +62,7 @@ final class RsyncUrl
         if (connInfo == null) {
             _pathName = toLocalPathName(cwd, pathName);
         } else {
-            _pathName = toRemotePathName(_moduleName, pathName);
+            _pathName = toRemotePathName(pathName);
         }
     }
 
@@ -168,14 +168,12 @@ final class RsyncUrl
         return cwd.resolve(p).toString();
     }
 
-    private static String toRemotePathName(String moduleName, String pathName)
+    private static String toRemotePathName(String pathName)
     {
-        if (moduleName.isEmpty() && pathName.isEmpty()) {
-            return "";
-        }
         if (pathName.isEmpty()) {
-            return moduleName + Text.SLASH;
+            return Text.SLASH;
+        } else {
+            return pathName;
         }
-        return moduleName + pathName;
     }
 }

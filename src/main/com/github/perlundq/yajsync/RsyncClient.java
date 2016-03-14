@@ -465,9 +465,14 @@ public final class RsyncClient
             FileSelection fileSelection =
                     Util.defaultIfNull(_fileSelectionOrNull,
                                        FileSelection.TRANSFER_DIRS);
+            List<String> l = new LinkedList<>();
+            for (String s : srcPathNames) {
+                assert s.startsWith(Text.SLASH) : s;
+                l.add(moduleName + s);
+            }
             List<String> serverArgs = createServerArgs(Mode.REMOTE_LIST,
                                                        fileSelection,
-                                                       srcPathNames,
+                                                       l,
                                                        _cwd.toString());
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format(
@@ -555,6 +560,7 @@ public final class RsyncClient
             {
                 assert moduleName != null;
                 assert dstPathName != null;
+                assert dstPathName.startsWith(Text.SLASH);
 
                 FileSelection fileSelection =
                     Util.defaultIfNull(_fileSelectionOrNull,
@@ -563,7 +569,7 @@ public final class RsyncClient
                         createServerArgs(Mode.REMOTE_SEND,
                                          fileSelection,
                                          toListOfStrings(_srcPaths),
-                                         dstPathName);
+                                         moduleName + dstPathName);
 
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
@@ -637,10 +643,17 @@ public final class RsyncClient
                 FileSelection fileSelection =
                         Util.defaultIfNull(_fileSelectionOrNull,
                                            FileSelection.EXACT);
+
+                List<String> l = new LinkedList<>();
+                for (String s : _srcPathNames) {
+                    assert s.startsWith(Text.SLASH) : s;
+                    l.add(_moduleName + s);
+                }
+
                 List<String> serverArgs =
                         createServerArgs(Mode.REMOTE_RECEIVE,
                                          fileSelection,
-                                         _srcPathNames,
+                                         l,
                                          dstPath.toString());
 
                 if (_log.isLoggable(Level.FINE)) {
