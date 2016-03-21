@@ -62,6 +62,7 @@ import com.github.perlundq.yajsync.filelist.SymlinkInfo;
 import com.github.perlundq.yajsync.io.FileView;
 import com.github.perlundq.yajsync.io.FileViewOpenFailed;
 import com.github.perlundq.yajsync.io.FileViewReadError;
+import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.text.TextConversionException;
 import com.github.perlundq.yajsync.text.TextEncoder;
 import com.github.perlundq.yajsync.util.FileOps;
@@ -274,6 +275,45 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     }
 
     @Override
+    public String toString()
+    {
+        return String.format(
+                "%s(" +
+                "isAlwaysItemize=%b, " +
+                "isDelete=%b, " +
+                "isIgnoreTimes=%b, " +
+                "isInterruptible=%b, " +
+                "isListOnly=%b, " +
+                "isNumericIds=%b, " +
+                "isPreserveDevices=%b, " +
+                "isPreserveLinks=%b, " +
+                "isPreservePermissions=%b, " +
+                "isPreserveSpecials=%b, " +
+                "isPreserveTimes=%b, " +
+                "isPreserveUser=%b, " +
+                "isPreserveGroup=%b, " +
+                "checksumSeed=%s, " +
+                "fileSelection=%s" +
+                ")",
+                getClass().getSimpleName(),
+                _isAlwaysItemize,
+                _isDelete,
+                _isIgnoreTimes,
+                _isInterruptible,
+                _isListOnly,
+                _isNumericIds,
+                _isPreserveDevices,
+                _isPreserveLinks,
+                _isPreservePermissions,
+                _isPreserveSpecials,
+                _isPreserveTimes,
+                _isPreserveUser,
+                _isPreserveGroup,
+                Text.bytesToString(_checksumSeed),
+                _fileSelection);
+    }
+
+    @Override
     public boolean isInterruptible()
     {
         return _isInterruptible;
@@ -370,6 +410,9 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     public Boolean call() throws ChannelException, InterruptedException
     {
         try {
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(this.toString());
+            }
             processJobQueueBatched();
             return _returnStatus == 0;
         } catch (RuntimeInterruptException e) {

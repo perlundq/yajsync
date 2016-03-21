@@ -279,6 +279,45 @@ public final class Sender implements RsyncTask, MessageHandler
     }
 
     @Override
+    public String toString()
+    {
+        return String.format(
+                "%s(" +
+                "isExitAfterEOF=%b, " +
+                "isExitEarlyIfEmptyList=%b, " +
+                "isInterruptible=%b, " +
+                "isNumericIds=%b, " +
+                "isPreserveDevices=%b, " +
+                "isPreserveLinks=%b, " +
+                "isPreserveSpecials=%b, " +
+                "isPreserveUser=%b, " +
+                "isPreserveGroup=%b, " +
+                "isSafeFileList=%b, " +
+                "isSendStatistics=%b, " +
+                "checksumSeed=%s, " +
+                "fileSelection=%s, " +
+                "filterMode=%s, " +
+                "sourceFiles=%s" +
+                ")",
+                getClass().getSimpleName(),
+                _isExitAfterEOF,
+                _isExitEarlyIfEmptyList,
+                _isInterruptible,
+                _isNumericIds,
+                _isPreserveDevices,
+                _isPreserveLinks,
+                _isPreserveSpecials,
+                _isPreserveUser,
+                _isPreserveGroup,
+                _isSafeFileList,
+                _isSendStatistics,
+                Text.bytesToString(_checksumSeed),
+                _fileSelection,
+                _filterMode,
+                _sourceFiles);
+    }
+
+    @Override
     public boolean isInterruptible()
     {
         return _isInterruptible;
@@ -297,7 +336,7 @@ public final class Sender implements RsyncTask, MessageHandler
                 new Filelist(_fileSelection == FileSelection.RECURSE, false);
         try {
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine("Sender.transfer: " + _sourceFiles);
+                _log.fine(this.toString());
             }
 
             if (_filterMode == FilterMode.RECEIVE) {

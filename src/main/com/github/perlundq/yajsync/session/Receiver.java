@@ -257,6 +257,51 @@ public class Receiver implements RsyncTask, MessageHandler
     }
 
     @Override
+    public String toString()
+    {
+        return String.format(
+                "%s(" +
+                "isDeferWrite=%b, " +
+                "isExitAfterEOF=%b, " +
+                "isExitEarlyIfEmptyList=%b, " +
+                "isInterruptible=%b, " +
+                "isListOnly=%b, " +
+                "isNumericIds=%b, " +
+                "isPreserveDevices=%b, " +
+                "isPreserveLinks=%b, " +
+                "isPreservePermissions=%b, " +
+                "isPreserveSpecials=%b, " +
+                "isPreserveTimes=%b, " +
+                "isPreserveUser=%b, " +
+                "isPreserveGroup=%b, " +
+                "isReceiveStatistics=%b, " +
+                "isSafeFileList=%b, " +
+                "fileSelection=%s, " +
+                "filterMode=%s, " +
+                "targetPath=%s" +
+                ")",
+                getClass().getSimpleName(),
+                _isDeferWrite,
+                _isExitAfterEOF,
+                _isExitEarlyIfEmptyList,
+                _isListOnly,
+                _isInterruptible,
+                _isNumericIds,
+                _isPreserveDevices,
+                _isPreserveLinks,
+                _isPreservePermissions,
+                _isPreserveSpecials,
+                _isPreserveTimes,
+                _isPreserveUser,
+                _isPreserveGroup,
+                _isReceiveStatistics,
+                _isSafeFileList,
+                _fileSelection,
+                _filterMode,
+                _targetPath);
+    }
+
+    @Override
     public boolean isInterruptible()
     {
         return _isInterruptible;
@@ -273,19 +318,7 @@ public class Receiver implements RsyncTask, MessageHandler
     {
         try {
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format("Receiver.receive(targetPath=%s, " +
-                                        "isDeferWrite=%s," +
-                                        " isListOnly=%s, isPreserveTimes=%s, " +
-                                        "fileSelection=%s, " +
-                                        "receiveStatistics=%s, " +
-                                        "exitEarlyIfEmptyList=%s, " +
-                                        "filterMode=%s",
-                                        _targetPath, _isDeferWrite,
-                                        _isListOnly, _isPreserveTimes,
-                                        _fileSelection,
-                                        _isReceiveStatistics,
-                                        _isExitEarlyIfEmptyList,
-                                        _filterMode));
+                _log.fine(this.toString());
             }
             if (_filterMode == FilterMode.SEND) {
                 sendEmptyFilterRules();
