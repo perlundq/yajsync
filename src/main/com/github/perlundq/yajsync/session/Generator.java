@@ -225,7 +225,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     private final boolean _isPreserveGroup;
     private final boolean _isNumericIds;
     private final byte[] _checksumSeed;
-    private final Deque<Job> _deferredFileAttrUpdates = new ArrayDeque<>();
+    private final Deque<Job> _deferredJobs = new ArrayDeque<>();
     private final Filelist _fileList;
     private final FileSelection _fileSelection;
     private final LinkedBlockingQueue<Job> _jobs = new LinkedBlockingQueue<>();
@@ -412,10 +412,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     {
         Job job = new Job() {
             @Override
-            public void process() throws ChannelException {
-                for (Job j : _deferredFileAttrUpdates) {
-                    j.process();
-                }
+            public void process() {
                 _isRunning = false;
             }
             @Override
@@ -1013,7 +1010,7 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 }
             }
         };
-        _deferredFileAttrUpdates.addFirst(j);
+        _deferredJobs.addFirst(j);
     }
 
     private boolean itemizeFile(int index, FileInfo fileInfo, int digestLength)
@@ -1364,5 +1361,22 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
             }
             _isDeletionsEnabled = false;
         }
+    }
+
+    public void processDeferredJobs() throws InterruptedException
+    {
+        Job job = new Job() {
+            @Override
+            public void process() throws ChannelException {
+                for (Job j : _deferredJobs) {
+                    j.process();
+                }
+            }
+            @Override
+            public String toString() {
+                return "processDeferredJobs()";
+            }
+        };
+        appendJob(job);
     }
 }

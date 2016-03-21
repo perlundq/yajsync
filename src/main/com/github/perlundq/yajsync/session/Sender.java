@@ -558,12 +558,12 @@ public final class Sender implements RsyncTask, MessageHandler
         throws ChannelException
     {
         boolean sentEOF = false;
-        ConnectionState connectionState = new ConnectionState();
+        TransferPhase phase = TransferPhase.TRANSFER;
         int ioError = 0;
         Filelist.Segment segment = fileList.firstSegment();
         int numFilesInTransit = segment.files().size();
 
-        while (connectionState.isTransfer()) {
+        while (phase != TransferPhase.STOP) {
             // We must send a new segment when we have at least one segment
             // active to avoid deadlocking when talking to rsync
             if (fileList.isExpandable() &&
@@ -634,8 +634,13 @@ public final class Sender implements RsyncTask, MessageHandler
                 if (_fileSelection != FileSelection.RECURSE ||
                     fileList.isEmpty())
                 {
-                    connectionState.doTearDownStep();
-                    if (connectionState.isTransfer()) {
+                    if (_log.isLoggable(Level.FINE)) {
+                        _log.fine(String.format("phase transition %s -> %s",
+                                                phase,
+                                                phase.next()));
+                    }
+                    phase = phase.next();
+                    if (phase != TransferPhase.STOP) {
                         _duplexChannel.encodeIndex(Filelist.DONE);
                     }
                 }
@@ -669,7 +674,7 @@ public final class Sender implements RsyncTask, MessageHandler
                         numFilesInTransit--;
                     }
                     sendIndexAndIflags(index, iFlags);
-                } else if (!connectionState.isTearingDown()) {
+                } else if (phase == TransferPhase.TRANSFER) {
                     FileInfo fileInfo = null;
                     if (segment != null) {
                         fileInfo = segment.getFileWithIndexOrNull(index);
@@ -782,7 +787,7 @@ public final class Sender implements RsyncTask, MessageHandler
                 } else {
                     throw new RsyncProtocolException(String.format(
                         "Error: received index in wrong phase (%s)",
-                        connectionState));
+                        phase));
                 }
             } else {
                 throw new RsyncProtocolException(

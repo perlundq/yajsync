@@ -727,10 +727,10 @@ public class Receiver implements RsyncTask, MessageHandler
     {
         Filelist.Segment segment = firstSegment;
         int numSegmentsInProgress = 1;
-        ConnectionState connectionState = new ConnectionState();
+        TransferPhase phase = TransferPhase.TRANSFER;
         boolean isEOF = _fileSelection != FileSelection.RECURSE;
 
-        while (connectionState.isTransfer()) {
+        while (phase != TransferPhase.STOP) {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("num bytes available to read: %d",
                                         _in.numBytesAvailable()));
@@ -757,9 +757,14 @@ public class Receiver implements RsyncTask, MessageHandler
                             "least all ouststanding segment deletions " +
                             "acknowledged but haven't received file list EOF");
                     }
-                    connectionState.doTearDownStep();
                     if (_log.isLoggable(Level.FINE)) {
-                        _log.fine("tearing down at phase " + connectionState);
+                        _log.fine(String.format("phase transition %s -> %s",
+                                                phase,
+                                                phase.next()));
+                    }
+                    phase = phase.next();
+                    if (phase == TransferPhase.TEAR_DOWN_1) {
+                        _generator.processDeferredJobs();
                     }
                     _generator.sendSegmentDone(); // 3 after empty
                 } else if (numSegmentsInProgress < 0 && !fileList.isEmpty()) {
@@ -836,10 +841,10 @@ public class Receiver implements RsyncTask, MessageHandler
                     continue;
                 }
 
-                if (connectionState.isTearingDown()) {
+                if (phase != TransferPhase.TRANSFER) {
                     throw new RsyncProtocolException(
                         String.format("Error: wrong phase (%s)",
-                                      connectionState));
+                                      phase));
                 }
 
                 FileInfo fileInfo = segment.getFileWithIndexOrNull(index);
