@@ -485,6 +485,9 @@ public final class Sender implements RsyncTask, MessageHandler
     @Override
     public void handleMessage(Message message)
     {
+        if (_log.isLoggable(Level.FINER)) {
+            _log.finer("got message " + message);
+        }
         switch (message.header().messageType()) {
         case IO_ERROR:
             _ioError |= message.payload().getInt();

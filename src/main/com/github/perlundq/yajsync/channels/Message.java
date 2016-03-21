@@ -3,7 +3,7 @@
  * and TaggedOutputChannel)
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013, 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 package com.github.perlundq.yajsync.channels;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 import java.util.logging.Level;
 
 public class Message
@@ -73,8 +74,31 @@ public class Message
     public String toString()
     {
         return String.format("%s %s %s",
-                             getClass().getSimpleName(), _header,
-                             _payload.duplicate());
+                             getClass().getSimpleName(), _header, _payload);
+    }
+
+    /**
+     * Note: Message.payload() changes state when being read
+     */
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (obj != null && this.getClass() == obj.getClass()) {
+            Message other = (Message) obj;
+            if (this.header().equals(other.header())) {
+                return _payload.equals(other._payload);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Note: Message.payload() changes state when being read
+     */
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(_header, _payload);
     }
 
     public MessageHeader header()

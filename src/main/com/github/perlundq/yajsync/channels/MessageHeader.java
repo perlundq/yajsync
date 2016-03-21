@@ -3,7 +3,7 @@
  * TaggedInputChannel and TaggedOutputChannel)
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013, 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 package com.github.perlundq.yajsync.channels;
+
+import java.util.Objects;
 
 public class MessageHeader
 {
@@ -43,8 +45,8 @@ public class MessageHeader
     }
 
     /**
-     * @throws IllegalArgumentException if tag value is invalid and has no 
-     *         matching MessageCode 
+     * @throws IllegalArgumentException if tag value is invalid and has no
+     *         matching MessageCode
      */
     public static MessageHeader fromTag(int tag)
     {
@@ -58,6 +60,22 @@ public class MessageHeader
     {
         return String.format("%s %s length=%d", getClass().getSimpleName(),
                              _code, _length);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (obj != null && this.getClass() == obj.getClass()) {
+            MessageHeader other = (MessageHeader) obj;
+            return this._code == other._code && this._length == other._length;
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(_code, _length);
     }
 
     public MessageCode messageType()
