@@ -400,6 +400,9 @@ public final class Sender implements RsyncTask, MessageHandler
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("empty file list - exiting early");
                 }
+                if (_fileSelection == FileSelection.RECURSE) {
+                    _duplexChannel.encodeIndex(Filelist.EOF);
+                }
                 _duplexChannel.flush();
                 if (_isExitAfterEOF) {
                     readAllMessagesUntilEOF();

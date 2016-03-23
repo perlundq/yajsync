@@ -362,6 +362,15 @@ public class Receiver implements RsyncTask, MessageHandler
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("empty file list - exiting early");
                 }
+
+                if (_fileSelection == FileSelection.RECURSE) {
+                    int dummyIndex = _in.decodeIndex();
+                    if (dummyIndex != Filelist.EOF) {
+                        throw new RsyncProtocolException(String.format(
+                                "expected peer to send index %d (EOF), but " +
+                                "got %d", Filelist.EOF, dummyIndex));
+                    }
+                }
                 // NOTE: we never _receive_ any statistics if initial file list
                 // is empty
                 if (_isExitAfterEOF) {
