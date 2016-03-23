@@ -316,6 +316,7 @@ public class Receiver implements RsyncTask, MessageHandler
     @Override
     public Boolean call() throws RsyncException, InterruptedException
     {
+        int ioError = 0;
         try {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(this.toString());
@@ -342,7 +343,7 @@ public class Receiver implements RsyncTask, MessageHandler
             }
 
             List<FileInfoStub> stubs = new LinkedList<>();
-            _ioError |= receiveFileMetaDataInto(stubs);
+            ioError |= receiveFileMetaDataInto(stubs);
 
             if (!_isNumericIds && _fileSelection != FileSelection.RECURSE) {
                 if (_isPreserveUser) {
@@ -366,7 +367,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 if (_isExitAfterEOF) {
                     readAllMessagesUntilEOF();
                 }
-                return _ioError == 0;
+                return (ioError | _ioError) == 0;
             }
 
             // throws PathResolverException
@@ -375,12 +376,12 @@ public class Receiver implements RsyncTask, MessageHandler
                 _log.finer("Path Resolver: " + _pathResolver.toString());
             }
             Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
-            _ioError |= extractFileMetadata(stubs, builder);
+            ioError |= extractFileMetadata(stubs, builder);
 
             Filelist fileList = _generator.fileList();
             Filelist.Segment segment = fileList.newSegment(builder);
             _generator.generateSegment(segment);
-            receiveFiles(fileList, segment);
+            ioError |= receiveFiles(fileList, segment);
             _stats.setNumFiles(fileList.numFiles());
             if (_isReceiveStatistics) {
                 receiveStatistics();
@@ -394,14 +395,10 @@ public class Receiver implements RsyncTask, MessageHandler
                 }
             }
 
-            if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format("Receiver returned %d errors",
-                                        _ioError));
-            }
             if (_isExitAfterEOF) {
                 readAllMessagesUntilEOF();
             }
-            return _ioError == 0;
+            return (ioError | _ioError) == 0;
         } catch (RuntimeInterruptException e) {
             throw new InterruptedException();
         } catch (InvalidPathException e) {
@@ -411,6 +408,10 @@ public class Receiver implements RsyncTask, MessageHandler
             throw new RsyncException(e);
         } finally {
             _generator.stop();
+            if (_log.isLoggable(Level.FINE)) {
+                _log.fine(String.format("exit status %d (%d | %d)",
+                                        ioError | _ioError, ioError, _ioError));
+            }
         }
     }
 
@@ -755,9 +756,10 @@ public class Receiver implements RsyncTask, MessageHandler
         return Connection.receiveChecksumHeader(_in);
     }
 
-    private void receiveFiles(Filelist fileList, Filelist.Segment firstSegment)
+    private int receiveFiles(Filelist fileList, Filelist.Segment firstSegment)
         throws ChannelException, InterruptedException
     {
+        int ioError = 0;
         Filelist.Segment segment = firstSegment;
         int numSegmentsInProgress = 1;
         TransferPhase phase = TransferPhase.TRANSFER;
@@ -845,10 +847,10 @@ public class Receiver implements RsyncTask, MessageHandler
                 }
 
                 List<FileInfoStub> stubs = new LinkedList<>();
-                _ioError |= receiveFileMetaDataInto(stubs);
+                ioError |= receiveFileMetaDataInto(stubs);
                 Filelist.SegmentBuilder builder =
                     new Filelist.SegmentBuilder(directory);
-                _ioError |= extractFileMetadata(stubs, builder);
+                ioError |= extractFileMetadata(stubs, builder);
                 segment = fileList.newSegment(builder);
                 _generator.generateSegment(segment);
                 numSegmentsInProgress++;
@@ -908,9 +910,10 @@ public class Receiver implements RsyncTask, MessageHandler
                 if (isTransferred(index) && _log.isLoggable(Level.FINE)) {
                     _log.fine("Re-receiving " + fileInfo.pathOrNull());
                 }
-                receiveAndMatch(segment, index, fileInfo);
+                ioError |= receiveAndMatch(segment, index, fileInfo);
             }
         }
+        return ioError;
     }
 
     private boolean isRemoteAndLocalFileIdentical(Path localFile,
@@ -946,18 +949,20 @@ public class Receiver implements RsyncTask, MessageHandler
         return isIdentical;
     }
 
-    private void moveTempfileToTarget(Path tempFile, Path target)
+    private int moveTempfileToTarget(Path tempFile, Path target)
             throws InterruptedException
     {
         boolean isOK = FileOps.atomicMove(tempFile, target);
-        if (!isOK) {
+        if (isOK) {
+            return 0;
+        } else {
             String msg = String.format("Error: when moving temporary file %s " +
                                        "to %s", tempFile, target);
             if (_log.isLoggable(Level.SEVERE)) {
                 _log.severe(msg);
             }
             _generator.sendMessage(MessageCode.ERROR_XFER, msg);
-            _ioError |= IoError.GENERAL;
+            return IoError.GENERAL;
         }
     }
 
@@ -1039,10 +1044,11 @@ public class Receiver implements RsyncTask, MessageHandler
         }
     }
 
-    private void receiveAndMatch(Filelist.Segment segment, int index,
+    private int receiveAndMatch(Filelist.Segment segment, int index,
                                  FileInfo fileInfo)
         throws ChannelException, InterruptedException
     {
+        int ioError = 0;
         Checksum.Header checksumHeader = receiveChecksumHeader();
         if (_log.isLoggable(Level.FINE)) {
             _log.fine("received peer checksum " + checksumHeader);
@@ -1055,8 +1061,8 @@ public class Receiver implements RsyncTask, MessageHandler
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("created tempfile " + tempFile);
             }
-            matchData(segment, index, fileInfo, checksumHeader,
-                      tempFile.path());
+            ioError |= matchData(segment, index, fileInfo, checksumHeader,
+                                 tempFile.path());
         } catch (IOException e) {
             String msg = String.format("failed to create tempfile in %s: %s",
                                        fileInfo.pathOrNull().getParent(),
@@ -1067,16 +1073,18 @@ public class Receiver implements RsyncTask, MessageHandler
             _generator.sendMessage(MessageCode.ERROR_XFER, msg + '\n');
             discardData(checksumHeader);
             _in.skip(Checksum.MAX_DIGEST_LENGTH);
-            _ioError |= IoError.GENERAL;
+            ioError |= IoError.GENERAL;
             _generator.purgeFile(segment, index);
         }
+        return ioError;
     }
 
-    private void matchData(Filelist.Segment segment, int index,
+    private int matchData(Filelist.Segment segment, int index,
                            FileInfo fileInfo, Checksum.Header checksumHeader,
                            Path tempFile)
         throws ChannelException, InterruptedException
     {
+        int ioError = 0;
         MessageDigest md = MD5.newInstance();
         Path resultFile = mergeDataFromPeerAndReplica(fileInfo,
                                                       tempFile,
@@ -1097,10 +1105,11 @@ public class Receiver implements RsyncTask, MessageHandler
                                                 resultFile,
                                                 fileInfo.pathOrNull()));
                     }
-                    moveTempfileToTarget(resultFile, fileInfo.pathOrNull());
+                    ioError |= moveTempfileToTarget(resultFile,
+                                                    fileInfo.pathOrNull());
                 }
             } catch (IOException e) {
-                _ioError |= IoError.GENERAL;
+                ioError |= IoError.GENERAL;
                 if (_log.isLoggable(Level.SEVERE)) {
                     _log.severe(String.format("failed to update attrs on %s: " +
                                               "%s",
@@ -1110,8 +1119,9 @@ public class Receiver implements RsyncTask, MessageHandler
             _generator.purgeFile(segment, index);
         } else {
             if (isTransferred(index)) {
-                _ioError |= IoError.GENERAL;
                 try {
+                    ioError |= IoError.GENERAL;
+                    _generator.purgeFile(segment, index);
                     _generator.sendMessage(MessageCode.ERROR_XFER,
                                            String.format(
                                                    "%s (index %d) failed " +
@@ -1124,12 +1134,12 @@ public class Receiver implements RsyncTask, MessageHandler
                         _log.log(Level.SEVERE, "", e);
                     }
                 }
-                _generator.purgeFile(segment, index);
             } else {
                 _generator.generateFile(segment, index, fileInfo);
                 setIsTransferred(index);
             }
         }
+        return ioError;
     }
 
     private int receiveAndDecodeInt() throws ChannelException
