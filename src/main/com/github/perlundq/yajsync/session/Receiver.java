@@ -1901,10 +1901,20 @@ public class Receiver implements RsyncTask, MessageHandler
             // dummy read to get any final messages from peer
             byte dummy = _in.getByte();
             // we're not expected to get this far, getByte should throw
-            // NetworkEOFException
-            throw new RsyncProtocolException(
-                String.format("Peer sent invalid data during connection tear " +
-                              "down (%d)", dummy));
+            // ChannelEOFException
+            ByteBuffer buf = ByteBuffer.allocate(1024);
+            try {
+                buf.put(dummy);
+                _in.get(buf);
+            } catch (ChannelEOFException ignored) {
+                // ignored
+            }
+            buf.flip();
+            throw new RsyncProtocolException(String.format(
+                    "Unexpectedly got %d bytes from peer during connection " +
+                    "tear down: %s",
+                    buf.remaining(), Text.byteBufferToString(buf)));
+
         } catch (ChannelEOFException e) {
             // It's OK, we expect EOF without having received any data
         }

@@ -1572,10 +1572,23 @@ public final class Sender implements RsyncTask, MessageHandler
             // dummy read to get any final messages from peer
             byte dummy = _duplexChannel.getByte();
             // we're not expected to get this far, getByte should throw
-            // NetworkEOFException
+            // ChannelEOFException
+            ByteBuffer buf = ByteBuffer.allocate(1024);
+            try {
+                buf.put(dummy);
+                while (buf.hasRemaining()) {
+                    dummy = _duplexChannel.getByte();
+                    buf.put(dummy);
+                }
+            } catch (ChannelEOFException ignored) {
+                // ignored
+            }
+            buf.flip();
             throw new RsyncProtocolException(String.format(
-                    "Peer sent invalid data during connection tear down (%d)",
-                    dummy));
+                    "Unexpectedly got %d bytes from peer during connection " +
+                    "tear down: %s",
+                    buf.remaining(), Text.byteBufferToString(buf)));
+
         } catch (ChannelEOFException e) {
             // It's OK, we expect EOF without having received any data
         }
