@@ -24,6 +24,8 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.logging.Level;
 
+import com.github.perlundq.yajsync.text.Text;
+
 public class Message
 {
     private final MessageHeader _header;
@@ -73,8 +75,9 @@ public class Message
     @Override
     public String toString()
     {
-        return String.format("%s %s %s",
-                             getClass().getSimpleName(), _header, _payload);
+        return String.format("%s %s %s %s",
+                             getClass().getSimpleName(), _header, _payload,
+                             Text.byteBufferToString(_payload));
     }
 
     /**
