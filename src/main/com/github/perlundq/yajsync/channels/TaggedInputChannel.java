@@ -3,7 +3,7 @@
  * from peer
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013, 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,16 +23,22 @@ package com.github.perlundq.yajsync.channels;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.ReadableByteChannel;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.session.RsyncProtocolException;
+import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.util.Util;
 
 public class TaggedInputChannel extends SimpleInputChannel
 {
+    private static final Logger _log =
+        Logger.getLogger(TaggedInputChannel.class.getName());
+
     private final SimpleInputChannel _inputChannel;
     private final MessageHandler _msgHandler;
     private int _readAmountAvailable = 0;
-                                             
+
     public TaggedInputChannel(ReadableByteChannel sock, MessageHandler handler)
     {
         super(sock);
@@ -52,7 +58,7 @@ public class TaggedInputChannel extends SimpleInputChannel
     {
         return _readAmountAvailable;
     }
-    
+
     /**
      * @throws RsyncProtocolException if peer sends an invalid message
      */
@@ -66,29 +72,44 @@ public class TaggedInputChannel extends SimpleInputChannel
                                       dst.position(),
                                       dst.position() + chunkLength);
         super.get(slice);
+        if (_log.isLoggable(Level.FINEST)) {
+            ByteBuffer tmp = Util.slice(dst,
+                                        dst.position(),
+                                        dst.position() + Math.min(chunkLength,
+                                                                  64));
+            _log.finest(Text.byteBufferToString(tmp));
+        }
         dst.position(slice.position());
         _readAmountAvailable -= chunkLength;
     }
-    
+
     @Override
     public long numBytesRead()
     {
         return super.numBytesRead() + _inputChannel.numBytesRead();
     }
-    
+
     /**
      * @throws RsyncProtocolException
      */
     private int readNextMessage() throws ChannelException
     {
         try {
-            MessageHeader hdr = MessageHeader.fromTag(_inputChannel.getInt()); // throws IllegalArgumentException
+            // throws IllegalArgumentException
+            MessageHeader hdr = MessageHeader.fromTag(_inputChannel.getInt());
             if (hdr.messageType() == MessageCode.DATA) {
+                if (_log.isLoggable(Level.FINER)) {
+                    _log.finer("< " + hdr);
+                }
                 return hdr.length();
             }
-            ByteBuffer payload =
-                _inputChannel.get(hdr.length()).order(ByteOrder.LITTLE_ENDIAN);
-            Message message = new Message(hdr, payload);                       // throws IllegalArgumentException, IllegalStateException
+            ByteBuffer payload = _inputChannel.get(hdr.length()).
+                                               order(ByteOrder.LITTLE_ENDIAN);
+            // throws IllegalArgumentException, IllegalStateException
+            Message message = new Message(hdr, payload);
+            if (_log.isLoggable(Level.FINER)) {
+                _log.finer("< " + message);
+            }
             _msgHandler.handleMessage(message);
             return 0;
         } catch (IllegalStateException | IllegalArgumentException e) {
