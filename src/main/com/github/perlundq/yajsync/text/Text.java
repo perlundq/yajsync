@@ -203,7 +203,7 @@ public final class Text
         ByteBuffer dup = buf.duplicate();
         sb.append("[");
         while (dup.hasRemaining()) {
-            sb.append(dup.get());
+            sb.append(String.format("0x%02x", dup.get()));
             if (dup.hasRemaining()) {
                 sb.append(", ");
             }
