@@ -121,7 +121,7 @@ path = /path/to/Uploads/
 is_writable = true
 
 # Any non-default Java file system provider may be specified using the
-# parameter `fs'. Here is an example using tbe built in Zip file
+# parameter `fs'. Here is an example using the built in Zip file
 # system provider which provides transparent access to the contents of
 # a zip-file (see also the client option `--fs'):
 [zipfs]
