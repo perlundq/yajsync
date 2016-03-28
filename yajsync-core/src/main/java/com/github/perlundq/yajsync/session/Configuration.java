@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.github.perlundq.yajsync.ui;
+package com.github.perlundq.yajsync.session;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -41,12 +41,6 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.github.perlundq.yajsync.session.Module;
-import com.github.perlundq.yajsync.session.ModuleException;
-import com.github.perlundq.yajsync.session.ModuleNotFoundException;
-import com.github.perlundq.yajsync.session.ModuleProvider;
-import com.github.perlundq.yajsync.session.Modules;
-import com.github.perlundq.yajsync.session.RestrictedPath;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.Option;

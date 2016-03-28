@@ -182,14 +182,14 @@ Build instructions
 Requirements:
 
 - [git](http://git-scm.com)
-- [ant](http://ant.apache.org)
+- [Apache Maven](https://maven.apache.org)
 - [OpenJDK 1.7 or later](http://openjdk.java.net/) or [Oracle JDK 7](http://java.oracle.com)
 
 Procedure:
 
     git clone https://github.com/perlundq/yajsync.git
     cd yajsync
-    ant
+    mvn
 
 
 Usage
@@ -199,14 +199,14 @@ Show client/server help (-h argument):
 
 (Windows):
 
-    java -jar build/jar/yajsync.jar  -h
-    java -jar build/jar/yajsyncd.jar -h
+    java -jar yajsync-app/target/yajsync-app-0.9.0-SNAPSHOT-full.jar client -h
+    java -jar yajsync-app/target/yajsync-app-0.9.0-SNAPSHOT-full.jar server -h
 
 (Unix/Linux, we must inject necessary umask information as a property,
 assuming Bourne shell compatible syntax)
 
-    java -Dumask=$(umask) -jar build/jar/yajsync.jar  -h
-    java -Dumask=$(umask) -jar build/jar/yajsyncd.jar -h
+    java -Dumask=$(umask) -jar yajsync-app/target/yajsync-app-0.9.0-SNAPSHOT-full.jar client -h
+    java -Dumask=$(umask) -jar yajsync-app/target/yajsync-app-0.9.0-SNAPSHOT-full.jar server -h
 
 Recommended extra options to the jvm (i.e. must be placed before the
 -jar <jar-file> argument):

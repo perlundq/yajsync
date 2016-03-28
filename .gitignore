@@ -4,4 +4,6 @@
 /misc/
 /build/
 /doc/
+/yajsync-core/target/
+/yajsync-app/target/
 *~

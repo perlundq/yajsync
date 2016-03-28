@@ -22,9 +22,6 @@ import java.net.InetAddress;
 import java.security.Principal;
 import java.util.ServiceLoader;
 
-import com.github.perlundq.yajsync.ui.Configuration;
-import com.github.perlundq.yajsync.ui.Plugin;
-
 public abstract class ModuleProvider implements Plugin
 {
     public static ModuleProvider getDefault()

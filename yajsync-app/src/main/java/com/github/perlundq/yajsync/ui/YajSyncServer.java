@@ -324,14 +324,4 @@ public final class YajSyncServer
             }
         }
     }
-
-    public static void main(String[] args)
-        throws IOException, InterruptedException
-    {
-        System.err.println("Warning: this software is still unstable and " +
-                           "there might be data corruption bugs hiding. So " +
-                           "use it only carefully at your own risk.");
-
-        new YajSyncServer().start(args);
-    }
 }
