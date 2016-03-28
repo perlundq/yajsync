@@ -103,6 +103,7 @@ $ cat yajsyncd.conf
 #    is_writable   A boolean (true or false) indicating whether files
 #                  may be written below this module (optional, default
 #                  is false).
+#    fs            A Java file system provider (optional).
 
 # This is a module definition for a module called Downloads. path is
 # the only mandatory module parameter. This one also provides a
@@ -119,9 +120,10 @@ comment = this text will be printed on module listings, it is optional
 path = /path/to/Uploads/
 is_writable = true
 
-# A non-default [Java file system provider](https://docs.oracle.com/javase/8/docs/api/java/nio/file/FileSystem.html) may be specified for a
-# module with ```fs```. Here is an example using tbe built in Zip file
-# system provider (see also the client option ```--fs```):
+# Any non-default Java file system provider may be specified using the
+# parameter `fs'. Here is an example using tbe built in Zip file
+# system provider which provides transparent access to the contents of
+# a zip-file (see also the client option `--fs'):
 [zipfs]
 fs = jar:file:/path/to/file.zip
 path = /
@@ -129,17 +131,17 @@ path = /
 
 Start the server:
 ```
-$ java -Dumask=$(umask) -jar build/jar/yajsyncd.jar --port=14415 --config=yajsyncd.conf
+$ java -Dumask=$(umask) -jar yajsync-app/target/yajsync-app-0.9.0-SNAPSHOT-full.jar server --port=14415 --config=yajsyncd.conf
 ```
 
 Recursively upload the directory called example to Uploads:
 ```
-java -Dumask=$(umask) -jar build/jar/yajsync.jar --port=14415 -r example localhost::Uploads
+java -Dumask=$(umask) -jar yajsync-app/target/yajsync-app-0.9.0-SNAPSHOT-full.jar client --port=14415 -r example localhost::Uploads
 ```
 
 The same thing using the alternative syntax:
 ```
-java -Dumask=$(umask) -jar build/jar/yajsync.jar -r example rsync://localhost:14415/Uploads
+java -Dumask=$(umask) -jar yajsync-app/target/yajsync-app-0.9.0-SNAPSHOT-full.jar client -r example rsync://localhost:14415/Uploads
 ```
 
 And finally the same thing using the original rsync client:
