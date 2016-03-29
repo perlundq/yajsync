@@ -106,10 +106,10 @@ public class TextEncoder
             if (errorPolicy == ErrorPolicy.THROW) { // NOTE: in some circumstances we should avoid printing the contents
                 input.limit(input.position() + result.length());
                 throw new TextConversionException(String.format(
-                    "%s failed to encode %d bytes after %s (using %s): ",
-                    result, result.length(), output.flip().toString(),
-                    _encoder.charset(),
-                    Text.charBufferToString(input)));
+                    "failed to encode %d bytes after %s (using %s): %s -> %s",
+                    result.length(), output.flip().toString(),
+                    _encoder.charset(), Text.charBufferToString(input),
+                    result));
             }
             return null;
         } catch (OverflowException e) {

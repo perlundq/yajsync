@@ -83,7 +83,7 @@ class Checksum
             } else if (blockLength == 0 && chunkCount > 0) {
                 throw new RsyncProtocolException(String.format(
                     "illegal state: block length %d and %d chunks - expected " +
-                    "0 chunks if 0 block length"));
+                    "0 chunks if 0 block length", blockLength, chunkCount));
             } else if (blockLength < 0 ||
                        blockLength > MAX_CHECKSUM_BLOCK_LENGTH) {
                 throw new RsyncProtocolException(String.format(

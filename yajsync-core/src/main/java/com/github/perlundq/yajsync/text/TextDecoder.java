@@ -124,10 +124,10 @@ public class TextDecoder
             if (errorPolicy == ErrorPolicy.THROW) {
                 input.limit(input.position() + result.length());
                 throw new TextConversionException(String.format(
-                    "%s failed to decode %d bytes after %s (using %s): ",
-                    result, result.length(), output.flip().toString(),
-                    _decoder.charset(),
-                    Text.byteBufferToString(input)));
+                    "failed to decode %d bytes after %s (using %s): %s -> %s",
+                    result.length(), output.flip().toString(),
+                    _decoder.charset(), Text.byteBufferToString(input),
+                    result));
             }
             return null;
         } catch (OverflowException e) {
