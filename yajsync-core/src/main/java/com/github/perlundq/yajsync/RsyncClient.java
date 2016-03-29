@@ -61,7 +61,7 @@ public final class RsyncClient
 {
     private enum Mode
     {
-        LOCAL_COPY, LOCAL_LIST, REMOTE_SEND, REMOTE_RECEIVE, REMOTE_LIST;
+        LOCAL_COPY, LOCAL_LIST, REMOTE_SEND, REMOTE_RECEIVE, REMOTE_LIST
     }
 
     public static class Result
