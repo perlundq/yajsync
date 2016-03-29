@@ -1381,7 +1381,11 @@ public class Receiver implements RsyncTask, MessageHandler
 
         byte[] prevFileNameBytes = _fileInfoCache.getPrevFileNameBytes();
         byte[] fileNameBytes = new byte[prefixNumBytes + suffixNumBytes];
-        Util.copyArrays(prevFileNameBytes, fileNameBytes, prefixNumBytes);
+        System.arraycopy(prevFileNameBytes /* src */,
+                         0 /* srcPos */,
+                         fileNameBytes /* dst */,
+                         0 /* dstPos */,
+                         prefixNumBytes /* length */);
         _in.get(fileNameBytes, prefixNumBytes, suffixNumBytes);
         _fileInfoCache.setPrevFileNameBytes(fileNameBytes);
         return fileNameBytes;

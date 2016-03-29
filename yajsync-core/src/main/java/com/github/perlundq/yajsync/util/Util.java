@@ -48,26 +48,6 @@ public final class Util
         return arg != null ? arg : defaultValue;
     }
 
-    public static void copyArrays(byte[] src, int srcOffset,
-                                  byte[] dst, int dstOffset, int numBytes)
-    {
-        assert src != null;
-        assert srcOffset >= 0;
-        assert dst != null;
-        assert dstOffset >= 0;
-        assert numBytes >= 0;
-        assert srcOffset + numBytes <= src.length;
-        assert dstOffset + numBytes <= dst.length;
-        for (int i = 0; i < numBytes; i++) {
-            dst[dstOffset + i] = src[srcOffset + i];
-        }
-    }
-
-    public static void copyArrays(byte[] src, byte[] dst, int numBytes)
-    {
-        copyArrays(src, 0, dst, 0, numBytes);
-    }
-
     public static double log2(double n)
     {
         return Math.log(n) / Math.log(2);
