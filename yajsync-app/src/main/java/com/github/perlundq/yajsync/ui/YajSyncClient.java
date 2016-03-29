@@ -177,8 +177,7 @@ public class YajSyncClient
         options.add(
             Option.newStringOption(Option.Policy.OPTIONAL,
                                    "charset", "",
-                                   String.format("which charset to use " +
-                                                 "(default UTF-8)"),
+                                   "which charset to use (default UTF-8)",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option)
                         throws ArgumentParsingError
@@ -199,10 +198,8 @@ public class YajSyncClient
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "dirs", "d",
-                                      String.format("transfer directories " +
-                                                    "without recursing " +
-                                                    "(default false unless " +
-                                                    "listing files)"),
+                                      "transfer directories without recursing " +
+                                      "(default false unless listing files)",
 
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option)
@@ -220,8 +217,8 @@ public class YajSyncClient
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "recursive", "r",
-                                      String.format("recurse into directories" +
-                                                    " (default false)"),
+                                      "recurse into directories " +
+                                      "(default false)",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option)
                         throws ArgumentParsingError {
@@ -237,8 +234,8 @@ public class YajSyncClient
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "verbose", "v",
-                                      String.format("increase output verbosity " +
-                                                    "(default quiet)"),
+                                      "increase output verbosity " +
+                                      "(default quiet)",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
                     _verbosity++;
@@ -290,9 +287,8 @@ public class YajSyncClient
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "perms", "p",
-                                      String.format("preserve file " +
-                                                    "permissions (default " +
-                                                    "false)"),
+                                      "preserve file permissions " +
+                                      "(default false)",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
                     _clientBuilder.isPreservePermissions(true);
@@ -301,9 +297,8 @@ public class YajSyncClient
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "times", "t",
-                                      String.format("preserve last " +
-                                                    "modification time " +
-                                                    "(default false)"),
+                                      "preserve last modification time " +
+                                      "(default false)",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
                     _clientBuilder.isPreserveTimes(true);
@@ -312,8 +307,7 @@ public class YajSyncClient
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "owner", "o",
-                                      String.format("preserve owner " +
-                                                    "(default false)"),
+                                      "preserve owner (default false)",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
                     _clientBuilder.isPreserveUser(true);
@@ -322,8 +316,7 @@ public class YajSyncClient
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "group", "g",
-                                      String.format("preserve group " +
-                                                    "(default false)"),
+                                      "preserve group (default false)",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
                     _clientBuilder.isPreserveGroup(true);
@@ -350,8 +343,8 @@ public class YajSyncClient
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                       "delete", "",
-                                      String.format("delete extraneous files " +
-                                                    "(default false)"),
+                                      "delete extraneous files " +
+                                      "(default false)",
             new Option.ContinuingHandler() {
                 @Override public void handleAndContinue(Option option) {
                     _clientBuilder.isDelete(true);
@@ -370,9 +363,8 @@ public class YajSyncClient
         options.add(
                 Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                           "ignore-times", "I",
-                                          String.format("transfer files that " +
-                                                        "match both size and " +
-                                                        "time (default false)"),
+                                          "transfer files that match both " +
+                                          "size and time (default false)",
                 new Option.ContinuingHandler() {
                     @Override public void handleAndContinue(Option option) {
                         _clientBuilder.isIgnoreTimes(true);
@@ -427,12 +419,12 @@ public class YajSyncClient
                     _readStdin = true;
                 }}));
 
-        String deferredWriteHelp = String.format(
+        String deferredWriteHelp =
             "(receiver only) receiver defers writing into target tempfile as " +
             "long as possible to possibly eliminate all I/O writes for " +
             "identical files. This comes at the cost of a highly increased " +
             "risk of the file being modified by a process already having it " +
-            "opened (default false)");
+            "opened (default false)";
 
         options.add(
             Option.newWithoutArgument(Option.Policy.OPTIONAL,

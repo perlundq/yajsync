@@ -85,8 +85,8 @@ public class RsyncAuthContext
         try {
             passwordBytes = _characterEncoder.secureEncodeOrNull(password);
             if (passwordBytes == null) {
-                throw new RuntimeException(String.format(
-                    "Unable to encode characters in password"));
+                throw new RuntimeException("Unable to encode characters in " +
+                                           "password");
             }
             byte[] challengeBytes = _characterEncoder.encode(_challenge);       // throws TextConversionException
             MessageDigest md = MD5.newInstance();
