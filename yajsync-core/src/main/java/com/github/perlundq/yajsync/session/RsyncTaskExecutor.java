@@ -106,7 +106,7 @@ public final class RsyncTaskExecutor
     }
 
     public static void throwUnwrappedException(Throwable thrown)
-        throws InterruptedException,ChannelException,RsyncException
+        throws InterruptedException, RsyncException
     {
         if (thrown instanceof ExecutionException) {
             thrown = thrown.getCause();                                         // NOTE: thrown is reassigned here

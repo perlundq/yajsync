@@ -210,7 +210,7 @@ public final class RsyncClient
             return _future;
         }
 
-        public Result get() throws ChannelException, InterruptedException,
+        public Result get() throws InterruptedException,
                                    RsyncException
         {
             try {
@@ -275,7 +275,7 @@ public final class RsyncClient
             return _future;
         }
 
-        public Result get() throws ChannelException, InterruptedException,
+        public Result get() throws InterruptedException,
                                    RsyncException
         {
             try {
