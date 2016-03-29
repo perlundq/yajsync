@@ -21,5 +21,5 @@ package com.github.perlundq.yajsync.channels;
 
 public interface Taggable extends Bufferable
 {
-    public void putMessage(Message message) throws ChannelException;
+    void putMessage(Message message) throws ChannelException;
 }

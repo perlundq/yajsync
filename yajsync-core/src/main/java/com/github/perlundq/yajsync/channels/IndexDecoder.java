@@ -20,5 +20,5 @@ package com.github.perlundq.yajsync.channels;
 
 public interface IndexDecoder
 {
-    public int decodeIndex() throws ChannelException;
+    int decodeIndex() throws ChannelException;
 }

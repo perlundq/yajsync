@@ -21,5 +21,5 @@ package com.github.perlundq.yajsync.channels;
 
 public interface MessageHandler
 {
-    public void handleMessage(Message message);
+    void handleMessage(Message message);
 }

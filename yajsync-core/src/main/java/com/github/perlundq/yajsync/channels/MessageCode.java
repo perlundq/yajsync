@@ -52,7 +52,7 @@ public enum MessageCode
         }
     }
     
-    private MessageCode(int value)
+    MessageCode(int value)
     {
         _value = value;
     }
