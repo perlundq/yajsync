@@ -214,12 +214,10 @@ public class FileOps
     // TODO: add support for set uid, set gid and sticky bit
     public static String modeToString(int mode)
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append(shortfileTypeToString(mode));
-        sb.append(permUserToString(mode));
-        sb.append(permGroupToString(mode));
-        sb.append(permOtherToString(mode));
-        return sb.toString();
+        return shortfileTypeToString(mode) +
+               permUserToString(mode) +
+               permGroupToString(mode) +
+               permOtherToString(mode);
     }
 
     public static int fileType(int mode)
