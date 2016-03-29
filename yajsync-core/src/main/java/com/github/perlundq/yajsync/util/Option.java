@@ -119,7 +119,7 @@ public class Option
                         name(), str, exampleUsageToString()));
                 }
             } else if (_type == Integer.class) {
-                _value = (int) Integer.valueOf(str);
+                _value = Integer.valueOf(str);
             } else if (_type == String.class) {
                 if (str.isEmpty()) {
                     throw new ArgumentParsingError(String.format(
