@@ -1,11 +1,10 @@
-/.classpath
 /.idea/
-/.project
-/.settings/
-/misc/
 /build/
 /doc/
-/yajsync-core/target/
-/yajsync-app/target/
+/misc/
+.classpath
+.project
+.settings/
+target/
 *~
 *.iml
