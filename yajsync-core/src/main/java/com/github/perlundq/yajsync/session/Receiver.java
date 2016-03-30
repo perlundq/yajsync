@@ -63,7 +63,6 @@ import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.MD5;
 import com.github.perlundq.yajsync.util.PathOps;
 import com.github.perlundq.yajsync.util.RuntimeInterruptException;
-import com.github.perlundq.yajsync.util.Util;
 
 public class Receiver implements RsyncTask, MessageHandler
 {
