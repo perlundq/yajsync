@@ -157,13 +157,6 @@ public class Receiver implements RsyncTask, MessageHandler
         }
     }
 
-    @SuppressWarnings("serial")
-    private class PathResolverException extends Exception {
-        public PathResolverException(String msg) {
-            super(msg);
-        }
-    }
-
     private static class FileInfoStub {
         private final String _pathName;
         private final byte[] _pathNameBytes;
@@ -416,8 +409,6 @@ public class Receiver implements RsyncTask, MessageHandler
         } catch (InvalidPathException e) {
             throw new RsyncException(String.format(
                 "illegal target path name %s: %s", _targetPath, e));
-        } catch (PathResolverException e) {
-            throw new RsyncException(e);
         } finally {
             _generator.stop();
             if (_log.isLoggable(Level.FINE)) {
@@ -547,121 +538,136 @@ public class Receiver implements RsyncTask, MessageHandler
      *    $ ls non_existing
      *    empty_dir
      * yajsync does not try to mimic this
+     *
+     * @throws RsyncException if:
+     *     1. failing to stat target (it is OK if it does not exist though)
+     *     2. if target does not exist and failing to create missing directories
+     *        to it,
+     *     3. if target exists but is neither a directory nor a file nor a
+     *        symbolic link (until we have proper support for additional file
+     *        types).
+     *     4. if target is an existing file and there are more than source
+     *        files.
+     *     5. if target is an existing file and the first source argument is an
+     *        existing directory.
      */
     private PathResolver getPathResolver(final List<FileInfoStub> stubs)
-        throws PathResolverException
+        throws RsyncException
     {
+        RsyncFileAttributes attrs;
         try {
-            // throws IOException
-            RsyncFileAttributes attrs =
-                RsyncFileAttributes.statIfExists(_targetPath);
-
-            boolean isTargetExisting = attrs != null;
-            boolean isTargetExistingDir =
-                isTargetExisting && attrs.isDirectory();
-            boolean isTargetExistingFile =
-                isTargetExisting && !attrs.isDirectory();
-            boolean isSourceSingleFile =
-                stubs.size() == 1 && !stubs.get(0)._attrs.isDirectory();
-            boolean isTargetNonExistingFile = !isTargetExisting &&
-                                              !_targetPath.endsWith(Text.DOT);
-
-            if (_log.isLoggable(Level.FINER)) {
-                _log.finer(String.format(
-                        "targetPath=%s attrs=%s isTargetExisting=%s " +
-                        "isSourceSingleFile=%s " +
-                        "isTargetNonExistingFile=%s " +
-                        "#stubs=%d",
-                        _targetPath, attrs, isTargetExisting,
-                        isSourceSingleFile,
-                        isTargetNonExistingFile, stubs.size()));
-            }
-            if (_log.isLoggable(Level.FINEST)) {
-                _log.finest(stubs.toString());
-            }
-
-            // -> targetPath
-            if (isSourceSingleFile && isTargetNonExistingFile ||
-                isSourceSingleFile && isTargetExistingFile)
-            {
-                return new PathResolver() {
-                    @Override public Path relativePathOf(String pathName) {
-                        FileSystem fs = _targetPath.getFileSystem();
-                        return fs.getPath(stubs.get(0)._pathName);
-                    }
-                    @Override public Path fullPathOf(Path relativePath) {
-                        return _targetPath;
-                    }
-                    @Override public String toString() {
-                        return "PathResolver(Single Source)";
-                    }
-                };
-            }
-            // -> targetPath/*
-            if (isTargetExistingDir || !isTargetExisting) {
-                if (!isTargetExisting) {
-                    if (_log.isLoggable(Level.FINER)) {
-                        _log.finer("creating directory (with parents) " +
-                                   _targetPath);
-                    }
-                    Files.createDirectories(_targetPath);
-                }
-                return new PathResolver() {
-                    @Override public Path relativePathOf(String pathName) {
-                        // throws InvalidPathException
-                        FileSystem fs = _targetPath.getFileSystem();
-                        Path relativePath = fs.getPath(pathName);
-                        if (relativePath.isAbsolute()) {
-                            throw new RsyncSecurityException(relativePath +
-                                " is absolute");
-                        }
-                        Path normalizedRelativePath =
-                            PathOps.normalizeStrict(relativePath);
-                        return normalizedRelativePath;
-                    }
-                    @Override public Path fullPathOf(Path relativePath) {
-                        Path fullPath =
-                            _targetPath.resolve(relativePath).normalize();
-                        if (!fullPath.startsWith(_targetPath.normalize())) {
-                            throw new RsyncSecurityException(String.format(
-                                "%s is outside of receiver destination dir %s",
-                                fullPath, _targetPath));
-                        }
-                        return fullPath;
-                    }
-                    @Override public String toString() {
-                        return "PathResolver(Complex)";
-                    }
-                };
-            }
-
-            if (isTargetExisting && !attrs.isDirectory() &&
-                !attrs.isRegularFile() && !attrs.isSymbolicLink())
-            {
-                throw new PathResolverException(String.format(
-                    "refusing to overwrite existing target path %s which is " +
-                    "neither a file nor a directory (%s)", _targetPath, attrs));
-            }
-            if (isTargetExistingFile && stubs.size() >= 2) {
-                throw new PathResolverException(String.format(
-                    "refusing to copy source files %s into file %s " +
-                    "(%s)", stubs, _targetPath, attrs));
-            }
-            if (isTargetExistingFile && stubs.size() == 1 &&
-                stubs.get(0)._attrs.isDirectory()) {
-                throw new PathResolverException(String.format(
-                    "refusing to recursively copy directory %s into " +
-                    "non-directory %s (%s)", stubs.get(0), _targetPath, attrs));
-            }
-
-            throw new AssertionError(String.format(
-                "BUG: stubs=%s targetPath=%s attrs=%s",
-                stubs, _targetPath, attrs));
-
+            attrs = RsyncFileAttributes.statIfExists(_targetPath);
         } catch (IOException e) {
-            throw new PathResolverException(String.format(
-                "unable to stat %s: %s", _targetPath, e));
+            throw new RsyncException(String.format("unable to stat %s: %s",
+                                                   _targetPath, e));
         }
+
+        boolean isTargetExisting = attrs != null;
+        boolean isTargetExistingDir =
+            isTargetExisting && attrs.isDirectory();
+        boolean isTargetExistingFile =
+            isTargetExisting && !attrs.isDirectory();
+        boolean isSourceSingleFile =
+            stubs.size() == 1 && !stubs.get(0)._attrs.isDirectory();
+        boolean isTargetNonExistingFile = !isTargetExisting &&
+                                          !_targetPath.endsWith(Text.DOT);
+
+        if (_log.isLoggable(Level.FINER)) {
+            _log.finer(String.format(
+                    "targetPath=%s attrs=%s isTargetExisting=%s " +
+                    "isSourceSingleFile=%s " +
+                    "isTargetNonExistingFile=%s " +
+                    "#stubs=%d",
+                    _targetPath, attrs, isTargetExisting,
+                    isSourceSingleFile,
+                    isTargetNonExistingFile, stubs.size()));
+        }
+        if (_log.isLoggable(Level.FINEST)) {
+            _log.finest(stubs.toString());
+        }
+
+        // -> targetPath
+        if (isSourceSingleFile && isTargetNonExistingFile ||
+            isSourceSingleFile && isTargetExistingFile)
+        {
+            return new PathResolver() {
+                @Override public Path relativePathOf(String pathName) {
+                    FileSystem fs = _targetPath.getFileSystem();
+                    return fs.getPath(stubs.get(0)._pathName);
+                }
+                @Override public Path fullPathOf(Path relativePath) {
+                    return _targetPath;
+                }
+                @Override public String toString() {
+                    return "PathResolver(Single Source)";
+                }
+            };
+        }
+        // -> targetPath/*
+        if (isTargetExistingDir || !isTargetExisting) {
+            if (!isTargetExisting) {
+                if (_log.isLoggable(Level.FINER)) {
+                    _log.finer("creating directory (with parents) " +
+                               _targetPath);
+                }
+                try {
+                    Files.createDirectories(_targetPath);
+                } catch (IOException e) {
+                    throw new RsyncException(String.format(
+                            "unable to create directory structure to %s: %s",
+                            _targetPath, e));
+                }
+            }
+            return new PathResolver() {
+                @Override public Path relativePathOf(String pathName) {
+                    // throws InvalidPathException
+                    FileSystem fs = _targetPath.getFileSystem();
+                    Path relativePath = fs.getPath(pathName);
+                    if (relativePath.isAbsolute()) {
+                        throw new RsyncSecurityException(relativePath +
+                            " is absolute");
+                    }
+                    Path normalizedRelativePath =
+                        PathOps.normalizeStrict(relativePath);
+                    return normalizedRelativePath;
+                }
+                @Override public Path fullPathOf(Path relativePath) {
+                    Path fullPath =
+                        _targetPath.resolve(relativePath).normalize();
+                    if (!fullPath.startsWith(_targetPath.normalize())) {
+                        throw new RsyncSecurityException(String.format(
+                            "%s is outside of receiver destination dir %s",
+                            fullPath, _targetPath));
+                    }
+                    return fullPath;
+                }
+                @Override public String toString() {
+                    return "PathResolver(Complex)";
+                }
+            };
+        }
+
+        if (isTargetExisting && !attrs.isDirectory() &&
+            !attrs.isRegularFile() && !attrs.isSymbolicLink())
+        {
+            throw new RsyncException(String.format(
+                "refusing to overwrite existing target path %s which is " +
+                "neither a file nor a directory (%s)", _targetPath, attrs));
+        }
+        if (isTargetExistingFile && stubs.size() >= 2) {
+            throw new RsyncException(String.format(
+                "refusing to copy source files %s into file %s " +
+                "(%s)", stubs, _targetPath, attrs));
+        }
+        if (isTargetExistingFile && stubs.size() == 1 &&
+            stubs.get(0)._attrs.isDirectory()) {
+            throw new RsyncException(String.format(
+                "refusing to recursively copy directory %s into " +
+                "non-directory %s (%s)", stubs.get(0), _targetPath, attrs));
+        }
+        throw new AssertionError(String.format(
+            "BUG: stubs=%s targetPath=%s attrs=%s",
+            stubs, _targetPath, attrs));
     }
 
     private void receiveStatistics() throws ChannelException
