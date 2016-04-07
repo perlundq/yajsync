@@ -9,7 +9,8 @@ import java.nio.file.Paths;
 
 import org.junit.Test;
 
-import com.github.perlundq.yajsync.text.Text;
+import com.github.perlundq.yajsync.internal.text.Text;
+import com.github.perlundq.yajsync.internal.util.PathOps;
 
 public class PathOpsTest
 {

@@ -20,8 +20,8 @@ import java.nio.file.Path;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.github.perlundq.yajsync.text.Text;
-import com.github.perlundq.yajsync.util.PathOps;
+import com.github.perlundq.yajsync.internal.text.Text;
+import com.github.perlundq.yajsync.internal.util.PathOps;
 
 final class RsyncUrl
 {

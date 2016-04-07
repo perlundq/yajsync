@@ -25,17 +25,16 @@ import java.nio.charset.Charset;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.concurrent.ExecutorService;
 
-import com.github.perlundq.yajsync.session.FilterMode;
-import com.github.perlundq.yajsync.session.Generator;
-import com.github.perlundq.yajsync.session.Modules;
-import com.github.perlundq.yajsync.session.Receiver;
-import com.github.perlundq.yajsync.session.RsyncException;
-import com.github.perlundq.yajsync.session.RsyncTaskExecutor;
-import com.github.perlundq.yajsync.session.Sender;
-import com.github.perlundq.yajsync.session.ServerSessionConfig;
-import com.github.perlundq.yajsync.session.SessionStatus;
-import com.github.perlundq.yajsync.text.Text;
-import com.github.perlundq.yajsync.util.Util;
+import com.github.perlundq.yajsync.internal.session.FilterMode;
+import com.github.perlundq.yajsync.internal.session.Generator;
+import com.github.perlundq.yajsync.internal.session.Receiver;
+import com.github.perlundq.yajsync.internal.session.RsyncTaskExecutor;
+import com.github.perlundq.yajsync.internal.session.Sender;
+import com.github.perlundq.yajsync.internal.session.ServerSessionConfig;
+import com.github.perlundq.yajsync.internal.session.SessionStatus;
+import com.github.perlundq.yajsync.internal.text.Text;
+import com.github.perlundq.yajsync.internal.util.Util;
+import com.github.perlundq.yajsync.server.module.Modules;
 
 
 public class RsyncServer

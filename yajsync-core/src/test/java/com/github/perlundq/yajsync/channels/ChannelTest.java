@@ -32,7 +32,14 @@ import java.util.Queue;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.github.perlundq.yajsync.util.Environment;
+import com.github.perlundq.yajsync.internal.channels.ChannelEOFException;
+import com.github.perlundq.yajsync.internal.channels.ChannelException;
+import com.github.perlundq.yajsync.internal.channels.Message;
+import com.github.perlundq.yajsync.internal.channels.MessageCode;
+import com.github.perlundq.yajsync.internal.channels.MessageHandler;
+import com.github.perlundq.yajsync.internal.channels.RsyncInChannel;
+import com.github.perlundq.yajsync.internal.channels.RsyncOutChannel;
+import com.github.perlundq.yajsync.internal.util.Environment;
 
 class ReadableByteBufferChannel implements ReadableByteChannel
 {

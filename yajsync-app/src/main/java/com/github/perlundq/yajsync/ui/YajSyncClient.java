@@ -45,31 +45,31 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.github.perlundq.yajsync.AuthProvider;
+import com.github.perlundq.yajsync.FileSelection;
 import com.github.perlundq.yajsync.RsyncClient;
+import com.github.perlundq.yajsync.RsyncException;
 import com.github.perlundq.yajsync.RsyncServer;
-import com.github.perlundq.yajsync.channels.ChannelException;
-import com.github.perlundq.yajsync.channels.net.ChannelFactory;
-import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
-import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
-import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
-import com.github.perlundq.yajsync.filelist.FileInfo;
-import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
-import com.github.perlundq.yajsync.filelist.SymlinkInfo;
-import com.github.perlundq.yajsync.session.ClientSessionConfig;
-import com.github.perlundq.yajsync.session.FileSelection;
-import com.github.perlundq.yajsync.session.RsyncException;
-import com.github.perlundq.yajsync.session.Statistics;
-import com.github.perlundq.yajsync.text.Text;
-import com.github.perlundq.yajsync.text.TextDecoder;
-import com.github.perlundq.yajsync.util.ArgumentParser;
-import com.github.perlundq.yajsync.util.ArgumentParsingError;
-import com.github.perlundq.yajsync.util.Environment;
-import com.github.perlundq.yajsync.util.FileOps;
-import com.github.perlundq.yajsync.util.Option;
-import com.github.perlundq.yajsync.util.Pair;
-import com.github.perlundq.yajsync.util.PathOps;
-import com.github.perlundq.yajsync.util.Triple;
-import com.github.perlundq.yajsync.util.Util;
+import com.github.perlundq.yajsync.Statistics;
+import com.github.perlundq.yajsync.attr.FileInfo;
+import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
+import com.github.perlundq.yajsync.attr.SymlinkInfo;
+import com.github.perlundq.yajsync.internal.channels.ChannelException;
+import com.github.perlundq.yajsync.internal.text.Text;
+import com.github.perlundq.yajsync.internal.text.TextDecoder;
+import com.github.perlundq.yajsync.internal.util.ArgumentParser;
+import com.github.perlundq.yajsync.internal.util.ArgumentParsingError;
+import com.github.perlundq.yajsync.internal.util.Environment;
+import com.github.perlundq.yajsync.internal.util.FileOps;
+import com.github.perlundq.yajsync.internal.util.Option;
+import com.github.perlundq.yajsync.internal.util.Pair;
+import com.github.perlundq.yajsync.internal.util.PathOps;
+import com.github.perlundq.yajsync.internal.util.Triple;
+import com.github.perlundq.yajsync.internal.util.Util;
+import com.github.perlundq.yajsync.net.ChannelFactory;
+import com.github.perlundq.yajsync.net.DuplexByteChannel;
+import com.github.perlundq.yajsync.net.SSLChannelFactory;
+import com.github.perlundq.yajsync.net.StandardChannelFactory;
 
 public class YajSyncClient
 {
@@ -89,8 +89,7 @@ public class YajSyncClient
     private static final Logger _log =
         Logger.getLogger(YajSyncClient.class.getName());
 
-    private final ClientSessionConfig.AuthProvider _authProvider =
-            new ClientSessionConfig.AuthProvider()
+    private final AuthProvider _authProvider = new AuthProvider()
     {
         @Override
         public String getUser()

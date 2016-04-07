@@ -8,7 +8,11 @@ import java.nio.file.Paths;
 
 import org.junit.Test;
 
-import com.github.perlundq.yajsync.util.FileOps;
+import com.github.perlundq.yajsync.attr.FileInfo;
+import com.github.perlundq.yajsync.attr.Group;
+import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
+import com.github.perlundq.yajsync.attr.User;
+import com.github.perlundq.yajsync.internal.util.FileOps;
 
 public class FileInfoTest {
 

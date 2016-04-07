@@ -38,20 +38,20 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.RsyncServer;
-import com.github.perlundq.yajsync.channels.ChannelException;
-import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
-import com.github.perlundq.yajsync.channels.net.SSLServerChannelFactory;
-import com.github.perlundq.yajsync.channels.net.ServerChannel;
-import com.github.perlundq.yajsync.channels.net.ServerChannelFactory;
-import com.github.perlundq.yajsync.channels.net.StandardServerChannelFactory;
-import com.github.perlundq.yajsync.session.ModuleException;
-import com.github.perlundq.yajsync.session.ModuleProvider;
-import com.github.perlundq.yajsync.session.Modules;
-import com.github.perlundq.yajsync.util.ArgumentParser;
-import com.github.perlundq.yajsync.util.ArgumentParsingError;
-import com.github.perlundq.yajsync.util.Environment;
-import com.github.perlundq.yajsync.util.Option;
-import com.github.perlundq.yajsync.util.Util;
+import com.github.perlundq.yajsync.internal.channels.ChannelException;
+import com.github.perlundq.yajsync.internal.util.ArgumentParser;
+import com.github.perlundq.yajsync.internal.util.ArgumentParsingError;
+import com.github.perlundq.yajsync.internal.util.Environment;
+import com.github.perlundq.yajsync.internal.util.Option;
+import com.github.perlundq.yajsync.internal.util.Util;
+import com.github.perlundq.yajsync.net.DuplexByteChannel;
+import com.github.perlundq.yajsync.net.SSLServerChannelFactory;
+import com.github.perlundq.yajsync.net.ServerChannel;
+import com.github.perlundq.yajsync.net.ServerChannelFactory;
+import com.github.perlundq.yajsync.net.StandardServerChannelFactory;
+import com.github.perlundq.yajsync.server.module.ModuleException;
+import com.github.perlundq.yajsync.server.module.ModuleProvider;
+import com.github.perlundq.yajsync.server.module.Modules;
 
 
 public final class YajSyncServer

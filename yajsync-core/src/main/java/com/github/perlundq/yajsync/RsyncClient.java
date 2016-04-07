@@ -38,23 +38,18 @@ import java.util.concurrent.Future;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.github.perlundq.yajsync.filelist.FileInfo;
-import com.github.perlundq.yajsync.session.ClientSessionConfig;
-import com.github.perlundq.yajsync.session.ClientSessionConfig.AuthProvider;
-import com.github.perlundq.yajsync.session.FileSelection;
-import com.github.perlundq.yajsync.session.FilterMode;
-import com.github.perlundq.yajsync.session.Generator;
-import com.github.perlundq.yajsync.session.Receiver;
-import com.github.perlundq.yajsync.session.RsyncException;
-import com.github.perlundq.yajsync.session.RsyncTaskExecutor;
-import com.github.perlundq.yajsync.session.Sender;
-import com.github.perlundq.yajsync.session.SessionStatus;
-import com.github.perlundq.yajsync.session.Statistics;
-import com.github.perlundq.yajsync.text.Text;
-import com.github.perlundq.yajsync.util.BitOps;
-import com.github.perlundq.yajsync.util.Environment;
-import com.github.perlundq.yajsync.util.RuntimeInterruptException;
-import com.github.perlundq.yajsync.util.Util;
+import com.github.perlundq.yajsync.attr.FileInfo;
+import com.github.perlundq.yajsync.internal.session.ClientSessionConfig;
+import com.github.perlundq.yajsync.internal.session.FilterMode;
+import com.github.perlundq.yajsync.internal.session.Generator;
+import com.github.perlundq.yajsync.internal.session.Receiver;
+import com.github.perlundq.yajsync.internal.session.RsyncTaskExecutor;
+import com.github.perlundq.yajsync.internal.session.Sender;
+import com.github.perlundq.yajsync.internal.session.SessionStatus;
+import com.github.perlundq.yajsync.internal.text.Text;
+import com.github.perlundq.yajsync.internal.util.BitOps;
+import com.github.perlundq.yajsync.internal.util.Environment;
+import com.github.perlundq.yajsync.internal.util.Util;
 
 public final class RsyncClient
 {
@@ -220,14 +215,10 @@ public final class RsyncClient
             }
         }
 
-        public Iterable<FileInfo> files()
+        public Iterable<FileInfo> files() throws InterruptedException
         {
-            try {
-                _isListingAvailable.await();
-                return _listing;
-            } catch (InterruptedException e) {
-                throw new RuntimeInterruptException(e);
-            }
+            _isListingAvailable.await();
+            return _listing;
         }
     }
 
@@ -811,8 +802,7 @@ public final class RsyncClient
         }
     }
 
-    private static class ConsoleAuthProvider
-    implements ClientSessionConfig.AuthProvider
+    private static class ConsoleAuthProvider implements AuthProvider
     {
         private final Console console = System.console();
 
@@ -868,7 +858,7 @@ public final class RsyncClient
             return new RsyncClient(this).new Remote(in, out, isInterruptible);
         }
 
-        public Builder authProvider(ClientSessionConfig.AuthProvider authProvider)
+        public Builder authProvider(AuthProvider authProvider)
         {
             _authProvider = authProvider;
             return this;
@@ -984,7 +974,7 @@ public final class RsyncClient
 
     private static final Logger _log =
             Logger.getLogger(RsyncClient.class.getName());
-    private final ClientSessionConfig.AuthProvider _authProvider;
+    private final AuthProvider _authProvider;
     // a dummy - only used for file listings
     private static final Path _cwd = Paths.get(Environment.getWorkingDirectoryName());
     private final boolean _isAlwaysItemize;

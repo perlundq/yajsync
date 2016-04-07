@@ -19,7 +19,7 @@ package com.github.perlundq.yajsync.ui;
 import java.util.Objects;
 
 import com.github.perlundq.yajsync.RsyncServer;
-import com.github.perlundq.yajsync.util.Environment;
+import com.github.perlundq.yajsync.internal.util.Environment;
 
 final class ConnInfo
 {

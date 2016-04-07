@@ -37,27 +37,26 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.github.perlundq.yajsync.RsyncClient;
-import com.github.perlundq.yajsync.channels.ChannelException;
-import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
-import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
-import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
-import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
-import com.github.perlundq.yajsync.filelist.User;
-import com.github.perlundq.yajsync.security.RsyncAuthContext;
-import com.github.perlundq.yajsync.session.Module;
-import com.github.perlundq.yajsync.session.ModuleException;
-import com.github.perlundq.yajsync.session.ModuleProvider;
-import com.github.perlundq.yajsync.session.Modules;
-import com.github.perlundq.yajsync.session.RestrictedModule;
-import com.github.perlundq.yajsync.session.RestrictedPath;
-import com.github.perlundq.yajsync.session.RsyncException;
-import com.github.perlundq.yajsync.session.Statistics;
-import com.github.perlundq.yajsync.text.Text;
+import com.github.perlundq.yajsync.Statistics;
+import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
+import com.github.perlundq.yajsync.attr.User;
+import com.github.perlundq.yajsync.internal.channels.ChannelException;
+import com.github.perlundq.yajsync.internal.text.Text;
+import com.github.perlundq.yajsync.internal.util.Environment;
+import com.github.perlundq.yajsync.internal.util.FileOps;
+import com.github.perlundq.yajsync.internal.util.Option;
+import com.github.perlundq.yajsync.net.DuplexByteChannel;
+import com.github.perlundq.yajsync.net.SSLChannelFactory;
+import com.github.perlundq.yajsync.net.StandardChannelFactory;
+import com.github.perlundq.yajsync.server.module.Module;
+import com.github.perlundq.yajsync.server.module.ModuleException;
+import com.github.perlundq.yajsync.server.module.ModuleProvider;
+import com.github.perlundq.yajsync.server.module.Modules;
+import com.github.perlundq.yajsync.server.module.RestrictedModule;
+import com.github.perlundq.yajsync.server.module.RestrictedPath;
+import com.github.perlundq.yajsync.server.module.RsyncAuthContext;
 import com.github.perlundq.yajsync.ui.YajSyncClient;
 import com.github.perlundq.yajsync.ui.YajSyncServer;
-import com.github.perlundq.yajsync.util.Environment;
-import com.github.perlundq.yajsync.util.FileOps;
-import com.github.perlundq.yajsync.util.Option;
 
 
 

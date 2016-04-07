@@ -18,8 +18,8 @@ package com.github.perlundq.yajsync.test;
 
 import java.nio.ByteBuffer;
 
-import com.github.perlundq.yajsync.channels.Readable;
-import com.github.perlundq.yajsync.util.Util;
+import com.github.perlundq.yajsync.internal.channels.Readable;
+import com.github.perlundq.yajsync.internal.util.Util;
 
 public class ReadableByteBuffer implements Readable
 {
