@@ -375,7 +375,6 @@ public class Receiver implements RsyncTask, MessageHandler
                 return (ioError | _ioError) == 0;
             }
 
-            // throws PathResolverException
             _pathResolver = getPathResolver(stubs);
             if (_log.isLoggable(Level.FINER)) {
                 _log.finer("Path Resolver: " + _pathResolver.toString());
@@ -406,9 +405,6 @@ public class Receiver implements RsyncTask, MessageHandler
             return (ioError | _ioError) == 0;
         } catch (RuntimeInterruptException e) {
             throw new InterruptedException();
-        } catch (InvalidPathException e) {
-            throw new RsyncException(String.format(
-                "illegal target path name %s: %s", _targetPath, e));
         } finally {
             _generator.stop();
             if (_log.isLoggable(Level.FINE)) {
