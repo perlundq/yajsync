@@ -34,6 +34,10 @@ Currently implemented rsync options:
 
 - Archive mode (-a, --archive)
 
+- Set I/O timeout in seconds (--timeout=SECONDS)
+
+- Set daemon connection timeout in seconds (--contimeout=SECONDS)
+
 Simulated options:
 
 - Preserve character device files and block device files (--devices)

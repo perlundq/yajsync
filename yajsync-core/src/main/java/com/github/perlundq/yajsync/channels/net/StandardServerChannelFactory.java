@@ -34,7 +34,7 @@ public class StandardServerChannelFactory implements ServerChannelFactory
     }
 
     @Override
-    public ServerChannel open(InetAddress address, int port) throws IOException
+    public ServerChannel open(InetAddress address, int port, int timeout) throws IOException
     {
         ServerSocketChannel sock = ServerSocketChannel.open();
         try {
@@ -44,7 +44,7 @@ public class StandardServerChannelFactory implements ServerChannelFactory
             InetSocketAddress socketAddress =
                 new InetSocketAddress(address, port);
             sock.bind(socketAddress);
-            return new StandardServerChannel(sock);
+            return new StandardServerChannel(sock, timeout);
         } catch (Throwable t) {
             try {
                 if (sock.isOpen()) {

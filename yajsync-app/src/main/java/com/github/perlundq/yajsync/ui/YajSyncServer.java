@@ -66,10 +66,11 @@ public final class YajSyncServer
     private int _port = RsyncServer.DEFAULT_LISTEN_PORT;
     private int _verbosity;
     private InetAddress _address = InetAddress.getLoopbackAddress();
+    private int _timeout = 0;
     private ModuleProvider _moduleProvider = ModuleProvider.getDefault();
     private PrintStream _out = System.out;
     private PrintStream _err = System.err;
-    private RsyncServer.Builder _serverBuilder = new RsyncServer.Builder();
+    private final RsyncServer.Builder _serverBuilder = new RsyncServer.Builder();
 
 
     public YajSyncServer() {}
@@ -177,6 +178,29 @@ public final class YajSyncServer
                 @Override public void handleAndContinue(Option option) {
                     _serverBuilder.isDeferWrite(true);
                 }}));
+
+        options.add(
+                Option.newIntegerOption(Option.Policy.OPTIONAL,
+                                        "timeout", "",
+                                        "set I/O timeout in seconds",
+                new Option.ContinuingHandler() {
+                    @Override public void handleAndContinue(Option option)
+                            throws ArgumentParsingError
+                    {
+                        int timeout = (int) option.getValue();
+                        if (timeout >= 0) {
+                            _timeout = timeout;
+                        } else {
+                            throw new ArgumentParsingError(String.format(
+                                    "invalid timeout %d - timeout has to be greater or equal to 0", timeout));
+                        }
+                        // Timeout socket operations depend on
+                        // ByteBuffer.array and ByteBuffer.arrayOffset. Disable direct
+                        // allocation if the resulting ByteBuffer won't have an array.
+                        if (timeout > 0 && !Environment.hasAllocateDirectArray()) {
+                            Environment.setAllocateDirect(false);
+                        }
+                    }}));
 
         options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                               "tls", "",
@@ -292,14 +316,14 @@ public final class YajSyncServer
         ServerChannelFactory socketFactory =
             _isTLS ? new SSLServerChannelFactory().setWantClientAuth(true)
                    : new StandardServerChannelFactory();
-        //socketFactory.setSocketTimeout(60);
+
         socketFactory.setReuseAddress(true);
         //socketFactory.setKeepAlive(true);
         boolean isInterruptible = !_isTLS;
         ExecutorService executor = Executors.newFixedThreadPool(_numThreads);
         RsyncServer server = _serverBuilder.build(executor);
 
-        try (ServerChannel listenSock = socketFactory.open(_address, _port)) {  // throws IOException
+        try (ServerChannel listenSock = socketFactory.open(_address, _port, _timeout)) {  // throws IOException
             if (_isListeningLatch != null) {
                 _isListeningLatch.countDown();
             }

@@ -21,9 +21,9 @@ import java.io.IOException;
 public class SSLChannelFactory implements ChannelFactory
 {
     @Override
-    public DuplexByteChannel open(String address, int port)
+    public DuplexByteChannel open(String address, int port, int contimeout, int timeout)
         throws IOException
     {
-        return SSLChannel.open(address, port);
+        return SSLChannel.open(address, port, contimeout, timeout);
     }
 }

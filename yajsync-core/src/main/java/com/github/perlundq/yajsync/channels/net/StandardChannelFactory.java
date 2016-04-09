@@ -17,18 +17,13 @@
 package com.github.perlundq.yajsync.channels.net;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.channels.SocketChannel;
 
 public class StandardChannelFactory implements ChannelFactory
 {
     @Override
-    public DuplexByteChannel open(String address, int remotePort)
+    public DuplexByteChannel open(String address, int port, int contimeout, int timeout)
         throws IOException
     {
-        InetSocketAddress socketAddress = new InetSocketAddress(address,
-                                                                remotePort);
-        SocketChannel socket = SocketChannel.open(socketAddress);
-        return new StandardSocketChannel(socket);
+        return StandardSocketChannel.open(address, port, contimeout, timeout);
     }
 }

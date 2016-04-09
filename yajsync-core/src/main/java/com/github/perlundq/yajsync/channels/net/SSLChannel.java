@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.security.Principal;
@@ -39,20 +40,23 @@ public class SSLChannel implements DuplexByteChannel
     private final OutputStream _os;
     private final SSLSocket _sslSocket;
 
-    public SSLChannel(SSLSocket sslSocket) throws IOException
+    public SSLChannel(SSLSocket sslSocket, int timeout) throws IOException
     {
         assert Environment.hasAllocateDirectArray() ||
                !Environment.isAllocateDirect();
         _sslSocket = sslSocket;
+        _sslSocket.setSoTimeout(timeout * 1000);
         _is = _sslSocket.getInputStream();
         _os = _sslSocket.getOutputStream();
     }
 
-    public static SSLChannel open(String address, int port) throws IOException
+    public static SSLChannel open(String address, int port, int contimeout, int timeout) throws IOException
     {
         SocketFactory factory = SSLSocketFactory.getDefault();
-        Socket sock = factory.createSocket(address, port);
-        return new SSLChannel((SSLSocket) sock);
+        InetSocketAddress socketAddress = new InetSocketAddress(address, port);
+        Socket sock = factory.createSocket();
+        sock.connect(socketAddress, contimeout * 1000);
+        return new SSLChannel((SSLSocket) sock, timeout);
     }
 
     @Override

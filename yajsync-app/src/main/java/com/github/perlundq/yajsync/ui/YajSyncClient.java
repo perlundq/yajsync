@@ -135,6 +135,8 @@ public class YajSyncClient
             new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
     private boolean _isShowStatistics;
     private boolean _isTLS;
+    private int _contimeout = 0;
+    private int _timeout = 0;
     private boolean _readStdin = false;
     private FileSelection _fileSelection;
     private FileSystem _fs = FileSystems.getDefault();
@@ -434,6 +436,46 @@ public class YajSyncClient
                     _clientBuilder.isDeferWrite(true);
                 }}));
 
+        options.add(
+                Option.newIntegerOption(Option.Policy.OPTIONAL,
+                                        "timeout", "",
+                                        "set I/O timeout in seconds",
+                new Option.ContinuingHandler() {
+                    @Override public void handleAndContinue(Option option)
+                            throws ArgumentParsingError
+                    {
+                        int timeout = (int) option.getValue();
+                        if (timeout >= 0) {
+                            _timeout = timeout;
+                        } else {
+                            throw new ArgumentParsingError(String.format(
+                                    "invalid timeout %d - timeout has to be greater or equal to 0", timeout));
+                        }
+                        // Timeout socket operations depend on
+                        // ByteBuffer.array and ByteBuffer.arrayOffset. Disable direct
+                        // allocation if the resulting ByteBuffer won't have an array.
+                        if (timeout > 0 && !Environment.hasAllocateDirectArray()) {
+                            Environment.setAllocateDirect(false);
+                        }
+                    }}));
+
+        options.add(
+                Option.newIntegerOption(Option.Policy.OPTIONAL,
+                                        "contimeout", "",
+                                        "set daemon connection timeout in seconds",
+                new Option.ContinuingHandler() {
+                    @Override public void handleAndContinue(Option option)
+                            throws ArgumentParsingError
+                    {
+                        int contimeout = (int) option.getValue();
+                        if (contimeout >= 0) {
+                            _contimeout = contimeout;
+                        } else {
+                            throw new ArgumentParsingError(String.format(
+                                    "invalid connection timeout %d - timeout has to be greater or equal to 0", contimeout));
+                        }
+                    }}));
+
         options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
                                               "tls", "",
                                               String.format("tunnel all data " +
@@ -593,7 +635,7 @@ public class YajSyncClient
         }
 
         try (DuplexByteChannel sock = socketFactory.open(connInfo.address(),
-                                                         connInfo.portNumber())) {  // throws IOException
+                                                         connInfo.portNumber(), _contimeout, _timeout)) {  // throws IOException
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("connected to " + sock);
             }

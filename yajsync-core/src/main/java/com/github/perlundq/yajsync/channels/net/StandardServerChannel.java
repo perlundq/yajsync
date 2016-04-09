@@ -22,10 +22,12 @@ import java.nio.channels.ServerSocketChannel;
 public class StandardServerChannel implements ServerChannel
 {
     private final ServerSocketChannel _sock;
+    private final int _timeout;
 
-    public StandardServerChannel(ServerSocketChannel sock)
+    public StandardServerChannel(ServerSocketChannel sock, int timeout)
     {
         _sock = sock;
+        _timeout = timeout;
     }
 
     @Override
@@ -37,6 +39,6 @@ public class StandardServerChannel implements ServerChannel
     @Override
     public StandardSocketChannel accept() throws IOException
     {
-        return new StandardSocketChannel(_sock.accept());
+        return new StandardSocketChannel(_sock.accept(), _timeout);
     }
 }

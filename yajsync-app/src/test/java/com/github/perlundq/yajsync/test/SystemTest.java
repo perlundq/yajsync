@@ -10,6 +10,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.SocketTimeoutException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -17,6 +19,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,6 +38,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import com.github.perlundq.yajsync.RsyncClient;
+import com.github.perlundq.yajsync.channels.ChannelException;
+import com.github.perlundq.yajsync.channels.net.DuplexByteChannel;
+import com.github.perlundq.yajsync.channels.net.SSLChannelFactory;
+import com.github.perlundq.yajsync.channels.net.StandardChannelFactory;
 import com.github.perlundq.yajsync.filelist.RsyncFileAttributes;
 import com.github.perlundq.yajsync.filelist.User;
 import com.github.perlundq.yajsync.security.RsyncAuthContext;
@@ -47,6 +56,7 @@ import com.github.perlundq.yajsync.session.Statistics;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.ui.YajSyncClient;
 import com.github.perlundq.yajsync.ui.YajSyncServer;
+import com.github.perlundq.yajsync.util.Environment;
 import com.github.perlundq.yajsync.util.FileOps;
 import com.github.perlundq.yajsync.util.Option;
 
@@ -955,5 +965,127 @@ public class SystemTest
                 "--port=14415", "--password-file=-",
                 "localhost::" + restrictedModuleName });
         assertTrue(rc != 0);
+    }
+
+    @Test(expected=SocketTimeoutException.class, timeout=2000)
+    public void testReadTimeout() throws Throwable
+    {
+        final CountDownLatch isListeningLatch = new CountDownLatch(1);
+        final int port = 14416;
+
+        Thread serverThread = new ReadTimeoutTestServer(isListeningLatch, port);
+        serverThread.start();
+        isListeningLatch.await();
+
+        int _contimeout = 0;
+        int _timeout = 1;
+
+        if (!Environment.hasAllocateDirectArray()) {
+            Environment.setAllocateDirect(false);
+        }
+
+        DuplexByteChannel sock = new StandardChannelFactory().open("localhost",
+                                                                   port, _contimeout, _timeout);
+
+        testTimeoutHelper(sock);
+    }
+
+    @Test(expected=SocketTimeoutException.class, timeout=2000)
+    public void testConnectionTimeout() throws Throwable
+    {
+        int _contimeout = 1;
+        int _timeout = 0;
+
+        // connect to a non routable ip to provoke the connection timeout
+        DuplexByteChannel sock = new StandardChannelFactory().open("10.0.0.0",
+                                                                   14415, _contimeout, _timeout);
+
+        testTimeoutHelper(sock);
+    }
+
+    @Test(expected=SocketTimeoutException.class, timeout=2000)
+    public void testTlsReadTimeout() throws Throwable
+    {
+        final CountDownLatch isListeningLatch = new CountDownLatch(1);
+        final int port = 14417;
+
+        Thread serverThread = new ReadTimeoutTestServer(isListeningLatch, port);
+        serverThread.start();
+        isListeningLatch.await();
+
+        int _contimeout = 0;
+        int _timeout = 1;
+
+        if (!Environment.hasAllocateDirectArray()) {
+            Environment.setAllocateDirect(false);
+        }
+
+        DuplexByteChannel sock = new SSLChannelFactory().open("localhost",
+                                                                   port, _contimeout, _timeout);
+
+        testTimeoutHelper(sock);
+    }
+
+    @Test(expected=SocketTimeoutException.class, timeout=2000)
+    public void testTlsConnectionTimeout() throws Throwable
+    {
+        int _contimeout = 1;
+        int _timeout = 0;
+
+        // connect to a non routable ip to provoke the connection timeout
+        DuplexByteChannel sock = new SSLChannelFactory().open("10.0.0.0",
+                                                                   14415, _contimeout, _timeout);
+
+        testTimeoutHelper(sock);
+    }
+
+    private void testTimeoutHelper(DuplexByteChannel sock) throws Throwable {
+        try {
+            RsyncClient.Builder _clientBuilder = new RsyncClient.Builder();
+
+            RsyncClient.Remote client =
+                    _clientBuilder.buildRemote(sock /* in */,
+                                               sock /* out */,
+                                               true);
+
+            client.receive("", new ArrayList<String>(Arrays.asList("/"))).to(Paths.get("/"));
+        } catch (ChannelException e) {
+            throw e.getCause();
+        }
+    }
+
+    private class ReadTimeoutTestServer extends Thread {
+
+        private final CountDownLatch _isListeningLatch;
+        private final int _port;
+
+        public ReadTimeoutTestServer(CountDownLatch isListeningLatch, int port) {
+            _isListeningLatch = isListeningLatch;
+            _port = port;
+        }
+
+        @Override
+        public void run()
+        {
+            ServerSocket serverSocket = null;
+            try {
+                serverSocket = new ServerSocket(_port);
+
+                _isListeningLatch.countDown();
+
+                while (true) {
+                    serverSocket.accept();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                if (serverSocket != null && !serverSocket.isClosed()) {
+                    try {
+                        serverSocket.close();
+                    } catch (IOException e) {
+                    }
+                }
+            }
+        }
     }
 }

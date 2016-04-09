@@ -20,5 +20,5 @@ import java.io.IOException;
 
 public interface ChannelFactory
 {
-    DuplexByteChannel open(String address, int remotePort) throws IOException;
+    DuplexByteChannel open(String address, int remotePort, int contimeout, int timeout) throws IOException;
 }

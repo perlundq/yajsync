@@ -55,7 +55,7 @@ public class SSLServerChannelFactory implements ServerChannelFactory
     }
 
     @Override
-    public ServerChannel open(InetAddress address, int port) throws IOException
+    public ServerChannel open(InetAddress address, int port, int timeout) throws IOException
     {
         SSLServerSocket sock =
             (SSLServerSocket) _factory.createServerSocket(port,
@@ -63,7 +63,7 @@ public class SSLServerChannelFactory implements ServerChannelFactory
         try {
             sock.setReuseAddress(_isReuseAddress);
             sock.setWantClientAuth(_isWantClientAuth);
-            return new SSLServerChannel(sock);
+            return new SSLServerChannel(sock, timeout);
         } catch (Throwable t) {
             if (!sock.isClosed()) {
                 try {

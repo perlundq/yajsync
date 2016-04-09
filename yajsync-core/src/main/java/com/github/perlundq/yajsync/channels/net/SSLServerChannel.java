@@ -24,10 +24,12 @@ import javax.net.ssl.SSLSocket;
 public class SSLServerChannel implements ServerChannel
 {
     private final SSLServerSocket _sslSocket;
+    private final int _timeout;
 
-    public SSLServerChannel(SSLServerSocket sock)
+    public SSLServerChannel(SSLServerSocket sock, int timeout)
     {
         _sslSocket = sock;
+        _timeout = timeout;
     }
 
     @Override
@@ -39,6 +41,6 @@ public class SSLServerChannel implements ServerChannel
     @Override
     public SSLChannel accept() throws IOException
     {
-        return new SSLChannel((SSLSocket) _sslSocket.accept());
+        return new SSLChannel((SSLSocket) _sslSocket.accept(), _timeout);
     }
 }
