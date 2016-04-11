@@ -45,17 +45,19 @@ public class SSLChannel implements DuplexByteChannel
         assert Environment.hasAllocateDirectArray() ||
                !Environment.isAllocateDirect();
         _sslSocket = sslSocket;
-        _sslSocket.setSoTimeout(timeout * 1000);
+        _sslSocket.setSoTimeout(timeout);
         _is = _sslSocket.getInputStream();
         _os = _sslSocket.getOutputStream();
     }
 
-    public static SSLChannel open(String address, int port, int contimeout, int timeout) throws IOException
+    public static SSLChannel open(String address, int port, int contimeout,
+                                  int timeout)
+            throws IOException
     {
         SocketFactory factory = SSLSocketFactory.getDefault();
         InetSocketAddress socketAddress = new InetSocketAddress(address, port);
         Socket sock = factory.createSocket();
-        sock.connect(socketAddress, contimeout * 1000);
+        sock.connect(socketAddress, contimeout);
         return new SSLChannel((SSLSocket) sock, timeout);
     }
 

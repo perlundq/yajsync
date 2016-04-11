@@ -34,7 +34,7 @@ Currently implemented rsync options:
 
 - Archive mode (-a, --archive)
 
-- Set I/O timeout in seconds (--timeout=SECONDS)
+- Set I/O read timeout in seconds (--timeout=SECONDS)
 
 - Set daemon connection timeout in seconds (--contimeout=SECONDS)
 

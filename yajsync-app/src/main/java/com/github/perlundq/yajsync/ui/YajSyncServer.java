@@ -189,10 +189,11 @@ public final class YajSyncServer
                     {
                         int timeout = (int) option.getValue();
                         if (timeout >= 0) {
-                            _timeout = timeout;
+                            _timeout = timeout * 1000;
                         } else {
                             throw new ArgumentParsingError(String.format(
-                                    "invalid timeout %d - timeout has to be greater or equal to 0", timeout));
+                                    "invalid timeout %d - must be greater " +
+                                    "than or equal to 0", timeout));
                         }
                         // Timeout socket operations depend on
                         // ByteBuffer.array and ByteBuffer.arrayOffset. Disable direct

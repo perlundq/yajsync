@@ -55,7 +55,8 @@ public class SSLServerChannelFactory implements ServerChannelFactory
     }
 
     @Override
-    public ServerChannel open(InetAddress address, int port, int timeout) throws IOException
+    public ServerChannel open(InetAddress address, int port, int timeout)
+            throws IOException
     {
         SSLServerSocket sock =
             (SSLServerSocket) _factory.createServerSocket(port,

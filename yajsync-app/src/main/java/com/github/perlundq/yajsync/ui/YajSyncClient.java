@@ -135,11 +135,11 @@ public class YajSyncClient
             new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
     private boolean _isShowStatistics;
     private boolean _isTLS;
-    private int _contimeout = 0;
-    private int _timeout = 0;
     private boolean _readStdin = false;
     private FileSelection _fileSelection;
     private FileSystem _fs = FileSystems.getDefault();
+    private int _contimeout = 0;
+    private int _timeout = 0;
     private int _remotePort = PORT_UNDEFINED;
     private int _verbosity;
     private Path _cwd;
@@ -439,17 +439,19 @@ public class YajSyncClient
         options.add(
                 Option.newIntegerOption(Option.Policy.OPTIONAL,
                                         "timeout", "",
-                                        "set I/O timeout in seconds",
+                                        "set I/O read timeout in seconds " +
+                                        "(default 0 - disabled)",
                 new Option.ContinuingHandler() {
                     @Override public void handleAndContinue(Option option)
                             throws ArgumentParsingError
                     {
                         int timeout = (int) option.getValue();
                         if (timeout >= 0) {
-                            _timeout = timeout;
+                            _timeout = timeout * 1000;
                         } else {
                             throw new ArgumentParsingError(String.format(
-                                    "invalid timeout %d - timeout has to be greater or equal to 0", timeout));
+                                    "invalid timeout %d - mut be greater " +
+                                    "than or equal to 0", timeout));
                         }
                         // Timeout socket operations depend on
                         // ByteBuffer.array and ByteBuffer.arrayOffset. Disable direct
@@ -462,17 +464,19 @@ public class YajSyncClient
         options.add(
                 Option.newIntegerOption(Option.Policy.OPTIONAL,
                                         "contimeout", "",
-                                        "set daemon connection timeout in seconds",
+                                        "set daemon connection timeout in " +
+                                        "seconds (default 0 - disabled)",
                 new Option.ContinuingHandler() {
                     @Override public void handleAndContinue(Option option)
                             throws ArgumentParsingError
                     {
                         int contimeout = (int) option.getValue();
                         if (contimeout >= 0) {
-                            _contimeout = contimeout;
+                            _contimeout = contimeout * 1000;
                         } else {
                             throw new ArgumentParsingError(String.format(
-                                    "invalid connection timeout %d - timeout has to be greater or equal to 0", contimeout));
+                                    "invalid connection timeout %d - must be " +
+                                    "greater than or equal to 0", contimeout));
                         }
                     }}));
 
@@ -635,7 +639,9 @@ public class YajSyncClient
         }
 
         try (DuplexByteChannel sock = socketFactory.open(connInfo.address(),
-                                                         connInfo.portNumber(), _contimeout, _timeout)) {  // throws IOException
+                                                         connInfo.portNumber(),
+                                                         _contimeout,
+                                                         _timeout)) {  // throws IOException
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("connected to " + sock);
             }

@@ -40,15 +40,17 @@ public class StandardSocketChannel implements DuplexByteChannel
         }
         _socketChannel = socketChannel;
         _timeout = timeout;
-        _socketChannel.socket().setSoTimeout(timeout * 1000);
+        _socketChannel.socket().setSoTimeout(timeout);
         _is = _socketChannel.socket().getInputStream();
     }
 
-    public static StandardSocketChannel open(String address, int port, int contimeout, int timeout) throws IOException
+    public static StandardSocketChannel open(String address, int port,
+                                             int contimeout, int timeout)
+            throws IOException
     {
         InetSocketAddress socketAddress = new InetSocketAddress(address, port);
         SocketChannel socketChannel = SocketChannel.open();
-        socketChannel.socket().connect(socketAddress, contimeout * 1000);
+        socketChannel.socket().connect(socketAddress, contimeout);
         return new StandardSocketChannel(socketChannel, timeout);
     }
 

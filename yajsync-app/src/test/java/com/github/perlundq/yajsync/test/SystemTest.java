@@ -19,8 +19,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -52,6 +50,7 @@ import com.github.perlundq.yajsync.session.ModuleProvider;
 import com.github.perlundq.yajsync.session.Modules;
 import com.github.perlundq.yajsync.session.RestrictedModule;
 import com.github.perlundq.yajsync.session.RestrictedPath;
+import com.github.perlundq.yajsync.session.RsyncException;
 import com.github.perlundq.yajsync.session.Statistics;
 import com.github.perlundq.yajsync.text.Text;
 import com.github.perlundq.yajsync.ui.YajSyncClient;
@@ -985,7 +984,9 @@ public class SystemTest
         }
 
         DuplexByteChannel sock = new StandardChannelFactory().open("localhost",
-                                                                   port, _contimeout, _timeout);
+                                                                   port,
+                                                                   _contimeout,
+                                                                   _timeout);
 
         testTimeoutHelper(sock);
     }
@@ -998,7 +999,9 @@ public class SystemTest
 
         // connect to a non routable ip to provoke the connection timeout
         DuplexByteChannel sock = new StandardChannelFactory().open("10.0.0.0",
-                                                                   14415, _contimeout, _timeout);
+                                                                   14415,
+                                                                   _contimeout,
+                                                                   _timeout);
 
         testTimeoutHelper(sock);
     }
@@ -1021,7 +1024,9 @@ public class SystemTest
         }
 
         DuplexByteChannel sock = new SSLChannelFactory().open("localhost",
-                                                                   port, _contimeout, _timeout);
+                                                               port,
+                                                               _contimeout,
+                                                               _timeout);
 
         testTimeoutHelper(sock);
     }
@@ -1034,21 +1039,21 @@ public class SystemTest
 
         // connect to a non routable ip to provoke the connection timeout
         DuplexByteChannel sock = new SSLChannelFactory().open("10.0.0.0",
-                                                                   14415, _contimeout, _timeout);
+                                                              14415,
+                                                              _contimeout,
+                                                              _timeout);
 
         testTimeoutHelper(sock);
     }
 
-    private void testTimeoutHelper(DuplexByteChannel sock) throws Throwable {
+    private void testTimeoutHelper(DuplexByteChannel sock) throws Throwable
+    {
         try {
-            RsyncClient.Builder _clientBuilder = new RsyncClient.Builder();
-
-            RsyncClient.Remote client =
-                    _clientBuilder.buildRemote(sock /* in */,
-                                               sock /* out */,
-                                               true);
-
-            client.receive("", new ArrayList<String>(Arrays.asList("/"))).to(Paths.get("/"));
+            new RsyncClient.Builder().buildRemote(sock /* in */,
+                                                  sock /* out */,
+                                                  true).
+                                      receive("", new String[] { "/" }).
+                                      to(Paths.get("/"));
         } catch (ChannelException e) {
             throw e.getCause();
         }
@@ -1059,7 +1064,9 @@ public class SystemTest
         private final CountDownLatch _isListeningLatch;
         private final int _port;
 
-        public ReadTimeoutTestServer(CountDownLatch isListeningLatch, int port) {
+        public ReadTimeoutTestServer(CountDownLatch isListeningLatch,
+                                     int port)
+        {
             _isListeningLatch = isListeningLatch;
             _port = port;
         }
