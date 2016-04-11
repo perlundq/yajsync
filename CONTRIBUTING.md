@@ -18,7 +18,7 @@ Git
   that makes code reviewing easier.
 - Please create a new branch for your change. Any unrelated change
   belongs to a separate branch and a separate pull request.
-- Run `ant test` to verify it builds OK and no tests fail before
+- Run `mvn test` to verify it builds OK and no tests fail before
   sending a pull request.
 - When sending a pull request, include a concise, informative
   description of the change being made.
