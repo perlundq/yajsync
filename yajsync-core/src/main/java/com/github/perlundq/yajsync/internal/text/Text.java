@@ -20,21 +20,15 @@ package com.github.perlundq.yajsync.internal.text;
 
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.regex.Pattern;
 
-import com.github.perlundq.yajsync.internal.util.Environment;
 import com.github.perlundq.yajsync.internal.util.Util;
 
 public final class Text
 {
-    public enum CasePolicy { PRESERVE, NORMALIZE }
-    public enum DotDotPolicy { PRESERVE, RESOLVE }
-
     public static final String BACK_SLASH = "\\";
     public static final String DOT = ".";
     public static final String DOT_DOT = "..";
@@ -91,89 +85,6 @@ public final class Text
         String pathName = path.toString();
         String[] split = pathName.split(regex);
         return join(Arrays.asList(split), Text.SLASH);
-    }
-
-    /**
-     * @throws InvalidPathException if resolveDotDot is true and we try to
-     *         resolve ".." at any stage of the normalization process
-     */
-    // FIXME: BUG: this slows down some common use cases by 50%
-
-    public static String normalizePathName(String pathName,
-                                           String dirSeparator,
-                                           DotDotPolicy dotDotPolicy,
-                                           CasePolicy casePolicy)
-    {
-        if (Environment.IS_RUNNING_WINDOWS) {
-            return normalizePathNameWin(pathName, dirSeparator, dotDotPolicy,
-                                        casePolicy);
-        }
-        return normalizePathNameDefault(pathName, dirSeparator, dotDotPolicy);
-//        return pathName;
-    }
-
-    // may throw InvalidPathException if resolveDotDot is true
-    // .A. -> .a
-    // . -> ""
-    // ././//. -> ""
-    // a/.. -> ""
-    // .. throws InvalidPathException if resolveDotDot is true
-    private static String normalizePathNameWin(String pathName,
-                                               String dirSeparator,
-                                               DotDotPolicy dotDotPolicy,
-                                               CasePolicy casePolicy)
-    {
-        assert pathName.startsWith(dirSeparator) : "BUG not implemented"; // FIXME: BUG: we cannot reliably resolve \\path\prefixed\with\backslash
-        LinkedList<String> result = new LinkedList<>();
-        for (String s : pathName.split(Pattern.quote(dirSeparator))) {
-            if (s.equals(DOT_DOT)) {
-                if (dotDotPolicy == DotDotPolicy.RESOLVE) {
-                    if (result.isEmpty()) {
-                        throw new InvalidPathException(pathName,
-                                                       "cannot resolve ..");
-                    }
-                    result.removeLast();
-                } else {
-                    result.add(s);
-                }
-            } else {
-                String normalized = deleteTrailingDots(s);
-                if (casePolicy == CasePolicy.NORMALIZE) {
-                    normalized = normalized.toLowerCase();
-                }
-                if (!normalized.isEmpty()) {
-                    result.add(normalized);
-                }
-            }
-        }
-        return join(result, dirSeparator);
-    }
-
-    // may throw InvalidPathException if resolveDotDot is true
-    // .A. -> .A.
-    // . -> ""
-    // ././//. -> ""
-    // a/.. -> ""
-    // .. throws InvalidPathException if resolveDotDot is true
-    private static String normalizePathNameDefault(String pathName,
-                                                   String dirSeparator,
-                                                   DotDotPolicy dotDotPolicy)
-    {
-        LinkedList<String> result = new LinkedList<>();
-        for (String s : pathName.split(Pattern.quote(dirSeparator))) {
-            if (dotDotPolicy == DotDotPolicy.RESOLVE && s.equals(DOT_DOT)) {
-                if (result.isEmpty()) {
-                    throw new InvalidPathException(pathName,
-                                                   "cannot resolve ..");
-                }
-                result.removeLast();
-            } else if (!s.equals(DOT)) {
-                if (!s.isEmpty() || !s.equals(result.peekLast())) {
-                    result.add(s);
-                }
-            }
-        }
-        return join(result, dirSeparator);
     }
 
     public static String deleteTrailingDots(String entry)
