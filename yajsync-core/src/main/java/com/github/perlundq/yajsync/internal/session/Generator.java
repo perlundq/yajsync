@@ -74,7 +74,7 @@ import com.github.perlundq.yajsync.internal.util.Rolling;
 import com.github.perlundq.yajsync.internal.util.RuntimeInterruptException;
 import com.github.perlundq.yajsync.internal.util.Util;
 
-public class Generator implements RsyncTask, Iterable<FileInfo>
+public class Generator implements RsyncTask
 {
     public static class Builder
     {
@@ -313,6 +313,11 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
                 _isPreserveGroup,
                 Text.bytesToString(_checksumSeed),
                 _fileSelection);
+    }
+
+    public BlockingQueue<Pair<Boolean, FileInfo>> files()
+    {
+        return _listing;
     }
 
     @Override
@@ -1259,37 +1264,6 @@ public class Generator implements RsyncTask, Iterable<FileInfo>
     public synchronized long numBytesWritten()
     {
         return _out.numBytesWritten();
-    }
-
-    @Override
-    public Iterator<FileInfo> iterator()
-    {
-        return new Iterator<FileInfo>() {
-            private Pair<Boolean, FileInfo> _next;
-
-            @Override
-            public boolean hasNext()
-            {
-                try {
-                    _next = _listing.take();
-                    return _next.first();
-                } catch (InterruptedException e) {
-                    throw new RuntimeInterruptException(e);
-                }
-            }
-
-            @Override
-            public FileInfo next()
-            {
-                return _next.second();
-            }
-
-            @Override
-            public void remove()
-            {
-                throw new UnsupportedOperationException();
-            }
-        };
     }
 
     public void prune(int index)

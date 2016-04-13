@@ -664,21 +664,28 @@ public class YajSyncClient
             case REMOTE_LIST:
                 if (srcArgs.moduleName().isEmpty()) {
                     RsyncClient.ModuleListing listing = client.listModules();
-                    for (String m : listing.modules()) {
-                        System.out.println(m);
+                    while (true) {
+                        String line = listing.take();
+                        boolean isDone = line == null;
+                        if (isDone) {
+                            return listing.get();
+                        }
+                        System.out.println(line);
                     }
-                    return listing.get();
                 } else {
                     RsyncClient.FileListing listing =
                         client.list(srcArgs.moduleName(),
                                     srcArgs.pathNames());
-                    for (FileInfo f : listing.files()) {
+                    while (true) {
+                        FileInfo f = listing.take();
+                        boolean isDone = f == null;
+                        if (isDone) {
+                            return listing.get();
+                        }
                         String ls = fileInfoToListingString(f);
                         System.out.println(ls);
                     }
-                    return listing.get();
                 }
-
             default:
                 throw new AssertionError(mode);
             }
@@ -764,10 +771,15 @@ public class YajSyncClient
                 RsyncClient.FileListing listing = _clientBuilder.
                         buildLocal().
                         list(getPaths(srcArgs.pathNames()));
-                for (FileInfo f : listing.files()) {
+                while (true) {
+                    FileInfo f = listing.take();
+                    boolean isDone = f == null;
+                    if (isDone) {
+                        result = listing.get();
+                        break;
+                    }
                     System.out.println(fileInfoToListingString(f));
                 }
-                result = listing.get();
             } else {
                 throw new AssertionError();
             }

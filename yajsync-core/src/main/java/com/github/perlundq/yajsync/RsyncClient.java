@@ -30,11 +30,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -49,6 +51,7 @@ import com.github.perlundq.yajsync.internal.session.SessionStatus;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.util.BitOps;
 import com.github.perlundq.yajsync.internal.util.Environment;
+import com.github.perlundq.yajsync.internal.util.Pair;
 import com.github.perlundq.yajsync.internal.util.Util;
 
 public final class RsyncClient
@@ -94,7 +97,7 @@ public final class RsyncClient
     {
         private final Future<Result> _future;
         private final CountDownLatch _isListingAvailable;
-        private Iterable<FileInfo> _listing;
+        private BlockingQueue<Pair<Boolean, FileInfo>> _listing;
 
         private FileListing(final Sender sender,
                             final Generator generator,
@@ -120,7 +123,7 @@ public final class RsyncClient
                 }
             };
             _future = _executorService.submit(callable);
-            _listing = generator;
+            _listing = generator.files();
             _isListingAvailable = new CountDownLatch(0);
         }
 
@@ -167,7 +170,7 @@ public final class RsyncClient
                                 isAlwaysItemize(_verbosity > 1).
                                 isListOnly(true).
                                 isInterruptible(isInterruptible).build();
-                        _listing = generator;
+                        _listing = generator.files();
                         _isListingAvailable.countDown();
                         Receiver receiver = new Receiver.Builder(generator,
                                                                  in,
@@ -183,7 +186,8 @@ public final class RsyncClient
                         return new Result(isOK, receiver.statistics());
                     } finally {
                         if (_listing == null) {
-                            _listing = Collections.emptyList();
+                            _listing = new LinkedBlockingQueue<>();
+                            _listing.put(new Pair<Boolean, FileInfo>(false, null));
                             _isListingAvailable.countDown();
                         }
                         if (_isOwnerOfExecutorService) {
@@ -215,17 +219,27 @@ public final class RsyncClient
             }
         }
 
-        public Iterable<FileInfo> files() throws InterruptedException
+        /**
+         * @return the next available file information or null if there is
+         *     nothing left available.
+         */
+        public FileInfo take() throws InterruptedException
         {
             _isListingAvailable.await();
-            return _listing;
+            Pair<Boolean, FileInfo> res = _listing.take();
+            boolean isDone = res.first() == null;
+            if (isDone) {
+                return null;
+            } else {
+                return res.second();
+            }
         }
     }
 
     public class ModuleListing
     {
         private final Future<Result> _future;
-        private final Iterable<String> _moduleNames;
+        private final BlockingQueue<Pair<Boolean, String>> _moduleNames;
 
         private ModuleListing(final ClientSessionConfig cfg,
                               final List<String> serverArgs)
@@ -257,7 +271,7 @@ public final class RsyncClient
                 }
             };
             _future = _executorService.submit(callable);
-            _moduleNames = cfg;
+            _moduleNames = cfg.modules();
         }
 
         public Future<Result> futureResult()
@@ -276,9 +290,19 @@ public final class RsyncClient
             }
         }
 
-        public Iterable<String> modules()
+        /**
+         * @return the next line of the remote module or motd listing or null if
+         *     there are no more lines available
+         */
+        public String take() throws InterruptedException
         {
-            return _moduleNames;
+            Pair<Boolean, String> res = _moduleNames.take();
+            boolean isDone = res.first() == null;
+            if (isDone) {
+                return null;
+            } else {
+                return res.second();
+            }
         }
     }
 

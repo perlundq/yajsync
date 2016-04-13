@@ -25,7 +25,6 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Level;
@@ -38,17 +37,15 @@ import com.github.perlundq.yajsync.internal.channels.ChannelException;
 import com.github.perlundq.yajsync.internal.text.TextConversionException;
 import com.github.perlundq.yajsync.internal.util.BitOps;
 import com.github.perlundq.yajsync.internal.util.Pair;
-import com.github.perlundq.yajsync.internal.util.RuntimeInterruptException;
 import com.github.perlundq.yajsync.server.module.RsyncAuthContext;
 
 public class ClientSessionConfig extends SessionConfig
-                                 implements Iterable<String>
 {
     private static final Logger _log =
         Logger.getLogger(ClientSessionConfig.class.getName());
     private final boolean _isRecursive;
     private final PrintStream _err;
-    private BlockingQueue<Pair<Boolean, String>> _listing =
+    private final BlockingQueue<Pair<Boolean, String>> _listing =
             new LinkedBlockingQueue<>();
     private boolean _isSafeFileList;
 
@@ -96,6 +93,11 @@ public class ClientSessionConfig extends SessionConfig
             Pair<Boolean, String> poisonPill = new Pair<>(false, null);
             _listing.add(poisonPill);
         }
+    }
+
+    public BlockingQueue<Pair<Boolean, String>> modules()
+    {
+        return _listing;
     }
 
     public boolean isSafeFileList()
@@ -194,36 +196,5 @@ public class ClientSessionConfig extends SessionConfig
         if (_log.isLoggable(Level.FINER)) {
             _log.finer("< (checksum seed) " + seedValue);
         }
-    }
-
-    @Override
-    public Iterator<String> iterator()
-    {
-        return new Iterator<String>() {
-            private Pair<Boolean, String>_next;
-
-            @Override
-            public boolean hasNext()
-            {
-                try {
-                    _next = _listing.take();
-                    return _next.first();
-                } catch (InterruptedException e) {
-                    throw new RuntimeInterruptException(e);
-                }
-            }
-
-            @Override
-            public String next()
-            {
-                return _next.second();
-            }
-
-            @Override
-            public void remove()
-            {
-                throw new UnsupportedOperationException();
-            }
-        };
     }
 }
