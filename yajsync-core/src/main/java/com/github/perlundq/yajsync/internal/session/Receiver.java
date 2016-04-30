@@ -185,12 +185,12 @@ public class Receiver implements RsyncTask, MessageHandler
          * @throws InvalidPathException
          * @throws RsyncSecurityException
          */
-        Path relativePathOf(String pathName);
+        Path relativePathOf(String pathName) throws RsyncSecurityException;
 
         /**
          * @throws RsyncSecurityException
          */
-        Path fullPathOf(Path relativePath);
+        Path fullPathOf(Path relativePath) throws RsyncSecurityException;
     }
 
     private static final int INPUT_CHANNEL_BUF_SIZE = 8 * 1024;
@@ -309,6 +309,24 @@ public class Receiver implements RsyncTask, MessageHandler
         _in.close();
     }
 
+    /**
+     * @throws ChannelException if there is a communication failure with peer
+     * @throws RsyncProtocolException if peer does not conform to the rsync
+     *     protocol
+     * @throws RsyncSecurityException if peer misbehaves such that the integrity
+     *     of the application is impacted
+     * @throws RsyncException if:
+     *     1. failing to stat target (it is OK if it does not exist though)
+     *     2. target does not exist and failing to create missing directories
+     *        to it
+     *     3. target exists but is neither a directory nor a file nor a
+     *        symbolic link (at least until there is proper support for
+     *        additional file types)
+     *     4. target is an existing file and there are two or more source
+     *        files
+     *     5. target is an existing file and the first source argument is an
+     *        existing directory
+     */
     @Override
     public Boolean call() throws RsyncException, InterruptedException
     {
@@ -417,7 +435,8 @@ public class Receiver implements RsyncTask, MessageHandler
     /**
      * @throws RsyncProtocolException if failing to decode the filter rules
      */
-    private String receiveFilterRules() throws ChannelException
+    private String receiveFilterRules() throws ChannelException,
+                                               RsyncProtocolException
     {
         try {
             int numBytesToRead = _in.getInt();
@@ -433,7 +452,8 @@ public class Receiver implements RsyncTask, MessageHandler
     /**
      * @throws RsyncProtocolException if user name is the empty string
      */
-    private Map<Integer, User> receiveUserList() throws ChannelException
+    private Map<Integer, User> receiveUserList() throws ChannelException,
+                                                        RsyncProtocolException
     {
         Map<Integer, User> users = new HashMap<>();
         while (true) {
@@ -451,7 +471,8 @@ public class Receiver implements RsyncTask, MessageHandler
     /**
      * @throws RsyncProtocolException if group name is the empty string
      */
-    private Map<Integer, Group> receiveGroupList() throws ChannelException
+    private Map<Integer, Group> receiveGroupList() throws ChannelException,
+                                                          RsyncProtocolException
     {
         Map<Integer, Group> groups = new HashMap<>();
         while (true) {
@@ -468,6 +489,7 @@ public class Receiver implements RsyncTask, MessageHandler
 
     private void addUserNameToStubs(Map<Integer, User> uidUserMap,
                                     List<FileInfoStub> stubs)
+            throws RsyncProtocolException
     {
         for (FileInfoStub stub : stubs) {
             RsyncFileAttributes incompleteAttrs = stub._attrs;
@@ -492,6 +514,7 @@ public class Receiver implements RsyncTask, MessageHandler
 
     private void addGroupNameToStubs(Map<Integer, Group> gidGroupMap,
                                      List<FileInfoStub> stubs)
+            throws RsyncProtocolException
     {
         for (FileInfoStub stub : stubs) {
             RsyncFileAttributes incompleteAttrs = stub._attrs;
@@ -540,9 +563,9 @@ public class Receiver implements RsyncTask, MessageHandler
      *     2. if target does not exist and failing to create missing directories
      *        to it,
      *     3. if target exists but is neither a directory nor a file nor a
-     *        symbolic link (until we have proper support for additional file
-     *        types).
-     *     4. if target is an existing file and there are more than source
+     *        symbolic link (at least until there is proper support for
+     *        additional file types).
+     *     4. if target is an existing file and there are two or more source
      *        files.
      *     5. if target is an existing file and the first source argument is an
      *        existing directory.
@@ -615,7 +638,8 @@ public class Receiver implements RsyncTask, MessageHandler
                 }
             }
             return new PathResolver() {
-                @Override public Path relativePathOf(String pathName) {
+                @Override public Path relativePathOf(String pathName)
+                        throws RsyncSecurityException {
                     // throws InvalidPathException
                     FileSystem fs = _targetPath.getFileSystem();
                     Path relativePath = fs.getPath(pathName);
@@ -627,7 +651,7 @@ public class Receiver implements RsyncTask, MessageHandler
                         PathOps.normalizeStrict(relativePath);
                     return normalizedRelativePath;
                 }
-                @Override public Path fullPathOf(Path relativePath) {
+                @Override public Path fullPathOf(Path relativePath) throws RsyncSecurityException {
                     Path fullPath =
                         _targetPath.resolve(relativePath).normalize();
                     if (!fullPath.startsWith(_targetPath.normalize())) {
@@ -697,7 +721,7 @@ public class Receiver implements RsyncTask, MessageHandler
      * @throws RsyncProtocolException if peer sends a message we cannot decode
      */
     @Override
-    public void handleMessage(Message message)
+    public void handleMessage(Message message) throws RsyncProtocolException
     {
         if (_log.isLoggable(Level.FINER)) {
             _log.finer("got message " + message);
@@ -732,7 +756,7 @@ public class Receiver implements RsyncTask, MessageHandler
     /**
      * @throws RsyncProtocolException if peer sends a message we cannot decode
      */
-    private void printMessage(Message message)
+    private void printMessage(Message message) throws RsyncProtocolException
     {
         assert message.isText();
         try {
@@ -752,7 +776,7 @@ public class Receiver implements RsyncTask, MessageHandler
         }
     }
 
-    private void handleMessageNoSend(int index)
+    private void handleMessageNoSend(int index) throws RsyncProtocolException
     {
         try {
             if (index < 0) {
@@ -765,13 +789,15 @@ public class Receiver implements RsyncTask, MessageHandler
         }
     }
 
-    private Checksum.Header receiveChecksumHeader() throws ChannelException
+    private Checksum.Header receiveChecksumHeader()
+            throws ChannelException, RsyncProtocolException
     {
         return Connection.receiveChecksumHeader(_in);
     }
 
     private int receiveFiles(Filelist fileList, Filelist.Segment firstSegment)
-        throws ChannelException, InterruptedException
+        throws ChannelException, InterruptedException, RsyncProtocolException,
+               RsyncSecurityException
     {
         int ioError = 0;
         Filelist.Segment segment = firstSegment;
@@ -1060,7 +1086,7 @@ public class Receiver implements RsyncTask, MessageHandler
 
     private int receiveAndMatch(Filelist.Segment segment, int index,
                                  FileInfo fileInfo)
-        throws ChannelException, InterruptedException
+        throws ChannelException, InterruptedException, RsyncProtocolException
     {
         int ioError = 0;
         Checksum.Header checksumHeader = receiveChecksumHeader();
@@ -1096,7 +1122,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private int matchData(Filelist.Segment segment, int index,
                            FileInfo fileInfo, Checksum.Header checksumHeader,
                            Path tempFile)
-        throws ChannelException, InterruptedException
+        throws ChannelException, InterruptedException, RsyncProtocolException
     {
         int ioError = 0;
         MessageDigest md = MD5.newInstance();
@@ -1174,7 +1200,7 @@ public class Receiver implements RsyncTask, MessageHandler
      * @throws RsyncProtocolException if received file is invalid in some way
      */
     private int receiveFileMetaDataInto(List<FileInfoStub> builder)
-        throws ChannelException
+        throws ChannelException, RsyncProtocolException
     {
         int ioError = 0;
         long numBytesRead = _in.numBytesRead() -
@@ -1244,6 +1270,11 @@ public class Receiver implements RsyncTask, MessageHandler
         return ioError;
     }
 
+    /**
+     *
+     * @throws TextConversionException
+     * @throws ChannelException
+     */
     private String receiveSymlinkTarget() throws ChannelException
     {
         int length = receiveAndDecodeInt();
@@ -1254,7 +1285,7 @@ public class Receiver implements RsyncTask, MessageHandler
 
     private int extractFileMetadata(List<FileInfoStub> stubs,
                                     Filelist.SegmentBuilder builder)
-        throws InterruptedException
+        throws InterruptedException, RsyncSecurityException
     {
         int ioError = 0;
 
@@ -1397,7 +1428,7 @@ public class Receiver implements RsyncTask, MessageHandler
     }
 
     private RsyncFileAttributes receiveRsyncFileAttributes(char xflags)
-        throws ChannelException
+        throws ChannelException, RsyncProtocolException
     {
         long fileSize = receiveAndDecodeLong(3);
         if (fileSize < 0) {
@@ -1511,7 +1542,7 @@ public class Receiver implements RsyncTask, MessageHandler
         return attrs;
     }
 
-    private User getPreviousUser()
+    private User getPreviousUser() throws RsyncProtocolException
     {
         User user = _fileInfoCache.getPrevUserOrNull();
         if (user == null) {
@@ -1524,7 +1555,7 @@ public class Receiver implements RsyncTask, MessageHandler
         return user;
     }
 
-    private Group getPreviousGroup()
+    private Group getPreviousGroup() throws RsyncProtocolException
     {
         Group group = _fileInfoCache.getPrevGroupOrNull();
         if (group == null) {
@@ -1537,19 +1568,21 @@ public class Receiver implements RsyncTask, MessageHandler
         return group;
     }
 
-    private User receiveIncompleteUser() throws ChannelException
+    private User receiveIncompleteUser() throws ChannelException,
+                                                RsyncProtocolException
     {
         int uid = receiveUserId();
         return new User("", uid);
     }
 
-    private Group receiveIncompleteGroup() throws ChannelException
+    private Group receiveIncompleteGroup() throws ChannelException,
+                                                  RsyncProtocolException
     {
         int gid = receiveGroupId();
         return new Group("", gid);
     }
 
-    private int receiveUserId() throws ChannelException
+    private int receiveUserId() throws ChannelException, RsyncProtocolException
     {
         int uid = receiveAndDecodeInt();
         if (_log.isLoggable(Level.FINER)) {
@@ -1563,7 +1596,8 @@ public class Receiver implements RsyncTask, MessageHandler
         return uid;
     }
 
-    private int receiveGroupId() throws ChannelException
+    private int receiveGroupId() throws ChannelException,
+                                        RsyncProtocolException
     {
         int gid = receiveAndDecodeInt();
         if (_log.isLoggable(Level.FINER)) {
@@ -1578,47 +1612,59 @@ public class Receiver implements RsyncTask, MessageHandler
     }
 
     /**
-     * @throws RsyncProtocolException if user name is the empty string
+     * @throws RsyncProtocolException if user name cannot be decoded or it is
+     *     the empty string
      */
-    private String receiveUserName() throws ChannelException
+    private String receiveUserName() throws ChannelException,
+                                            RsyncProtocolException
     {
-        int nameLength = 0xFF & _in.getByte();
-        ByteBuffer buf = _in.get(nameLength);
-        String userName = _characterDecoder.decode(buf);
-        if (_log.isLoggable(Level.FINER)) {
-            _log.finer("received user name " + userName);
+        try {
+            int nameLength = 0xFF & _in.getByte();
+            ByteBuffer buf = _in.get(nameLength);
+            String userName = _characterDecoder.decode(buf);
+            if (_log.isLoggable(Level.FINER)) {
+                _log.finer("received user name " + userName);
+            }
+            if (userName.isEmpty()) {
+                throw new RsyncProtocolException("user name is empty");
+            }
+            return userName;
+        } catch (TextConversionException e) {
+            throw new RsyncProtocolException(e);
         }
-        if (userName.isEmpty()) {
-            throw new RsyncProtocolException("user name is empty");
-        }
-        return userName;
     }
 
     /**
-     * @throws RsyncProtocolException if user name is the empty string
+     * @throws RsyncProtocolException if group name cannot be decoded or it is
+     *     the empty string
      */
-    private String receiveGroupName() throws ChannelException
+    private String receiveGroupName() throws ChannelException,
+                                             RsyncProtocolException
     {
-        int nameLength = 0xFF & _in.getByte();
-        ByteBuffer buf = _in.get(nameLength);
-        String groupName = _characterDecoder.decode(buf);
-        if (_log.isLoggable(Level.FINER)) {
-            _log.finer("received group name " + groupName);
+        try {
+            int nameLength = 0xFF & _in.getByte();
+            ByteBuffer buf = _in.get(nameLength);
+            String groupName = _characterDecoder.decode(buf);
+            if (_log.isLoggable(Level.FINER)) {
+                _log.finer("received group name " + groupName);
+            }
+            if (groupName.isEmpty()) {
+                throw new RsyncProtocolException("group name is empty");
+            }
+            return groupName;
+        } catch (TextConversionException e) {
+            throw new RsyncProtocolException(e);
         }
-        if (groupName.isEmpty()) {
-            throw new RsyncProtocolException("group name is empty");
-        }
-        return groupName;
     }
 
-    private User receiveUser() throws ChannelException
+    private User receiveUser() throws ChannelException, RsyncProtocolException
     {
         int uid = receiveUserId();
         String userName = receiveUserName();
         return new User(userName, uid);
     }
 
-    private Group receiveGroup() throws ChannelException
+    private Group receiveGroup() throws ChannelException, RsyncProtocolException
     {
         int gid = receiveGroupId();
         String groupName = receiveGroupName();
@@ -1652,7 +1698,9 @@ public class Receiver implements RsyncTask, MessageHandler
                                              Path tempFile,
                                              Checksum.Header checksumHeader,
                                              MessageDigest md)
-            throws ChannelException, InterruptedException
+            throws ChannelException,
+                   InterruptedException,
+                   RsyncProtocolException
     {
         assert fileInfo != null;
         assert tempFile != null;
@@ -1700,7 +1748,7 @@ public class Receiver implements RsyncTask, MessageHandler
                                       FileChannel target,
                                       Checksum.Header checksumHeader,
                                       MessageDigest md)
-        throws IOException, ChannelException
+        throws IOException, ChannelException, RsyncProtocolException
     {
         assert target != null;
         assert checksumHeader != null;
@@ -1910,7 +1958,8 @@ public class Receiver implements RsyncTask, MessageHandler
     }
 
     // NOTE: code duplication with Sender
-    public void readAllMessagesUntilEOF() throws ChannelException
+    public void readAllMessagesUntilEOF() throws ChannelException,
+                                                 RsyncProtocolException
     {
         try {
             if (_log.isLoggable(Level.FINE)) {

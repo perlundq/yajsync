@@ -33,6 +33,7 @@ import java.util.regex.Pattern;
 
 import com.github.perlundq.yajsync.FileSelection;
 import com.github.perlundq.yajsync.RsyncProtocolException;
+import com.github.perlundq.yajsync.RsyncSecurityException;
 import com.github.perlundq.yajsync.internal.channels.ChannelEOFException;
 import com.github.perlundq.yajsync.internal.channels.ChannelException;
 import com.github.perlundq.yajsync.internal.text.Text;
@@ -88,6 +89,7 @@ public class ServerSessionConfig extends SessionConfig
     }
 
     /**
+     * @throws RsyncSecurityException
      * @throws IllegalArgumentException if charset is not supported
      * @throws RsyncProtocolException if failing to encode/decode characters
      *         correctly
@@ -98,7 +100,7 @@ public class ServerSessionConfig extends SessionConfig
                                                 ReadableByteChannel in,
                                                 WritableByteChannel out,
                                                 Modules modules)
-        throws ChannelException
+        throws ChannelException, RsyncProtocolException, RsyncSecurityException
     {
         assert charset != null;
         assert in != null;
@@ -152,8 +154,15 @@ public class ServerSessionConfig extends SessionConfig
         }
     }
 
+    /**
+     * @throws RsyncProtocolException if failing to decode input characters
+     *         using current character set
+     * @throws RsyncProtocolException if peer sent premature null character
+     * @throws RsyncProtocolException if peer sent too large amount of
+     *         characters
+     */
     private Module unlockModule(RestrictedModule restrictedModule)
-        throws ModuleSecurityException, ChannelException
+        throws ModuleSecurityException, ChannelException, RsyncProtocolException
     {
         RsyncAuthContext authContext = new RsyncAuthContext(_characterEncoder);
         writeString(SessionStatus.AUTHREQ + authContext.challenge() + '\n');
@@ -220,10 +229,8 @@ public class ServerSessionConfig extends SessionConfig
         _module = module;
     }
 
-    /**
-     * @throws TextConversionException
-     */
-    private String readStringUntilNullOrEof() throws ChannelException
+    private String readStringUntilNullOrEof() throws ChannelException,
+                                                     RsyncProtocolException
     {
         ByteBuffer buf = ByteBuffer.allocate(64);
         try {
@@ -232,8 +239,7 @@ public class ServerSessionConfig extends SessionConfig
                 if (b == Text.ASCII_NULL) {
                     break;
                 } else if (!buf.hasRemaining()) {
-                    buf = Util.enlargeByteBuffer(buf,
-                                                 MemoryPolicy.IGNORE,
+                    buf = Util.enlargeByteBuffer(buf, MemoryPolicy.IGNORE,
                                                  Consts.MAX_BUF_SIZE);
                 }
                 buf.put(b);
@@ -244,11 +250,21 @@ public class ServerSessionConfig extends SessionConfig
             // EOF is OK
         }
         buf.flip();
-        return _characterDecoder.decode(buf);
+        try {
+            return _characterDecoder.decode(buf);
+        } catch (TextConversionException e) {
+            throw new RsyncProtocolException(e);
+        }
     }
 
-    private Collection<String> receiveArguments()
-        throws ChannelException
+    /**
+     *
+     * @
+     * @throws ChannelException
+     * @throws RsyncProtocolException
+     */
+    private Collection<String> receiveArguments() throws ChannelException,
+                                                         RsyncProtocolException
     {
         Collection<String> list = new LinkedList<>();
         while (true) {
@@ -262,7 +278,7 @@ public class ServerSessionConfig extends SessionConfig
     }
 
     private void parseArguments(Collection<String> receivedArguments)
-        throws ArgumentParsingError
+        throws ArgumentParsingError, RsyncProtocolException, RsyncSecurityException
     {
         ArgumentParser argsParser =
             ArgumentParser.newWithUnnamed("", "files...");
@@ -301,8 +317,14 @@ public class ServerSessionConfig extends SessionConfig
             Option.Policy.REQUIRED,
             "rsh", "e", "",
             new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    parsePeerCompatibilites((String) option.getValue());
+                @Override public void handleAndContinue(Option option)
+                        throws ArgumentParsingError
+                {
+                    try {
+                        parsePeerCompatibilites((String) option.getValue());
+                    } catch (RsyncProtocolException e) {
+                        throw new ArgumentParsingError(e);
+                    }
                 }}));
 
         argsParser.add(Option.newWithoutArgument(
@@ -473,6 +495,7 @@ public class ServerSessionConfig extends SessionConfig
 
     // @throws RsyncProtocolException
     private void parsePeerCompatibilites(String str)
+            throws RsyncProtocolException
     {
         if (str.startsWith(Text.DOT)) {
             if (str.contains("i")) { // CF_INC_RECURSE
@@ -632,7 +655,15 @@ public class ServerSessionConfig extends SessionConfig
         _isSender = true;
     }
 
-    private String receiveModule() throws ChannelException
+    /**
+     * @throws RsyncProtocolException if failing to decode input characters
+     *         using current character set
+     * @throws RsyncProtocolException if peer sent premature null character
+     * @throws RsyncProtocolException if peer sent too large amount of
+     *         characters
+     */
+    private String receiveModule() throws ChannelException,
+                                          RsyncProtocolException
     {
         return readLine();
     }

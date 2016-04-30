@@ -89,9 +89,6 @@ public class TaggedInputChannel extends SimpleInputChannel
         return super.numBytesRead() + _inputChannel.numBytesRead();
     }
 
-    /**
-     * @throws RsyncProtocolException
-     */
     private int readNextMessage() throws ChannelException
     {
         try {
@@ -112,8 +109,9 @@ public class TaggedInputChannel extends SimpleInputChannel
             }
             _msgHandler.handleMessage(message);
             return 0;
-        } catch (IllegalStateException | IllegalArgumentException e) {
-            throw new RsyncProtocolException(e);
+        } catch (RsyncProtocolException | IllegalStateException |
+                 IllegalArgumentException e) {
+            throw new ChannelException(e);
         }
     }
 }

@@ -63,11 +63,12 @@ public class ClientSessionConfig extends SessionConfig
     }
 
     /**
-     * @throws IllegalArgumentException if charset is not supported
-     * @throws RsyncProtocolException if we or peer fails to adhere to the rsync
+     * @throws RsyncProtocolException if peer fails to adhere to the rsync
      *         handshake protocol
-     * @throws RsyncProtocolException if failing to encode/decode characters
-     *         correctly
+     * @throws ChannelException if there is a communication failure with peer
+     * @throws IllegalStateException if failing to encode output characters
+     *         using current character set
+     * @throws IllegalArgumentException if charset is not supported
      */
     public SessionStatus handshake(String moduleName,
                                    Iterable<String> args,
@@ -104,14 +105,25 @@ public class ClientSessionConfig extends SessionConfig
     {
         return _isSafeFileList;
     }
+
+
     /**
-     * @throws TextConversionException
+     * @throws ChannelException if there is a communication failure with peer
+     * @throws IllegalStateException if failing to encode output characters
+     *         using current character set
      */
     private void sendModule(String moduleName) throws ChannelException
     {
         writeString(moduleName + '\n');
     }
 
+    /**
+     * @throws RsyncException if failing to provide a username and/or password
+     * @throws RsyncProtocolException if peer sent premature null character
+     * @throws RsyncProtocolException if peer sent too large amount of
+     *         characters
+     * @throws ChannelException if there is a communication failure with peer
+     */
     private void printLinesAndGetReplyStatus(AuthProvider authProvider)
         throws RsyncException
     {
@@ -138,9 +150,8 @@ public class ClientSessionConfig extends SessionConfig
     }
 
     /**
-     * @throws ChannelException
      * @throws RsyncException if failing to provide a username and/or password
-     * @throws TextConversionException
+     * @throws ChannelException if there is a communication failure with peer
      */
     private void sendAuthResponse(AuthProvider authProvider, String challenge)
         throws RsyncException
@@ -157,13 +168,14 @@ public class ClientSessionConfig extends SessionConfig
             } finally {
                 Arrays.fill(password, (char) 0);
             }
-        } catch (IOException e) {
+        } catch (IOException | TextConversionException e) {
             throw new RsyncException(e);
         }
     }
 
     /**
-     * @throws TextConversionException
+     * @throws IllegalStateException if failing to encode output characters
+     *         using current character set
      */
     private void sendArguments(Iterable<String> serverArgs)
         throws ChannelException
@@ -175,7 +187,12 @@ public class ClientSessionConfig extends SessionConfig
         _peerConnection.putByte((byte) 0);
     }
 
-    private void receiveCompatibilities() throws ChannelException
+    /**
+     * @throws ChannelException if there is a communication failure with peer
+     * @throws RsyncProtocolException if peer protocol is incompatible with ours
+     */
+    private void receiveCompatibilities() throws ChannelException,
+                                                 RsyncProtocolException
     {
         byte flags = _peerConnection.getByte();
         if (_log.isLoggable(Level.FINER)) {

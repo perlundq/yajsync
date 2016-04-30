@@ -24,7 +24,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import com.github.perlundq.yajsync.RsyncProtocolException;
 import com.github.perlundq.yajsync.internal.util.Multimap;
 
 class Checksum
@@ -74,32 +73,33 @@ class Checksum
         private final int _remainder;       // sum_struct.remainder
         private final int _chunkCount;
 
+        /**
+         * @throws IllegalArgumentException
+         */
         public Header(int chunkCount, int blockLength, int remainder,
                       int digestLength)
         {
             if (chunkCount < 0) {
-                throw new RsyncProtocolException("Error: got invalid chunk " +
-                                                 "count from peer: " +
-                                                 chunkCount);
+                throw new IllegalArgumentException("illegal chunk count" +
+                                                   chunkCount);
             } else if (blockLength == 0 && chunkCount > 0) {
-                throw new RsyncProtocolException(String.format(
-                    "illegal state: block length %d and %d chunks - expected " +
-                    "0 chunks if 0 block length", blockLength, chunkCount));
+                throw new IllegalArgumentException(String.format(
+                    "illegal invariant: block length == %d and chunk count " +
+                    "== %d - expected chunk count 0 if block length is 0",
+                    blockLength, chunkCount));
             } else if (blockLength < 0 ||
                        blockLength > MAX_CHECKSUM_BLOCK_LENGTH) {
-                throw new RsyncProtocolException(String.format(
-                    "Error: received invalid block length from " +
-                        "peer: %d (expected >= 0 && < %d)",
-                        blockLength, MAX_CHECKSUM_BLOCK_LENGTH));
+                throw new IllegalArgumentException(String.format(
+                    "illegal block length: %d (expected >= 0 && < %d)",
+                    blockLength, MAX_CHECKSUM_BLOCK_LENGTH));
             } else if (remainder < 0 || remainder > blockLength) {
-                throw new RsyncProtocolException(
-                    String.format("Error: received invalid remainder length " +
-                                  "from peer: %d (Block length == %d)",
-                                  remainder, blockLength));
+                throw new IllegalArgumentException(String.format(
+                        "Error: invalid remainder length : %d (block length " +
+                        "== %d)", remainder, blockLength));
             } else if (digestLength < 0) {
-                throw new RsyncProtocolException("Error: received invalid " +
-                                                 "checksum digest length from" +
-                                                 " peer: " + digestLength);
+                throw new IllegalArgumentException("Error: invalid checksum " +
+                                                   "digest length: " +
+                                                   digestLength);
             }
             _blockLength = blockLength;
             _digestLength = digestLength;

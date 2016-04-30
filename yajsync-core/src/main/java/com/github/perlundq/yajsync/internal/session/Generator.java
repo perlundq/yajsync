@@ -50,6 +50,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.FileSelection;
+import com.github.perlundq.yajsync.RsyncException;
 import com.github.perlundq.yajsync.RsyncProtocolException;
 import com.github.perlundq.yajsync.attr.DeviceInfo;
 import com.github.perlundq.yajsync.attr.FileInfo;
@@ -204,7 +205,7 @@ public class Generator implements RsyncTask
     }
 
     private interface Job {
-        void process() throws ChannelException;
+        void process() throws RsyncException;
     }
 
     private static final Checksum.Header ZERO_SUM;
@@ -378,8 +379,8 @@ public class Generator implements RsyncTask
         return _fileList;
     }
 
-    public void processJobQueueBatched() throws ChannelException,
-                                                InterruptedException
+    public void processJobQueueBatched() throws InterruptedException,
+                                                RsyncException
     {
         List<Job> jobList = new LinkedList<>();
         while (_isRunning) {
@@ -414,7 +415,7 @@ public class Generator implements RsyncTask
     }
 
     @Override
-    public Boolean call() throws ChannelException, InterruptedException
+    public Boolean call() throws InterruptedException, RsyncException
     {
         try {
             if (_log.isLoggable(Level.FINE)) {
@@ -435,7 +436,7 @@ public class Generator implements RsyncTask
     {
         Job j = new Job() {
             @Override
-            public void process() throws ChannelException {
+            public void process() throws ChannelException, RsyncProtocolException {
                 if (segment != null) {
                     segment.remove(index);
                 } else {
@@ -1390,7 +1391,7 @@ public class Generator implements RsyncTask
     {
         Job job = new Job() {
             @Override
-            public void process() throws ChannelException {
+            public void process() throws RsyncException {
                 for (Job j : _deferredJobs) {
                     j.process();
                 }

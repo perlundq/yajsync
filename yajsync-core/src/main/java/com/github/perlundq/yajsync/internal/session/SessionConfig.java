@@ -88,7 +88,18 @@ public abstract class SessionConfig
         return _status;
     }
 
-    protected void exchangeProtocolVersion() throws ChannelException
+    /**
+     * @throws RsyncProtocolException if peer sent a version less than ours
+     * @throws RsyncProtocolException if protocol version is invalid
+     * @throws RsyncProtocolException if peer sent premature null character
+     * @throws RsyncProtocolException if peer sent too large amount of
+     *         characters
+     * @throws ChannelException if there is a communication failure with peer
+     * @throws IllegalStateException if failing to encode output characters
+     *         using current character set
+     */
+    protected void exchangeProtocolVersion() throws ChannelException,
+                                                    RsyncProtocolException
     {
         sendVersion(VERSION);
         ProtocolVersion peerVersion = receivePeerVersion();
@@ -100,12 +111,14 @@ public abstract class SessionConfig
     }
 
     /**
-     * @throws TextConversionException if failing to decode input characters
-     *         using current character set
-     * @throws RsyncProtocolException if received premature null-character
-     * @throws RsyncProtocolException if received too large amount of characters
+     * @throws RsyncProtocolException if failing to decode input characters
+     *         from peer using current character set
+     * @throws RsyncProtocolException if peer sent premature null character
+     * @throws RsyncProtocolException if peer sent too large amount of
+     *         characters
+     * @throws ChannelException if there is a communication failure with peer
      */
-    protected String readLine() throws ChannelException
+    protected String readLine() throws ChannelException, RsyncProtocolException
     {
         ByteBuffer buf = ByteBuffer.allocate(64);
         String result = null;
@@ -116,7 +129,11 @@ public abstract class SessionConfig
                 break;
             case Text.ASCII_NEWLINE:
                 buf.flip();
-                result = _characterDecoder.decode(buf);
+                try {
+                    result = _characterDecoder.decode(buf);
+                } catch (TextConversionException e) {
+                    throw new RsyncProtocolException(e);
+                }
                 break;
             case Text.ASCII_NULL:
                 throw new RsyncProtocolException(String.format(
@@ -142,28 +159,43 @@ public abstract class SessionConfig
     }
 
     /**
-     * @throws TextConversionException
+     * @throws IllegalStateException if failing to encode output characters
+     *         using current character set
      */
     protected void writeString(String text) throws ChannelException
     {
-        if (_log.isLoggable(Level.FINER)) {
-            _log.finer("> " + text);
+        try {
+            if (_log.isLoggable(Level.FINER)) {
+                _log.finer("> " + text);
+            }
+            byte[] textEncoded = _characterEncoder.encode(text);
+            _peerConnection.put(textEncoded, 0, textEncoded.length);
+        } catch (TextConversionException e) {
+            throw new IllegalStateException(e);
         }
-        byte[] textEncoded = _characterEncoder.encode(text);
-        _peerConnection.put(textEncoded, 0, textEncoded.length);
     }
 
     /**
-     * @throws TextConversionException
+     * @throws IllegalStateException if failing to encode output characters
+     *         using current character set
+     * @throws ChannelException if there is a communication failure with peer
      */
     private void sendVersion(ProtocolVersion version) throws ChannelException
     {
         writeString(String.format("@RSYNCD: %d.%d\n",
                                   version.major(), version.minor()));
-
     }
 
-    private ProtocolVersion receivePeerVersion() throws ChannelException
+    /**
+     * @throws RsyncProtocolException if protocol version is invalid
+     * @throws RsyncProtocolException if failing to decode input characters
+     *         using current character set
+     * @throws RsyncProtocolException if peer sent premature null character
+     * @throws RsyncProtocolException if received too large amount of characters
+     * @throws ChannelException if there is a communication failure with peer
+     */
+    private ProtocolVersion receivePeerVersion() throws ChannelException,
+                                                        RsyncProtocolException
     {
         String versionResponse = readLine();
         Matcher m = PROTOCOL_VERSION_REGEX.matcher(versionResponse);
@@ -172,7 +204,7 @@ public abstract class SessionConfig
                                        Integer.parseInt(m.group(2)));
         } else {
             throw new RsyncProtocolException(
-                    String.format("Unsupported protocol version: %s",
+                    String.format("Invalid protocol version: %s",
                                   versionResponse));
         }
     }

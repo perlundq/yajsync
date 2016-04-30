@@ -85,7 +85,7 @@ public final class RestrictedPath
         return Objects.hash(_moduleName, _rootPath);
     }
 
-    public Path resolve(String pathName)
+    public Path resolve(String pathName) throws RsyncSecurityException
     {
         try {
             Path otherPath = PathOps.get(_rootPath.getFileSystem(), pathName);
@@ -105,7 +105,7 @@ public final class RestrictedPath
      * resolve other in a secure manner without any call to stat.
      * @throws RsyncSecurityException
      */
-    private Path resolve(Path path)
+    private Path resolve(Path path) throws RsyncSecurityException
     {
         Path result;
         Path normalized = path.normalize();

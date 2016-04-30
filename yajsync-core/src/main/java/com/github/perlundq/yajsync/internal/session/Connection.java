@@ -19,6 +19,7 @@
  */
 package com.github.perlundq.yajsync.internal.session;
 
+import com.github.perlundq.yajsync.RsyncProtocolException;
 import com.github.perlundq.yajsync.internal.channels.ChannelException;
 import com.github.perlundq.yajsync.internal.channels.Readable;
 import com.github.perlundq.yajsync.internal.channels.Writable;
@@ -28,14 +29,18 @@ final class Connection
     private Connection() {}
 
     public static Checksum.Header receiveChecksumHeader(Readable conn)
-        throws ChannelException
+        throws ChannelException, RsyncProtocolException
     {
-        int chunkCount = conn.getInt();
-        int blockLength = conn.getInt();
-        int digestLength = conn.getInt();
-        int remainder = conn.getInt();
-        return new Checksum.Header(chunkCount, blockLength, remainder,
-                                   digestLength);
+        try {
+            int chunkCount = conn.getInt();
+            int blockLength = conn.getInt();
+            int digestLength = conn.getInt();
+            int remainder = conn.getInt();
+            return new Checksum.Header(chunkCount, blockLength, remainder,
+                                       digestLength);
+        } catch (IllegalArgumentException e) {
+            throw new RsyncProtocolException(e);
+        }
     }
 
     public static void sendChecksumHeader(Writable conn, Checksum.Header header)

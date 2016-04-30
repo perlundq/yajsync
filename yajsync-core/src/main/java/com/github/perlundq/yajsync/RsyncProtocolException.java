@@ -19,7 +19,7 @@
 package com.github.perlundq.yajsync;
 
 @SuppressWarnings("serial")
-public class RsyncProtocolException extends RuntimeException
+public class RsyncProtocolException extends RsyncException
 {
     public RsyncProtocolException(String msg)
     {

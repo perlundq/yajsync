@@ -333,7 +333,8 @@ public final class Sender implements RsyncTask, MessageHandler
     }
 
     @Override
-    public Boolean call() throws ChannelException, InterruptedException
+    public Boolean call() throws ChannelException, InterruptedException,
+                                 RsyncProtocolException
     {
         Filelist fileList =
                 new Filelist(_fileSelection == FileSelection.RECURSE, false);
@@ -528,7 +529,7 @@ public final class Sender implements RsyncTask, MessageHandler
      * @throws RsyncProtocolException if peer sends a message we cannot decode
      */
     @Override
-    public void handleMessage(Message message)
+    public void handleMessage(Message message) throws RsyncProtocolException
     {
         if (_log.isLoggable(Level.FINER)) {
             _log.finer("got message " + message);
@@ -557,7 +558,7 @@ public final class Sender implements RsyncTask, MessageHandler
     /**
      * @throws RsyncProtocolException if peer sends a message we cannot decode
      */
-    private void printMessage(Message message)
+    private void printMessage(Message message) throws RsyncProtocolException
     {
         assert message.isText();
         try {
@@ -587,7 +588,8 @@ public final class Sender implements RsyncTask, MessageHandler
     /**
      * @throws RsyncProtocolException if failing to decode the filter rules
      */
-    private String receiveFilterRules() throws ChannelException
+    private String receiveFilterRules() throws ChannelException,
+                                               RsyncProtocolException
     {
         try {
             int numBytesToRead = _duplexChannel.getInt();
@@ -600,7 +602,7 @@ public final class Sender implements RsyncTask, MessageHandler
     }
 
     private int sendFiles(Filelist fileList)
-        throws ChannelException
+        throws ChannelException, RsyncProtocolException
     {
         boolean sentEOF = false;
         TransferPhase phase = TransferPhase.TRANSFER;
@@ -1327,7 +1329,8 @@ public final class Sender implements RsyncTask, MessageHandler
         Connection.sendChecksumHeader(_duplexChannel, header);
     }
 
-    private Checksum.Header receiveChecksumHeader() throws ChannelException
+    private Checksum.Header receiveChecksumHeader()
+            throws ChannelException, RsyncProtocolException
     {
         return Connection.receiveChecksumHeader(_duplexChannel);
     }
@@ -1574,7 +1577,8 @@ public final class Sender implements RsyncTask, MessageHandler
     }
 
     // NOTE: code duplication with Receiver
-    public void readAllMessagesUntilEOF() throws ChannelException
+    public void readAllMessagesUntilEOF() throws ChannelException,
+                                                 RsyncProtocolException
     {
         try {
             if (_log.isLoggable(Level.FINE)) {
