@@ -807,9 +807,9 @@ public final class Sender implements RsyncTask, MessageHandler
                                 "Error: general I/O error on %s (ignored and" +
                                 " skipped): %s", fileInfo, e.getMessage()));
                         }
-                        // is only null for FileViewOpenFailed - not
+                        // fileMD5sum is only null for FileViewOpenFailed - not
                         // FileViewReadError which is caused by FileView.close()
-                        fileMD5sum[0]++;
+                        createIncorrectChecksum(fileMD5sum);
                     }
 
                     if (_log.isLoggable(Level.FINE)) {
@@ -846,6 +846,11 @@ public final class Sender implements RsyncTask, MessageHandler
         }
 
         return ioError;
+    }
+
+    private static void createIncorrectChecksum(byte[] checksum)
+    {
+        checksum[0]++;
     }
 
     // NOTE: doesn't do any check of the validity of files or normalization -
