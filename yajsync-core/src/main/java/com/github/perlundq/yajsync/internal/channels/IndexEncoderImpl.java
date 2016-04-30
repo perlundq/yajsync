@@ -43,25 +43,27 @@ public class IndexEncoderImpl implements IndexEncoder
             return;
         }
 
+        int indexPositive;
         int diff;
         if (index >= 0) {
-            diff = index - _prevPositiveWriteIndex;
-            _prevPositiveWriteIndex = index;
+            indexPositive = index;
+            diff = indexPositive - _prevPositiveWriteIndex;
+            _prevPositiveWriteIndex = indexPositive;
         } else {
+            indexPositive = -index;
+            diff = indexPositive - _prevNegativeWriteIndex;
+            _prevNegativeWriteIndex = indexPositive;
             _dst.putByte((byte) 0xFF);
-            index = -index;
-            diff = index - _prevNegativeWriteIndex;
-            _prevNegativeWriteIndex = index;
         }
 
         if (diff < 0xFE && diff > 0) {
             _dst.putByte((byte) diff);
         } else if (diff < 0 || diff > 0x7FFF) {
             _dst.putByte((byte) 0xFE);
-            _dst.putByte((byte) ((index >> 24) | 0x80));
-            _dst.putByte((byte) index);
-            _dst.putByte((byte) (index >> 8));
-            _dst.putByte((byte) (index >> 16));
+            _dst.putByte((byte) ((indexPositive >> 24) | 0x80));
+            _dst.putByte((byte) indexPositive);
+            _dst.putByte((byte) (indexPositive >> 8));
+            _dst.putByte((byte) (indexPositive >> 16));
         } else {
             _dst.putByte((byte) 0xFE);
             _dst.putByte((byte) (diff >> 8));
