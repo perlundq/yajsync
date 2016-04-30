@@ -247,7 +247,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private final Iterable<Path> _sourceFiles;
     private final Set<User> _transferredUserNames = new LinkedHashSet<>();
     private final Set<Group> _transferredGroupNames = new LinkedHashSet<>();
-    private final Statistics _stats = new Statistics();
+    private final WritableStatistics _stats = new WritableStatistics();
     private final TextDecoder _characterDecoder;
     private final TextEncoder _characterEncoder;
 
@@ -425,7 +425,7 @@ public final class Sender implements RsyncTask, MessageHandler
             if (_isSendStatistics) {
                 _stats.setTotalFileSize(fileList.totalFileSize());
                 _stats.setTotalRead(_duplexChannel.numBytesRead());
-                _stats.setTotalWritten(_duplexChannel.numBytesWritten());
+                _stats.setTotalBytesWritten(_duplexChannel.numBytesWritten());
                 _stats.setNumFiles(fileList.numFiles());
                 sendStatistics(_stats);
             }
@@ -444,7 +444,7 @@ public final class Sender implements RsyncTask, MessageHandler
         } finally {
             _stats.setTotalFileSize(fileList.totalFileSize());
             _stats.setTotalRead(_duplexChannel.numBytesRead());
-            _stats.setTotalWritten(_duplexChannel.numBytesWritten());
+            _stats.setTotalBytesWritten(_duplexChannel.numBytesWritten());
             _stats.setNumFiles(fileList.numFiles());
         }
     }
@@ -1554,8 +1554,8 @@ public final class Sender implements RsyncTask, MessageHandler
 
     private void sendStatistics(Statistics stats) throws ChannelException
     {
-        sendEncodedLong(stats.totalRead(), 3);
-        sendEncodedLong(stats.totalWritten(), 3);
+        sendEncodedLong(stats.totalBytesRead(), 3);
+        sendEncodedLong(stats.totalBytesWritten(), 3);
         sendEncodedLong(stats.totalFileSize(), 3);
         sendEncodedLong(stats.fileListBuildTime(), 3);
         sendEncodedLong(stats.fileListTransferTime(), 3);

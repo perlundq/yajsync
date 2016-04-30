@@ -220,7 +220,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private final Map<Integer, User> _uidUserMap = new HashMap<>();
     private final Map<Integer, Group> _gidGroupMap = new HashMap<>();
     private final RsyncInChannel _in;
-    private final Statistics _stats = new Statistics();
+    private final WritableStatistics _stats = new WritableStatistics();
     private final Path _targetPath;
     private final TextDecoder _characterDecoder;
 
@@ -701,7 +701,7 @@ public class Receiver implements RsyncTask, MessageHandler
         _stats.setFileListTransferTime(fileListTransferTime);
         _stats.setTotalRead(totalRead);
         _stats.setTotalFileSize(totalFileSize);
-        _stats.setTotalWritten(totalWritten);
+        _stats.setTotalBytesWritten(totalWritten);
     }
 
     private void sendEmptyFilterRules() throws InterruptedException

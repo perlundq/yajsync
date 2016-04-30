@@ -48,6 +48,7 @@ import com.github.perlundq.yajsync.internal.session.Receiver;
 import com.github.perlundq.yajsync.internal.session.RsyncTaskExecutor;
 import com.github.perlundq.yajsync.internal.session.Sender;
 import com.github.perlundq.yajsync.internal.session.SessionStatus;
+import com.github.perlundq.yajsync.internal.session.WritableStatistics;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.util.BitOps;
 import com.github.perlundq.yajsync.internal.util.Environment;
@@ -74,12 +75,12 @@ public final class RsyncClient
 
         public static Result failure()
         {
-            return new Result(false, new Statistics());
+            return new Result(false, new WritableStatistics());
         }
 
         public static Result success()
         {
-            return new Result(true, new Statistics());
+            return new Result(true, new WritableStatistics());
         }
 
         public boolean isOK()

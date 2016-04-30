@@ -55,6 +55,7 @@ import com.github.perlundq.yajsync.attr.FileInfo;
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.SymlinkInfo;
 import com.github.perlundq.yajsync.internal.channels.ChannelException;
+import com.github.perlundq.yajsync.internal.session.WritableStatistics;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.text.TextDecoder;
 import com.github.perlundq.yajsync.internal.util.ArgumentParser;
@@ -146,7 +147,7 @@ public class YajSyncClient
     private PrintStream _stdout = System.out;
     private final RsyncClient.Builder _clientBuilder =
             new RsyncClient.Builder().authProvider(_authProvider);
-    private Statistics _statistics = new Statistics();
+    private Statistics _statistics = new WritableStatistics();
     private String _cwdName = Environment.getWorkingDirectoryName();
     private String _passwordFile;
     private String _userName;
@@ -593,8 +594,8 @@ public class YajSyncClient
             stats.totalFileListSize(),
             stats.fileListBuildTime() / 1000.0,
             stats.fileListTransferTime() / 1000.0,
-            stats.totalWritten(),
-            stats.totalRead());
+            stats.totalBytesWritten(),
+            stats.totalBytesRead());
     }
 
     private static List<String> readLinesFromStdin() throws IOException
