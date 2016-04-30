@@ -1291,6 +1291,10 @@ public class Generator implements RsyncTask
         return _isPreserveSpecials;
     }
 
+    /**
+     * @param index - currently unused
+     * @param dev - currently unused
+     */
     private void itemizeDevice(int index, DeviceInfo dev) throws IOException
     {
         throw new IOException("unable to generate device file - operation " +
