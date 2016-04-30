@@ -61,7 +61,9 @@ public final class RsyncTaskExecutor
                     _log.finer(String.format("waiting for result from task " +
                                              "%d/%d", i + 1, futures.size()));
                 }
-                boolean isThreadOK = ecs.take().get();                          // take throws InterruptedException, get throws CancellationException
+                // take throws InterruptedException,
+                // get throws CancellationException
+                boolean isThreadOK = ecs.take().get();
                 isOK = isOK && isThreadOK;
                 if (_log.isLoggable(Level.FINER)) {
                     _log.finer(String.format("task %d/%d finished %s",
@@ -109,21 +111,23 @@ public final class RsyncTaskExecutor
     public static void throwUnwrappedException(Throwable thrown)
         throws InterruptedException, RsyncException
     {
+        Throwable cause;
         if (thrown instanceof ExecutionException) {
-            thrown = thrown.getCause();                                         // NOTE: thrown is reassigned here
+            cause = thrown.getCause();
+        } else {
+            cause = thrown;
         }
 
-        if (thrown instanceof InterruptedException) {
-            throw (InterruptedException) thrown;
-        } else if (thrown instanceof ChannelException) {
-            throw (ChannelException) thrown;
-        } else if (thrown instanceof RsyncException) {
-            throw (RsyncException) thrown;
-        } else if (thrown instanceof RuntimeException) {                        // e.g. CancellationException
-            throw (RuntimeException) thrown;
-        } else if (thrown instanceof Error) {
-            throw (Error) thrown;
+        if (cause instanceof InterruptedException) {
+            throw (InterruptedException) cause;
+        } else if (cause instanceof RsyncException) {
+            throw (RsyncException) cause;
+        } else if (cause instanceof RuntimeException) {
+            // e.g. CancellationException
+            throw (RuntimeException) cause;
+        } else if (cause instanceof Error) {
+            throw (Error) cause;
         }
-        throw new AssertionError("BUG - missing statement for " + thrown);
+        throw new AssertionError("BUG - missing statement for " + cause);
     }
 }
