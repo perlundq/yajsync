@@ -991,21 +991,6 @@ public class SystemTest
     }
 
     @Test(expected=SocketTimeoutException.class, timeout=2000)
-    public void testConnectionTimeout() throws Throwable
-    {
-        int _contimeout = 1;
-        int _timeout = 0;
-
-        // connect to a non routable ip to provoke the connection timeout
-        DuplexByteChannel sock = new StandardChannelFactory().open("10.0.0.0",
-                                                                   14415,
-                                                                   _contimeout,
-                                                                   _timeout);
-
-        testTimeoutHelper(sock);
-    }
-
-    @Test(expected=SocketTimeoutException.class, timeout=2000)
     public void testTlsReadTimeout() throws Throwable
     {
         final CountDownLatch isListeningLatch = new CountDownLatch(1);
