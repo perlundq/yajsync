@@ -550,9 +550,9 @@ public class Generator implements RsyncTask
                     if (_fileSelection != FileSelection.RECURSE) {
                         c = segment.files();
                     } else if (segment.directory() == null) {
-                        c = listInitialSegmentRecursive(segment);
+                        c = toInitialListing(segment);
                     } else {
-                        c = listSegmentRecursive(segment);
+                        c = toListing(segment);
                     }
                     _listing.addAll(toListingPair(c));
                     segment.removeAll();
@@ -722,8 +722,7 @@ public class Generator implements RsyncTask
         return numErrors;
     }
 
-    private Collection<FileInfo>
-    listInitialSegmentRecursive(Filelist.Segment segment)
+    private Collection<FileInfo> toInitialListing(Filelist.Segment segment)
     {
         assert _fileSelection == FileSelection.RECURSE;
         assert segment.directory() == null;
@@ -742,7 +741,7 @@ public class Generator implements RsyncTask
         return res;
     }
 
-    private Collection<FileInfo> listSegmentRecursive(Filelist.Segment segment)
+    private Collection<FileInfo> toListing(Filelist.Segment segment)
     {
         assert _fileSelection == FileSelection.RECURSE;
         assert segment.directory() != null;
