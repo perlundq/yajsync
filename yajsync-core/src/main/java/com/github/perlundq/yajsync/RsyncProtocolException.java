@@ -1,7 +1,7 @@
 /*
  * Exception type for general rsync protocol errors
  *
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013, 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,9 @@
  */
 package com.github.perlundq.yajsync;
 
+/**
+ * Signals that a rsync protocol error has occurred.
+ */
 @SuppressWarnings("serial")
 public class RsyncProtocolException extends RsyncException
 {

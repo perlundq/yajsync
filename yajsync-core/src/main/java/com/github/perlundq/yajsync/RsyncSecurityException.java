@@ -1,7 +1,7 @@
 /*
  * Exception type for rsync security errors
  *
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013, 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,12 +18,16 @@
  */
 package com.github.perlundq.yajsync;
 
+/**
+ * Signals that an error which could compromise the integrity of yajsync has
+ * occurred.
+ */
 @SuppressWarnings("serial")
 public class RsyncSecurityException extends RsyncException
 {
     public RsyncSecurityException(String message)
     {
-        super("Fatal security exception: " + message);
+        super(message);
     }
 
     public RsyncSecurityException(Exception e)

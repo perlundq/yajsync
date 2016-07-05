@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Per Lundqvist
+ * Copyright (C) 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,9 @@
  */
 package com.github.perlundq.yajsync;
 
+/**
+ * Signals that a generic rsync related error has occurred.
+ */
 @SuppressWarnings("serial")
 public class RsyncException extends Exception
 {
