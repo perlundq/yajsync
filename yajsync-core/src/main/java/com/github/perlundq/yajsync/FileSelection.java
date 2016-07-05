@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2015 Per Lundqvist
+ * Copyright (C) 2013-2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,9 +16,30 @@
  */
 package com.github.perlundq.yajsync;
 
+/**
+ * An rsync transfer handles the initial list of file arguments sent by the
+ * client in three different ways: 1. transfer the initial files exactly but
+ * exclude all directories 2. transfer the initial files but also recurse into
+ * directories 3. transfer the initial files but also transfer the contents
+ * of any dot directories (i.e. the name ends with a trailing slash "dir/"' or a
+ * slash followed by one dot "dir/."
+ */
 public enum FileSelection
 {
-    EXACT /* all */,
-    RECURSE /* all */,
-    TRANSFER_DIRS /* sender */
+    /**
+     * Transfer the initial client file list literally while excluding
+     * directories.
+     */
+    EXACT,
+
+    /**
+     * Transfer the initial client file list but also recurse into directories.
+     */
+    RECURSE,
+
+    /**
+     * Transfer the initial client file list and the contents of any dot
+     * directories.
+     */
+    TRANSFER_DIRS
 }
