@@ -51,6 +51,7 @@ import com.github.perlundq.yajsync.RsyncClient;
 import com.github.perlundq.yajsync.RsyncException;
 import com.github.perlundq.yajsync.RsyncServer;
 import com.github.perlundq.yajsync.Statistics;
+import com.github.perlundq.yajsync.attr.DeviceInfo;
 import com.github.perlundq.yajsync.attr.FileInfo;
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.SymlinkInfo;
@@ -857,6 +858,15 @@ public class YajSyncClient
                                  _timeFormatter.format(t),
                                  f.pathName(),
                                  ((SymlinkInfo) f).targetPathName());
+        } else if (f instanceof DeviceInfo) {
+            DeviceInfo d = (DeviceInfo) f;
+            return String.format("%s %11d %d,%d %s %s",
+                                 FileOps.modeToString(attrs.mode()),
+                                 attrs.size(),
+                                 d.major(),
+                                 d.minor(),
+                                 _timeFormatter.format(t),
+                                 d.pathName());
         }
         return String.format("%s %11d %s %s",
                              FileOps.modeToString(attrs.mode()),
