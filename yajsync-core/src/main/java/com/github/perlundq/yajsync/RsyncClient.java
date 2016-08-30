@@ -25,7 +25,6 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.UnsupportedCharsetException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -51,7 +50,6 @@ import com.github.perlundq.yajsync.internal.session.SessionStatus;
 import com.github.perlundq.yajsync.internal.session.WritableStatistics;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.util.BitOps;
-import com.github.perlundq.yajsync.internal.util.Environment;
 import com.github.perlundq.yajsync.internal.util.Pair;
 import com.github.perlundq.yajsync.internal.util.Util;
 
@@ -169,13 +167,10 @@ public final class RsyncClient
                                 isNumericIds(_isNumericIds).
                                 isIgnoreTimes(_isIgnoreTimes).
                                 isAlwaysItemize(_verbosity > 1).
-                                isListOnly(true).
                                 isInterruptible(isInterruptible).build();
                         _listing = generator.files();
                         _isListingAvailable.countDown();
-                        Receiver receiver = new Receiver.Builder(generator,
-                                                                 in,
-                                                                 _cwd).
+                        Receiver receiver = Receiver.Builder.newListing(generator, in).
                                 filterMode(FilterMode.SEND).
                                 isDeferWrite(_isDeferWrite).
                                 isExitAfterEOF(true).
@@ -383,11 +378,9 @@ public final class RsyncClient
                     isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
                     isIgnoreTimes(_isIgnoreTimes).
-                    isListOnly(true).
                     isAlwaysItemize(_isAlwaysItemize).build();
-            Receiver receiver = new Receiver.Builder(generator,
-                                                     toReceiver.source(),
-                                                     _cwd).
+            Receiver receiver = Receiver.Builder.newListing(generator,
+                                                            toReceiver.source()).
                     isExitEarlyIfEmptyList(true).
                     isDeferWrite(_isDeferWrite).build();
 
@@ -437,7 +430,6 @@ public final class RsyncClient
                     isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
                     isIgnoreTimes(_isIgnoreTimes).
-                    isListOnly(false).
                     isAlwaysItemize(_isAlwaysItemize).build();
             Receiver receiver = new Receiver.Builder(generator,
                                                      toReceiver.source(),
@@ -480,19 +472,17 @@ public final class RsyncClient
             FileSelection fileSelection =
                     Util.defaultIfNull(_fileSelectionOrNull,
                                        FileSelection.TRANSFER_DIRS);
-            List<String> l = new LinkedList<>();
+            List<String> serverArgs = createServerArgs(Mode.REMOTE_LIST,
+                                                       fileSelection);
             for (String s : srcPathNames) {
                 assert s.startsWith(Text.SLASH) : s;
-                l.add(moduleName + s);
+                serverArgs.add(moduleName + s);
             }
-            List<String> serverArgs = createServerArgs(Mode.REMOTE_LIST,
-                                                       fileSelection,
-                                                       l,
-                                                       _cwd.toString());
+
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format(
-                        "file selection: %s, src: %s, dst: %s, remote args: %s",
-                        fileSelection, srcPathNames, _cwd, serverArgs));
+                        "file selection: %s, src: %s, remote args: %s",
+                        fileSelection, srcPathNames, serverArgs));
             }
             ClientSessionConfig cfg = new ClientSessionConfig(_in,
                                                               _out,
@@ -520,14 +510,15 @@ public final class RsyncClient
             Iterable<String> srcPathNames = Collections.emptyList();
 
             List<String> serverArgs = createServerArgs(Mode.REMOTE_LIST,
-                                                       fileSelection,
-                                                       srcPathNames,
-                                                       _cwd.toString());
+                                                       fileSelection);
+            for (String src : srcPathNames) {
+                serverArgs.add(src);
+            }
+
             if (_log.isLoggable(Level.FINE)) {
-                _log.fine(String.format("file selection: %s, src: %s, dst: " +
-                                        "%s, remote args: %s",
-                                        fileSelection, srcPathNames,
-                                        _cwd, serverArgs));
+                _log.fine(String.format("file selection: %s, src: %s, remote " +
+                                        "args: %s", fileSelection, srcPathNames,
+                                        serverArgs));
             }
             ClientSessionConfig cfg = new ClientSessionConfig(_in,
                                                               _out,
@@ -578,13 +569,11 @@ public final class RsyncClient
                 assert dstPathName.startsWith(Text.SLASH);
 
                 FileSelection fileSelection =
-                    Util.defaultIfNull(_fileSelectionOrNull,
-                                       FileSelection.EXACT);
-                List<String> serverArgs =
-                        createServerArgs(Mode.REMOTE_SEND,
-                                         fileSelection,
-                                         toListOfStrings(_srcPaths),
-                                         moduleName + dstPathName);
+                        Util.defaultIfNull(_fileSelectionOrNull,
+                                           FileSelection.EXACT);
+                List<String> serverArgs = createServerArgs(Mode.REMOTE_SEND,
+                                                           fileSelection);
+                serverArgs.add(moduleName + dstPathName);
 
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format(
@@ -659,17 +648,12 @@ public final class RsyncClient
                         Util.defaultIfNull(_fileSelectionOrNull,
                                            FileSelection.EXACT);
 
-                List<String> l = new LinkedList<>();
+                List<String> serverArgs = createServerArgs(Mode.REMOTE_RECEIVE,
+                                                           fileSelection);
                 for (String s : _srcPathNames) {
                     assert s.startsWith(Text.SLASH) : s;
-                    l.add(_moduleName + s);
+                    serverArgs.add(_moduleName + s);
                 }
-
-                List<String> serverArgs =
-                        createServerArgs(Mode.REMOTE_RECEIVE,
-                                         fileSelection,
-                                         l,
-                                         dstPath.toString());
 
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine(String.format("file selection: %s, src: %s, dst: " +
@@ -741,14 +725,10 @@ public final class RsyncClient
         }
 
         private List<String> createServerArgs(Mode mode,
-                                              FileSelection fileSelection,
-                                              Iterable<String> srcPathNames,
-                                              String dstPathName)
+                                              FileSelection fileSelection)
         {
             assert mode != null;
             assert fileSelection != null;
-            assert srcPathNames != null;
-            assert dstPathName != null;
             List<String> serverArgs = new LinkedList<>();
             serverArgs.add("--server");
             boolean isPeerSender = mode != Mode.REMOTE_SEND;
@@ -816,13 +796,6 @@ public final class RsyncClient
 
             serverArgs.add("."); // arg delimiter
 
-            if (mode == Mode.REMOTE_SEND) {
-                serverArgs.add(dstPathName);
-            } else {
-                for (String src : srcPathNames) {
-                    serverArgs.add(src);
-                }
-            }
             return serverArgs;
         }
     }
@@ -1000,8 +973,6 @@ public final class RsyncClient
     private static final Logger _log =
             Logger.getLogger(RsyncClient.class.getName());
     private final AuthProvider _authProvider;
-    // a dummy - only used for file listings
-    private static final Path _cwd = Paths.get(Environment.getWorkingDirectoryName());
     private final boolean _isAlwaysItemize;
     private final boolean _isDeferWrite;
     private final boolean _isDelete;

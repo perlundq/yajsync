@@ -84,7 +84,6 @@ public class Generator implements RsyncTask
         private boolean _isIgnoreTimes;
         private boolean _isInterruptible = true;
         private boolean _isDelete;
-        private boolean _isListOnly;
         private boolean _isPreserveDevices;
         private boolean _isPreserveLinks;
         private boolean _isPreservePermissions;
@@ -125,12 +124,6 @@ public class Generator implements RsyncTask
         public Builder isInterruptible(boolean isInterruptible)
         {
             _isInterruptible = isInterruptible;
-            return this;
-        }
-
-        public Builder isListOnly(boolean isListOnly)
-        {
-            _isListOnly = isListOnly;
             return this;
         }
 
@@ -218,7 +211,6 @@ public class Generator implements RsyncTask
     private final boolean _isDelete;
     private final boolean _isIgnoreTimes;
     private final boolean _isInterruptible;
-    private final boolean _isListOnly;
     private final boolean _isPreserveDevices;
     private final boolean _isPreserveLinks;
     private final boolean _isPreservePermissions;
@@ -265,7 +257,6 @@ public class Generator implements RsyncTask
         _isDeletionsEnabled = _fileSelection != FileSelection.EXACT;
         _isIgnoreTimes = builder._isIgnoreTimes;
         _isInterruptible = builder._isInterruptible;
-        _isListOnly = builder._isListOnly;
         _isPreserveDevices = builder._isPreserveDevices;
         _isPreserveLinks = builder._isPreserveLinks;
         _isPreservePermissions = builder._isPreservePermissions;
@@ -285,7 +276,6 @@ public class Generator implements RsyncTask
                 "isDelete=%b, " +
                 "isIgnoreTimes=%b, " +
                 "isInterruptible=%b, " +
-                "isListOnly=%b, " +
                 "isNumericIds=%b, " +
                 "isPreserveDevices=%b, " +
                 "isPreserveLinks=%b, " +
@@ -302,7 +292,6 @@ public class Generator implements RsyncTask
                 _isDelete,
                 _isIgnoreTimes,
                 _isInterruptible,
-                _isListOnly,
                 _isNumericIds,
                 _isPreserveDevices,
                 _isPreserveLinks,
@@ -330,11 +319,6 @@ public class Generator implements RsyncTask
     public void closeChannel() throws ChannelException
     {
         _out.close();
-    }
-
-    public boolean isListOnly()
-    {
-        return _isListOnly;
     }
 
     public boolean isPreservePermissions()
@@ -433,8 +417,6 @@ public class Generator implements RsyncTask
     public void purgeFile(final Filelist.Segment segment, final int index)
         throws InterruptedException
     {
-        assert !_isListOnly;
-
         Job j = new Job() {
             @Override
             public void process() throws ChannelException,
@@ -542,7 +524,6 @@ public class Generator implements RsyncTask
     public void listSegment(final Filelist.Segment segment)
         throws InterruptedException
     {
-        assert _isListOnly;
         assert segment != null;
 
         Job j = new Job() {
@@ -791,7 +772,6 @@ public class Generator implements RsyncTask
     private void sendChecksumForSegment(Filelist.Segment segment)
         throws ChannelException
     {
-        assert !_isListOnly;
         assert segment != null;
 
         final int dirIndex = segment.directoryIndex();

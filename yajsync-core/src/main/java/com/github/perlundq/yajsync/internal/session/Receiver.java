@@ -86,11 +86,16 @@ public class Receiver implements RsyncTask, MessageHandler
         {
             assert generator != null;
             assert in != null;
-            assert targetPath != null;
-            assert targetPath.isAbsolute() : targetPath;
+            assert targetPath == null || targetPath.isAbsolute();
             _generator = generator;
             _in = in;
             _targetPath = targetPath;
+        }
+
+        public static Builder newListing(Generator generator,
+                                         ReadableByteChannel in)
+        {
+            return new Builder(generator, in, null);
         }
 
         public static Builder newServer(Generator generator,
@@ -214,7 +219,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private final Map<Integer, Group> _gidGroupMap = new HashMap<>();
     private final RsyncInChannel _in;
     private final WritableStatistics _stats = new WritableStatistics();
-    private final Path _targetPath;
+    private final Path _targetPath; // is null if file listing
     private final TextDecoder _characterDecoder;
 
     private int _ioError;
@@ -230,7 +235,6 @@ public class Receiver implements RsyncTask, MessageHandler
         _generator = builder._generator;
         _fileList = _generator.fileList();
         _isInterruptible = _generator.isInterruptible();
-        _isListOnly = _generator.isListOnly();
         _isPreserveDevices = _generator.isPreserveDevices();
         _isPreserveLinks = _generator.isPreserveLinks();
         _isPreservePermissions = _generator.isPreservePermissions();
@@ -243,6 +247,7 @@ public class Receiver implements RsyncTask, MessageHandler
         _filterMode = builder._filterMode;
         _in = new RsyncInChannel(builder._in, this, INPUT_CHANNEL_BUF_SIZE);
         _targetPath = builder._targetPath;
+        _isListOnly = _targetPath == null;
         _characterDecoder = TextDecoder.newStrict(_generator.charset());
     }
 
@@ -668,9 +673,11 @@ public class Receiver implements RsyncTask, MessageHandler
     {
         // unable to resolve path until we have the initial list of files
         List<FileInfoStub> stubs = receiveFileStubs();
-        _pathResolver = getPathResolver(stubs);
-        if (_log.isLoggable(Level.FINER)) {
-            _log.finer("Path Resolver: " + _pathResolver);
+        if (!_isListOnly) {
+            _pathResolver = getPathResolver(stubs);
+            if (_log.isLoggable(Level.FINER)) {
+                _log.finer("Path Resolver: " + _pathResolver);
+            }
         }
 
         if (!_isNumericIds && _fileSelection != FileSelection.RECURSE) {
