@@ -19,7 +19,7 @@
  */
 package com.github.perlundq.yajsync.internal.channels;
 
-import com.github.perlundq.yajsync.internal.filelist.Filelist;
+import com.github.perlundq.yajsync.internal.session.Filelist;
 
 public class IndexEncoderImpl implements IndexEncoder
 {

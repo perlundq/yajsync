@@ -2,7 +2,7 @@
  * Rsync file information list
  *
  * Copyright (C) 1996-2011 by Andrew Tridgell, Wayne Davison, and others
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013, 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,12 +17,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.github.perlundq.yajsync.internal.filelist;
+package com.github.perlundq.yajsync.internal.session;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -38,12 +37,35 @@ public class Filelist
     public static class SegmentBuilder
     {
         private FileInfo _directory;
-        private List<FileInfo> _files = new LinkedList<>();
-        private List<FileInfo> _directories = new LinkedList<>();
+        private List<FileInfo> _files = new ArrayList<>();
+        private List<FileInfo> _directories = new ArrayList<>();
 
         public SegmentBuilder(FileInfo directory)
         {
             _directory = directory;
+        }
+
+        public SegmentBuilder(FileInfo directory, List<FileInfo> files,
+                              List<FileInfo> directories)
+        {
+            _directory = directory;
+            _files = files;
+            _directories = directories;
+        }
+
+        public FileInfo directory()
+        {
+            return _directory;
+        }
+
+        public List<FileInfo> files()
+        {
+            return _files;
+        }
+
+        public List<FileInfo> directories()
+        {
+            return _directories;
         }
 
         @Override
@@ -63,15 +85,6 @@ public class Filelist
         {
             assert _files != null && _directories != null;
             assert fileInfo != null;
-
-            if (_directory != null && fileInfo.pathOrNull() != null &&
-                (_directory.pathOrNull() == null ||
-                 !fileInfo.pathOrNull().startsWith(_directory.pathOrNull())))
-            {
-                throw new IllegalStateException(String.format(
-                    "%s should be a path prefix to: %s",
-                    _directory.pathOrNull(), fileInfo.pathOrNull()));
-            }
             _files.add(fileInfo);
             // NOTE: we store the directory in the builder regardless if we're
             // using recursive transfer or not
@@ -121,9 +134,12 @@ public class Filelist
             FileInfo prev = null;
 
             for (FileInfo f : files) {
+                // Note: we may not remove any other files here (if
+                // Receiver) without also notifying Sender with a
+                // Filelist.DONE if the Segment ends up being empty
                 if (isPruneDuplicates && f.equals(prev)) {
                     if (_log.isLoggable(Level.WARNING)) {
-                        _log.warning("skipping duplicate " + f.pathOrNull());
+                        _log.warning("skipping duplicate " + f);
                     }
                 } else {
                     _files.put(index, f);
@@ -147,7 +163,7 @@ public class Filelist
             sb.append(String.format(
                 "%s [%s, dirIndex=%d, fileIndices=%d:%d, size=%d/%d]",
                 getClass().getSimpleName(),
-                _directory != null ? _directory.pathOrNull() : "-",
+                _directory != null ? _directory : "-",
                 _dirIndex,
                 _dirIndex + 1,
                 _endIndex,
@@ -157,7 +173,7 @@ public class Filelist
             if (_log.isLoggable(Level.FINEST)) {
                 for (Map.Entry<Integer, FileInfo> e : _files.entrySet()) {
                     sb.append("   ").
-                    append(e.getValue().pathOrNull()).
+                    append(e.getValue()).
                     append(", ").
                     append(e.getKey());
                 }
@@ -267,7 +283,7 @@ public class Filelist
     protected Filelist(boolean isRecursive, boolean isPruneDuplicates,
                        List<Segment> segments)
     {
-        _segments = segments;   // NOTE: should be an ArrayList to ensure fast binarySearch
+        _segments = segments;
         _isRecursive = isRecursive;
         _isPruneDuplicates = isPruneDuplicates;
         if (isRecursive) {
@@ -302,11 +318,8 @@ public class Filelist
         if (_isRecursive) {
             extractStubDirectories(builder._directories);
         }
-        Segment segment = new Segment(builder._directory,
-                                      _nextDirIndex,
-                                      builder._files,
-                                      map,
-                                      _isPruneDuplicates);
+        Segment segment = new Segment(builder._directory, _nextDirIndex,
+                                      builder._files, map, _isPruneDuplicates);
         builder.clear();
         _nextDirIndex = segment._endIndex + 1;
         _segments.add(segment);
@@ -324,7 +337,7 @@ public class Filelist
         Collections.sort(directories);
         for (FileInfo f : directories) {
             assert f.attrs().isDirectory();
-            if (!f.isDotDir()) {
+            if (!((FileInfoImpl)f).isDotDir()) {
                 if (_log.isLoggable(Level.FINER)) {
                     _log.finer(String.format(
                         "adding non dot dir %s with index=%d to stub " +
@@ -351,14 +364,13 @@ public class Filelist
                                 isExpandable()));
 
         for (Segment s : _segments) {
-            String pathName = (s._directory == null ||
-                               s._directory.pathOrNull() == null)
+            String str = (s._directory == null ||
+                          s._directory.pathName() == null)
                     ? "-"
-                    : s._directory.pathOrNull().toString();
+                    : s._directory.toString();
             sb.append(", ").
-               append(String.format("segment(%d, %s)",
-                                    s.directoryIndex(),
-                                    pathName));
+               append(String.format("segment(%d, %s)", s.directoryIndex(),
+                                    str));
         }
         sb.append(")\n").
            append("unexpanded: ").

@@ -48,6 +48,7 @@ import com.github.perlundq.yajsync.Statistics;
 import com.github.perlundq.yajsync.attr.DeviceInfo;
 import com.github.perlundq.yajsync.attr.FileInfo;
 import com.github.perlundq.yajsync.attr.Group;
+import com.github.perlundq.yajsync.attr.LocatableFileInfo;
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.SymlinkInfo;
 import com.github.perlundq.yajsync.attr.User;
@@ -59,7 +60,6 @@ import com.github.perlundq.yajsync.internal.channels.MessageCode;
 import com.github.perlundq.yajsync.internal.channels.MessageHandler;
 import com.github.perlundq.yajsync.internal.channels.RsyncInChannel;
 import com.github.perlundq.yajsync.internal.channels.RsyncOutChannel;
-import com.github.perlundq.yajsync.internal.filelist.Filelist;
 import com.github.perlundq.yajsync.internal.io.FileView;
 import com.github.perlundq.yajsync.internal.io.FileViewNotFound;
 import com.github.perlundq.yajsync.internal.io.FileViewOpenFailed;
@@ -363,10 +363,9 @@ public final class Sender implements RsyncTask, MessageHandler
             Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
             builder.addAll(expandResult.value());
             Filelist.Segment initialSegment = fileList.newSegment(builder);
-
             long numBytesWritten = _duplexChannel.numBytesWritten();
             for (FileInfo f : initialSegment.files()) {
-                sendFileMetaData(f);
+                sendFileMetaData((LocatableFileInfo) f);
             }
             long t2 = System.currentTimeMillis();
             if (_log.isLoggable(Level.FINE)) {
@@ -601,8 +600,8 @@ public final class Sender implements RsyncTask, MessageHandler
         }
     }
 
-    private int sendFiles(Filelist fileList)
-        throws ChannelException, RsyncProtocolException
+    private int sendFiles(Filelist fileList) throws ChannelException,
+                                                    RsyncProtocolException
     {
         boolean sentEOF = false;
         TransferPhase phase = TransferPhase.TRANSFER;
@@ -722,9 +721,9 @@ public final class Sender implements RsyncTask, MessageHandler
                     }
                     sendIndexAndIflags(index, iFlags);
                 } else if (phase == TransferPhase.TRANSFER) {
-                    FileInfo fileInfo = null;
+                    LocatableFileInfo fileInfo = null;
                     if (segment != null) {
-                        fileInfo = segment.getFileWithIndexOrNull(index);
+                        fileInfo = (LocatableFileInfo) segment.getFileWithIndexOrNull(index);
                     }
                     if (fileInfo == null) {
                         segment = fileList.getSegmentWith(index);
@@ -741,7 +740,7 @@ public final class Sender implements RsyncTask, MessageHandler
 //                        }
                     }
 
-                    fileInfo = segment.getFileWithIndexOrNull(index);
+                    fileInfo = (LocatableFileInfo) segment.getFileWithIndexOrNull(index);
                     if (fileInfo == null ||
                         !fileInfo.attrs().isRegularFile()) {
                         throw new RsyncProtocolException(String.format(
@@ -751,7 +750,7 @@ public final class Sender implements RsyncTask, MessageHandler
 
                     if (_log.isLoggable(Level.FINE)) {
                         if (isTransferred(index)) {
-                            _log.fine("Re-sending " + fileInfo.pathOrNull());
+                            _log.fine("Re-sending " + fileInfo);
                         } else {
                             _log.fine("sending " + fileInfo);
                         }
@@ -770,7 +769,7 @@ public final class Sender implements RsyncTask, MessageHandler
                     long fileSize = fileInfo.attrs().size();
 
                     byte[] fileMD5sum = null;
-                    try (FileView fv = new FileView(fileInfo.pathOrNull(),
+                    try (FileView fv = new FileView(fileInfo.path(),
                                                     fileInfo.attrs().size(),
                                                     blockSize,
                                                     blockSize * blockFactor)) {
@@ -817,14 +816,14 @@ public final class Sender implements RsyncTask, MessageHandler
                     if (_log.isLoggable(Level.FINE)) {
                         _log.finer(String.format(
                             "sending checksum for %s: %s",
-                            fileInfo.pathOrNull(), Text.bytesToString(fileMD5sum)));
+                            fileInfo.path(), Text.bytesToString(fileMD5sum)));
                     }
                     _duplexChannel.put(fileMD5sum, 0, fileMD5sum.length);
                     setIsTransferred(index);
 
                     if (_log.isLoggable(Level.FINE)) {
                         _log.fine(String.format("sent %s (%d bytes)",
-                                                fileInfo.pathOrNull(), fileSize));
+                                                fileInfo.path(), fileSize));
                     }
 
                     _stats.setNumTransferredFiles(_stats.numTransferredFiles() +
@@ -855,10 +854,39 @@ public final class Sender implements RsyncTask, MessageHandler
         checksum[0]++;
     }
 
-    // NOTE: doesn't do any check of the validity of files or normalization -
-    // it's up to the caller to do so, e.g. ServerSessionConfig.parseArguments
-    private StatusResult<List<FileInfo>>
-    initialExpand(Iterable<Path> files) throws ChannelException
+    /**
+     * @throws TextConversionException
+     * @throws IOException
+     */
+    private LocatableFileInfo statAndEncode(Path path) throws IOException
+    {
+        RsyncFileAttributes attrs = RsyncFileAttributes.stat(path);
+        String fileName = path.getFileName().toString();
+        // throws TextConversionException
+        byte[] nameBytes = _characterEncoder.encode(fileName);
+
+        if (attrs.isRegularFile() || attrs.isDirectory()) {
+            return new LocatableFileInfoImpl(fileName, nameBytes, attrs, path);
+        } else if (_isPreserveLinks && attrs.isSymbolicLink()) {
+            String linkTarget = FileOps.readLinkTarget(path).toString();
+            return new LocatableSymlinkInfoImpl(fileName, nameBytes, attrs,
+                                                linkTarget, path);
+        } else if (_isPreserveDevices && (attrs.isBlockDevice() ||
+                                          attrs.isCharacterDevice())) {
+            throw new IOException(String.format(
+                    "unable to retrieve major and minor ID of %s %s",
+                    FileOps.fileTypeToString(attrs.mode()), path));
+        } else if (_isPreserveSpecials && (attrs.isFifo() ||
+                                           attrs.isSocket())) {
+            throw new IOException(String.format(
+                    "unable to retrieve major ID of %s %s",
+                    FileOps.fileTypeToString(attrs.mode()), path));
+        }
+        throw new AssertionError(attrs + " " + this);
+    }
+
+    private StatusResult<List<FileInfo>> initialExpand(Iterable<Path> files)
+            throws ChannelException
     {
         boolean isOK = true;
         List<FileInfo> fileset = new LinkedList<>();
@@ -869,35 +897,8 @@ public final class Sender implements RsyncTask, MessageHandler
                     _log.fine("expanding " + p);
                 }
 
-                RsyncFileAttributes attrs = RsyncFileAttributes.stat(p);
-                // throws TextConversionException
-                byte[] nameBytes =
-                        _characterEncoder.encode(p.getFileName().toString());
-                // throws IllegalArgumentException but that cannot happen
+                LocatableFileInfo fileInfo = statAndEncode(p);
 
-                FileInfo fileInfo;
-                if (_isPreserveLinks && attrs.isSymbolicLink()) {
-                    Path symlinkTarget = FileOps.readLinkTarget(p);
-                    fileInfo = new SymlinkInfo(p, p.getFileName(), nameBytes,
-                                               attrs, symlinkTarget);
-                } else if (_isPreserveDevices &&
-                           (attrs.isBlockDevice() ||
-                            attrs.isCharacterDevice())) {
-                    throw new IOException(String.format(
-                            "unable to retrieve major and minor ID of %s %s",
-                            FileOps.fileTypeToString(attrs.mode()), p));
-//                    fileInfo = new DeviceInfo(p, p.getFileName(), nameBytes,
-//                                              attrs, symlinkTarget,
-//                                              major, minor);
-                } else if (_isPreserveSpecials &&
-                           (attrs.isFifo() || attrs.isSocket())) {
-                    throw new IOException(String.format(
-                            "unable to retrieve major ID of %s %s",
-                            FileOps.fileTypeToString(attrs.mode()), p));
-                } else {
-                    fileInfo = new FileInfo(p, p.getFileName(), nameBytes,
-                                            attrs);
-                }
                 if (_fileSelection == FileSelection.EXACT &&
                     fileInfo.attrs().isDirectory())
                 {
@@ -910,7 +911,7 @@ public final class Sender implements RsyncTask, MessageHandler
                                                 fileInfo));
                     }
                     fileset.add(fileInfo);
-                    if (fileInfo.isDotDir()) {
+                    if (((LocatableFileInfoImpl)fileInfo).isDotDir()) {
                         if (_log.isLoggable(Level.FINE)) {
                             _log.fine("expanding dot dir " + fileInfo);
                         }
@@ -918,14 +919,14 @@ public final class Sender implements RsyncTask, MessageHandler
                                 expand(fileInfo);
                         isOK = isOK && expandResult.isOK();
                         for (FileInfo f2 : expandResult.value()) {
-                            fileset.add(f2);
+                            fileset.add((LocatableFileInfo) f2);
                         }
                         _curSegmentIndex++;
                     }
                 }
             } catch (IOException e) {
                 String msg = String.format("Failed to add %s to initial file " +
-                                           "list: %s", p, e.getMessage());
+                                           "list: %s", p, e);
                 if (_log.isLoggable(Level.WARNING)) {
                     _log.warning(msg);
                 }
@@ -946,14 +947,14 @@ public final class Sender implements RsyncTask, MessageHandler
         return new StatusResult<List<FileInfo>>(isOK, fileset);
     }
 
-    private StatusResult<List<FileInfo>> expand(FileInfo directory)
+    private StatusResult<List<FileInfo>> expand(LocatableFileInfo directory)
             throws ChannelException
     {
         assert directory != null;
 
         List<FileInfo> fileset = new ArrayList<>();
         boolean isOK = true;
-        final Path dir = directory.pathOrNull();
+        final Path dir = directory.path();
         final Path localDir = localPathTo(directory);
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
@@ -986,17 +987,20 @@ public final class Sender implements RsyncTask, MessageHandler
                     continue;
                 }
 
-                Path relativePath = localDir.relativize(entry);
+                Path relativePath = localDir.relativize(entry).normalize();
                 String relativePathName =
                     Text.withSlashAsPathSepator(relativePath);
                 byte[] pathNameBytes =
                     _characterEncoder.encodeOrNull(relativePathName);
                 if (pathNameBytes != null) {
-                    FileInfo f;
+                    LocatableFileInfo f;
                     if (_isPreserveLinks && attrs.isSymbolicLink()) {
                         Path symlinkTarget = FileOps.readLinkTarget(entry);
-                        f = new SymlinkInfo(entry, relativePath, pathNameBytes,
-                                            attrs, symlinkTarget);
+                        f = new LocatableSymlinkInfoImpl(relativePathName,
+                                                     pathNameBytes,
+                                                     attrs,
+                                                     symlinkTarget.toString(),
+                                                     entry);
                     } else if (_isPreserveDevices &&
                                (attrs.isBlockDevice() ||
                                 attrs.isCharacterDevice())) {
@@ -1011,9 +1015,6 @@ public final class Sender implements RsyncTask, MessageHandler
                                 toMessage(MessageCode.ERROR_XFER, msg + '\n'));
                         isOK = false;
                         continue;
-//                        f = new DeviceInfo(entry, relativePath, pathNameBytes,
-//                                           attrs, major, minor);
-
                     } else if (_isPreserveSpecials &&
                                (attrs.isFifo() || attrs.isSocket())) {
                         String msg = String.format(
@@ -1030,8 +1031,12 @@ public final class Sender implements RsyncTask, MessageHandler
                     } else {
                         // throws IllegalArgumentException but that cannot
                         // happen here
-                        f = new FileInfo(entry, relativePath, pathNameBytes,
-                                         attrs);
+                        f = new LocatableFileInfoImpl(relativePathName,
+                                                      pathNameBytes, attrs,
+                                                      entry);
+                    }
+                    if (_log.isLoggable(Level.FINE)) {
+                        _log.fine(String.format("adding %s to segment", f));
                     }
                     fileset.add(f);
                 } else {
@@ -1050,10 +1055,10 @@ public final class Sender implements RsyncTask, MessageHandler
             String msg;
             if (e instanceof AccessDeniedException) {
                 msg = String.format("Failed to read directory %s: %s",
-                                    directory.pathOrNull(), e);
+                                    directory.path(), e);
             } else {
                 msg = String.format("Got I/O error during expansion of %s: %s",
-                                    directory.pathOrNull(), e);
+                                    directory.path(), e);
             }
             if (_log.isLoggable(Level.WARNING)) {
                 _log.warning(msg);
@@ -1088,8 +1093,7 @@ public final class Sender implements RsyncTask, MessageHandler
             }
 
             assert _curSegmentIndex >= 0;
-            FileInfo directory =
-                fileList.getStubDirectoryOrNull(_curSegmentIndex);
+            LocatableFileInfo directory = (LocatableFileInfo) fileList.getStubDirectoryOrNull(_curSegmentIndex);
             assert directory != null;
             _duplexChannel.encodeIndex(Filelist.OFFSET - _curSegmentIndex);
 
@@ -1100,7 +1104,7 @@ public final class Sender implements RsyncTask, MessageHandler
             }
 
             Filelist.SegmentBuilder builder =
-                new Filelist.SegmentBuilder(directory);
+                    new Filelist.SegmentBuilder(directory);
             builder.addAll(expandResult.value());
             Filelist.Segment segment = fileList.newSegment(builder);
 
@@ -1113,7 +1117,7 @@ public final class Sender implements RsyncTask, MessageHandler
             }
 
             for (FileInfo fileInfo : segment.files()) {
-                sendFileMetaData(fileInfo);
+                sendFileMetaData((LocatableFileInfo) fileInfo);
                 numFilesSent++;
             }
 
@@ -1140,10 +1144,11 @@ public final class Sender implements RsyncTask, MessageHandler
         return new StatusResult<Integer>(isOK, numFilesSent);
     }
 
-    private void sendFileMetaData(FileInfo fileInfo) throws ChannelException
+    private void sendFileMetaData(LocatableFileInfo fileInfo)
+            throws ChannelException
     {
         if (_log.isLoggable(Level.FINE)) {
-            _log.fine("sending meta data for " + fileInfo.pathOrNull());
+            _log.fine("sending meta data for " + fileInfo.path());
         }
 
         char xflags = 0;
@@ -1215,7 +1220,8 @@ public final class Sender implements RsyncTask, MessageHandler
             _fileInfoCache.setPrevLastModified(lastModified);
         }
 
-        byte[] fileNameBytes = fileInfo.pathNameBytes();
+        byte[] fileNameBytes =
+                fileInfo.pathName().getBytes(_characterEncoder.charset());
         int commonPrefixLength =
             lengthOfLargestCommonPrefix(_fileInfoCache.getPrevFileNameBytes(),
                                         fileNameBytes);
@@ -1292,9 +1298,9 @@ public final class Sender implements RsyncTask, MessageHandler
             }
             sendEncodedInt(dev.minor());
         } else if (_isPreserveLinks && fileInfo instanceof SymlinkInfo) {
-            Path symlinkTarget = ((SymlinkInfo) fileInfo).targetPath();
+            String symlinkTarget = ((SymlinkInfo) fileInfo).targetPathName();
             byte[] symlinkTargetBytes =
-                    _characterEncoder.encode(symlinkTarget.toString());
+                    _characterEncoder.encode(symlinkTarget);
             sendEncodedInt(symlinkTargetBytes.length);
             _duplexChannel.put(ByteBuffer.wrap(symlinkTargetBytes));
         }
@@ -1562,18 +1568,12 @@ public final class Sender implements RsyncTask, MessageHandler
     }
 
     // i.e. if full path is /a/b/c/d and pathNamebytes is c/d this returns /a/b
-    private Path localPathTo(FileInfo fileInfo)
+    private Path localPathTo(LocatableFileInfo fileInfo)
     {
-         String pathName =
-                 _characterDecoder.decodeOrNull(fileInfo.pathNameBytes());
-         if (pathName == null) {
-             throw new RuntimeException(String.format(
-                 "unable to decode path name of %s using %s",
-                 fileInfo, _characterDecoder.charset()));
-         }
-         FileSystem fs = fileInfo.pathOrNull().getFileSystem();
+         String pathName = fileInfo.pathName(); /* never null */
+         FileSystem fs = fileInfo.path().getFileSystem();
          Path relativePath = fs.getPath(pathName);
-         return PathOps.subtractPathOrNull(fileInfo.pathOrNull(), relativePath);
+         return PathOps.subtractPathOrNull(fileInfo.path(), relativePath);
     }
 
     // NOTE: code duplication with Receiver

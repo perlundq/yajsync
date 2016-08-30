@@ -14,9 +14,29 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.github.perlundq.yajsync.attr;
+package com.github.perlundq.yajsync.internal.session;
 
-public interface SymlinkInfo extends FileInfo
+import java.nio.file.Path;
+
+import com.github.perlundq.yajsync.attr.LocatableFileInfo;
+import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
+
+class LocatableFileInfoImpl extends FileInfoImpl implements LocatableFileInfo
 {
-    String targetPathName();
+    private final Path _path;
+
+    LocatableFileInfoImpl(String pathName, byte[] pathNameBytes,
+                          RsyncFileAttributes attrs, Path path)
+    {
+        super(pathName, pathNameBytes, attrs);
+        assert path != null;
+        assert path.isAbsolute();
+        _path = path;
+    }
+
+    @Override
+    public Path path()
+    {
+        return _path;
+    }
 }

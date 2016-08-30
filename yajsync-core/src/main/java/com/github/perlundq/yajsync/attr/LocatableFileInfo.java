@@ -16,7 +16,9 @@
  */
 package com.github.perlundq.yajsync.attr;
 
-public interface SymlinkInfo extends FileInfo
+import java.nio.file.Path;
+
+public interface LocatableFileInfo extends FileInfo
 {
-    String targetPathName();
+    Path path();
 }

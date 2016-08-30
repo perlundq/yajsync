@@ -848,14 +848,6 @@ public class YajSyncClient
     private String fileInfoToListingString(FileInfo f)
     {
         RsyncFileAttributes attrs = f.attrs();
-        String pathName = _characterDecoder.decodeOrNull(f.pathNameBytes());
-        if (pathName == null) {
-            pathName = String.format("%s <WARNING filename contains " +
-                                     "undecodable characters (using %s)>",
-                                     new String(f.pathNameBytes(),
-                                                _characterDecoder.charset()),
-                                     _characterDecoder.charset());
-        }
         Date t = new Date(FileTime.from(attrs.lastModifiedTime(),
                                         TimeUnit.SECONDS).toMillis());
         if (f instanceof SymlinkInfo) {
@@ -863,12 +855,13 @@ public class YajSyncClient
                                  FileOps.modeToString(attrs.mode()),
                                  attrs.size(),
                                  _timeFormatter.format(t),
-                                 pathName, ((SymlinkInfo) f).targetPath());
+                                 f.pathName(),
+                                 ((SymlinkInfo) f).targetPathName());
         }
         return String.format("%s %11d %s %s",
-                FileOps.modeToString(attrs.mode()),
-                attrs.size(),
-                _timeFormatter.format(t),
-                pathName);
+                             FileOps.modeToString(attrs.mode()),
+                             attrs.size(),
+                             _timeFormatter.format(t),
+                             f.pathName());
     }
 }

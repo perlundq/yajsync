@@ -1,6 +1,4 @@
 /*
- * device file information
- *
  * Copyright (C) 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
@@ -18,31 +16,8 @@
  */
 package com.github.perlundq.yajsync.attr;
 
-import java.nio.file.Path;
-
-public class DeviceInfo extends FileInfo
+public interface DeviceInfo extends FileInfo
 {
-    private final int _major;
-    private final int _minor;
-
-    public DeviceInfo(Path pathOrNull, Path normalizedPathOrNull,
-                      byte[] pathNameBytes, RsyncFileAttributes attrs,
-                      int major, int minor)
-    {
-        super(pathOrNull, normalizedPathOrNull, pathNameBytes, attrs);
-        assert major >= 0;
-        assert minor >= 0;
-        _major = major;
-        _minor = minor;
-    }
-
-    public int major()
-    {
-        return _major;
-    }
-
-    public int minor()
-    {
-        return _minor;
-    }
+    int major();
+    int minor();
 }

@@ -14,9 +14,27 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.github.perlundq.yajsync.attr;
+package com.github.perlundq.yajsync.internal.session;
 
-public interface SymlinkInfo extends FileInfo
+import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
+import com.github.perlundq.yajsync.attr.SymlinkInfo;
+
+class SymlinkInfoImpl extends FileInfoImpl implements SymlinkInfo
 {
-    String targetPathName();
+    private final String _targetPathName;
+
+    public SymlinkInfoImpl(String pathName, byte[] pathNameBytes,
+                           RsyncFileAttributes attrs, String targetPathName)
+    {
+        super(pathName, pathNameBytes, attrs);
+        assert targetPathName != null;
+        assert attrs().isSymbolicLink();
+        _targetPathName = targetPathName;
+    }
+
+    @Override
+    public String targetPathName()
+    {
+        return _targetPathName;
+    }
 }
