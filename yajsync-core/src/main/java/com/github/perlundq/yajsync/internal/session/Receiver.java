@@ -1842,7 +1842,7 @@ public class Receiver implements RsyncTask, MessageHandler
                     if (isIntact) {
                         RsyncFileAttributes attrs2 =
                                 RsyncFileAttributes.statOrNull(p);
-                        if (!attrs.equals(attrs2)) {
+                        if (FileOps.isDataModified(attrs, attrs2)) {
                             String msg = String.format(
                                     "%s modified during verification " +
                                     "(%s != %s)", p, attrs, attrs2);

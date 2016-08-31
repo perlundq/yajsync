@@ -832,15 +832,6 @@ public class Generator implements RsyncTask
         }
     }
 
-    private static boolean isDataModified(RsyncFileAttributes curAttrsOrNull,
-                                          RsyncFileAttributes newAttrs)
-    {
-        assert newAttrs != null;
-        return curAttrsOrNull == null ||
-               curAttrsOrNull.size() != newAttrs.size() ||
-               curAttrsOrNull.lastModifiedTime() != newAttrs.lastModifiedTime();
-    }
-
     private void sendChecksumHeader(Checksum.Header header)
         throws ChannelException
     {
@@ -1090,7 +1081,7 @@ public class Generator implements RsyncTask
 
         // NOTE: native opens the file first though even if its file size is
         // zero
-        if (isDataModified(curAttrsOrNull, fileInfo.attrs()) || _isIgnoreTimes)
+        if (FileOps.isDataModified(curAttrsOrNull, fileInfo.attrs()) || _isIgnoreTimes)
         {
             if (curAttrsOrNull == null) {
                 sendItemizeInfo(index,

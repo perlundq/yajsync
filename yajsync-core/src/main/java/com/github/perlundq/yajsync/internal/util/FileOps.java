@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.github.perlundq.yajsync.attr.Group;
+import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.User;
 import com.github.perlundq.yajsync.internal.text.Text;
 
@@ -422,5 +423,14 @@ public class FileOps
             throw new IOException("symlink target is the empty string");
         }
         return symlinkTarget;
+    }
+
+    public static boolean isDataModified(RsyncFileAttributes curAttrsOrNull,
+                                         RsyncFileAttributes newAttrs)
+    {
+        assert newAttrs != null;
+        return curAttrsOrNull == null ||
+               curAttrsOrNull.size() != newAttrs.size() ||
+               curAttrsOrNull.lastModifiedTime() != newAttrs.lastModifiedTime();
     }
 }
