@@ -215,8 +215,8 @@ public class Receiver implements RsyncTask, MessageHandler
     private final FileSelection _fileSelection;
     private final FilterMode _filterMode;
     private final Generator _generator;
-    private final Map<Integer, User> _uidUserMap = new HashMap<>();
-    private final Map<Integer, Group> _gidGroupMap = new HashMap<>();
+    private final Map<Integer, User> _recursiveUidUserMap = new HashMap<>();
+    private final Map<Integer, Group> _recursiveGidGroupMap = new HashMap<>();
     private final RsyncInChannel _in;
     private final SessionStatistics _stats = new SessionStatistics();
     private final Path _targetPath; // is null if file listing
@@ -347,10 +347,10 @@ public class Receiver implements RsyncTask, MessageHandler
 
             if (!_isNumericIds && _fileSelection == FileSelection.RECURSE) {
                 if (_isPreserveUser) {
-                    _uidUserMap.put(User.ROOT.id(), User.ROOT);
+                    _recursiveUidUserMap.put(User.ROOT.id(), User.ROOT);
                 }
                 if (_isPreserveGroup) {
-                    _gidGroupMap.put(Group.ROOT.id(), Group.ROOT);
+                    _recursiveGidGroupMap.put(Group.ROOT.id(), Group.ROOT);
                 }
             }
 
@@ -1600,14 +1600,14 @@ public class Receiver implements RsyncTask, MessageHandler
             }
             if (_fileSelection == FileSelection.RECURSE && isReceiveUserName) {
                 user = receiveUser();
-                _uidUserMap.put(user.id(), user);
+                _recursiveUidUserMap.put(user.id(), user);
             } else if (_fileSelection == FileSelection.RECURSE) {
                 // && !isReceiveUsername where isReceiveUserName is only true
                 // once for every new mapping, old ones have been sent
                 // previously
                 int uid = receiveUserId();
                 // Note: _uidUserMap contains a predefined mapping for root
-                user = _uidUserMap.get(uid);
+                user = _recursiveUidUserMap.get(uid);
                 if (user == null) {
                     user = new User("", uid);
                 }
@@ -1640,10 +1640,10 @@ public class Receiver implements RsyncTask, MessageHandler
             }
             if (_fileSelection == FileSelection.RECURSE && isReceiveGroupName) {
                 group = receiveGroup();
-                _gidGroupMap.put(group.id(), group);
+                _recursiveGidGroupMap.put(group.id(), group);
             } else if (_fileSelection == FileSelection.RECURSE) {
                 int gid = receiveGroupId();
-                group = _gidGroupMap.get(gid);
+                group = _recursiveGidGroupMap.get(gid);
                 if (group == null) {
                     group = new Group("", gid);
                 }
