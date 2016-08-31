@@ -69,15 +69,15 @@ public interface Statistics
      * @return time for the generation and transfer of the initial segment
      *     excluding sending the end of segment (in milliseconds). Warning:
      *     not really useful since yajsync uses incremental recursion only (i.e.
-     *     it splits up the file list into several segments)
+     *     it splits up the file list into several segments).
      */
     long fileListBuildTime();
 
     /**
      * @return time for sending of end of initial segment and additional meta
-     *     data (in milliseconds) Warning: not really useful since yajsync uses
+     *     data (in milliseconds). Warning: not really useful since yajsync uses
      *     incremental recursion only (i.e. it splits up the file list into
-     *     several segments)
+     *     several segments).
      */
     long fileListTransferTime();
 }

@@ -56,7 +56,7 @@ import com.github.perlundq.yajsync.attr.FileInfo;
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.SymlinkInfo;
 import com.github.perlundq.yajsync.internal.channels.ChannelException;
-import com.github.perlundq.yajsync.internal.session.WritableStatistics;
+import com.github.perlundq.yajsync.internal.session.SessionStatistics;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.text.TextDecoder;
 import com.github.perlundq.yajsync.internal.util.ArgumentParser;
@@ -148,7 +148,7 @@ public class YajSyncClient
     private PrintStream _stdout = System.out;
     private final RsyncClient.Builder _clientBuilder =
             new RsyncClient.Builder().authProvider(_authProvider);
-    private Statistics _statistics = new WritableStatistics();
+    private Statistics _statistics = new SessionStatistics();
     private String _cwdName = Environment.getWorkingDirectoryName();
     private String _passwordFile;
     private String _userName;

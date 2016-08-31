@@ -247,7 +247,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private final Iterable<Path> _sourceFiles;
     private final Set<User> _transferredUserNames = new LinkedHashSet<>();
     private final Set<Group> _transferredGroupNames = new LinkedHashSet<>();
-    private final WritableStatistics _stats = new WritableStatistics();
+    private final SessionStatistics _stats = new SessionStatistics();
     private final TextDecoder _characterDecoder;
     private final TextEncoder _characterEncoder;
 
@@ -389,12 +389,11 @@ public final class Sender implements RsyncTask, MessageHandler
                 sendGroupList();
             }
 
-            _stats.setFileListBuildTime(Math.max(1, t2 - t1));
-            _stats.setFileListTransferTime(Math.max(0, t3 - t2));
+            _stats._fileListBuildTime = Math.max(1, t2 - t1);
+            _stats._fileListTransferTime = Math.max(0, t3 - t2);
             long segmentSize = _duplexChannel.numBytesWritten() -
                                numBytesWritten;
-            _stats.setTotalFileListSize(_stats.totalFileListSize() +
-                                        segmentSize);
+            _stats._totalFileListSize += segmentSize;
             if (!_isSafeFileList && !isInitialListOK) {
                 sendIntMessage(MessageCode.IO_ERROR, IoError.GENERAL);
             }
@@ -422,10 +421,10 @@ public final class Sender implements RsyncTask, MessageHandler
             // we update the statistics in finally clause to guarantee that the
             // statistics are updated even if there's an error
             if (_isSendStatistics) {
-                _stats.setTotalFileSize(fileList.totalFileSize());
-                _stats.setTotalRead(_duplexChannel.numBytesRead());
-                _stats.setTotalBytesWritten(_duplexChannel.numBytesWritten());
-                _stats.setNumFiles(fileList.numFiles());
+                _stats._totalFileSize = fileList.totalFileSize();
+                _stats._totalBytesRead = _duplexChannel.numBytesRead();
+                _stats._totalBytesWritten = _duplexChannel.numBytesWritten();
+                _stats._numFiles = fileList.numFiles();
                 sendStatistics(_stats);
             }
 
@@ -441,10 +440,10 @@ public final class Sender implements RsyncTask, MessageHandler
         } catch (RuntimeInterruptException e) {
             throw new InterruptedException();
         } finally {
-            _stats.setTotalFileSize(fileList.totalFileSize());
-            _stats.setTotalRead(_duplexChannel.numBytesRead());
-            _stats.setTotalBytesWritten(_duplexChannel.numBytesWritten());
-            _stats.setNumFiles(fileList.numFiles());
+            _stats._totalFileSize = fileList.totalFileSize();
+            _stats._totalBytesRead = _duplexChannel.numBytesRead();
+            _stats._totalBytesWritten = _duplexChannel.numBytesWritten();
+            _stats._numFiles = fileList.numFiles();
         }
     }
 
@@ -826,10 +825,8 @@ public final class Sender implements RsyncTask, MessageHandler
                                                 fileInfo.path(), fileSize));
                     }
 
-                    _stats.setNumTransferredFiles(_stats.numTransferredFiles() +
-                                                  1);
-                    _stats.setTotalTransferredSize(_stats.totalTransferredSize()
-                                                   + fileInfo.attrs().size());
+                    _stats._numTransferredFiles++;
+                    _stats._totalTransferredSize += fileInfo.attrs().size();
                 } else {
                     throw new RsyncProtocolException(String.format(
                         "Error: received index in wrong phase (%s)",
@@ -1134,7 +1131,7 @@ public final class Sender implements RsyncTask, MessageHandler
         }
 
         long segmentSize = _duplexChannel.numBytesWritten() - numBytesWritten;
-        _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
+        _stats._totalFileListSize += segmentSize;
 
         if (_log.isLoggable(Level.FINE)) {
             _log.fine(String.format("sent meta data for %d segments and %d " +
@@ -1389,7 +1386,7 @@ public final class Sender implements RsyncTask, MessageHandler
                               view.windowLength());
             view.slide(view.windowLength());
         }
-        _stats.setTotalLiteralSize(_stats.totalLiteralSize() + fileSize);
+        _stats._totalLiteralSize += fileSize;
         _duplexChannel.putInt(0);
         assert bytesSent == fileSize;
         return fileDigest.digest();
@@ -1511,8 +1508,8 @@ public final class Sender implements RsyncTask, MessageHandler
                                     sizeMatch, sizeLiteral, fileSize, fv));
         }
 
-        _stats.setTotalLiteralSize(_stats.totalLiteralSize() + sizeLiteral);
-        _stats.setTotalMatchedSize(_stats.totalMatchedSize() + sizeMatch);
+        _stats._totalLiteralSize += sizeLiteral;
+        _stats._totalMatchedSize += sizeMatch;
         assert sizeLiteral + sizeMatch == fileSize;
         return fileDigest.digest();
     }

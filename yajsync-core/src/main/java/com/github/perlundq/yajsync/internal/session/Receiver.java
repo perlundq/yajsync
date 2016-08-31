@@ -218,7 +218,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private final Map<Integer, User> _uidUserMap = new HashMap<>();
     private final Map<Integer, Group> _gidGroupMap = new HashMap<>();
     private final RsyncInChannel _in;
-    private final WritableStatistics _stats = new WritableStatistics();
+    private final SessionStatistics _stats = new SessionStatistics();
     private final Path _targetPath; // is null if file listing
     private final TextDecoder _characterDecoder;
 
@@ -383,7 +383,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 _generator.generateSegment(initialSegment);
             }
             _ioError |= receiveFiles();
-            _stats.setNumFiles(_fileList.numFiles());
+            _stats._numFiles = _fileList.numFiles();
             if (_isReceiveStatistics) {
                 receiveStatistics();
                 if (_log.isLoggable(Level.FINE)) {
@@ -712,16 +712,11 @@ public class Receiver implements RsyncTask, MessageHandler
 
     private void receiveStatistics() throws ChannelException
     {
-        long totalWritten = receiveAndDecodeLong(3);
-        long totalRead = receiveAndDecodeLong(3);
-        long totalFileSize = receiveAndDecodeLong(3);
-        long fileListBuildTime = receiveAndDecodeLong(3);
-        long fileListTransferTime = receiveAndDecodeLong(3);
-        _stats.setFileListBuildTime(fileListBuildTime);
-        _stats.setFileListTransferTime(fileListTransferTime);
-        _stats.setTotalRead(totalRead);
-        _stats.setTotalFileSize(totalFileSize);
-        _stats.setTotalBytesWritten(totalWritten);
+        _stats._totalBytesWritten = receiveAndDecodeLong(3);
+        _stats._totalBytesRead = receiveAndDecodeLong(3);
+        _stats._totalFileSize = receiveAndDecodeLong(3);
+        _stats._fileListBuildTime =  receiveAndDecodeLong(3);
+        _stats._fileListTransferTime =  receiveAndDecodeLong(3);
     }
 
     private void sendEmptyFilterRules() throws InterruptedException
@@ -963,9 +958,8 @@ public class Receiver implements RsyncTask, MessageHandler
                     _log.info(fileInfo.toString());
                 }
 
-                _stats.setNumTransferredFiles(_stats.numTransferredFiles() + 1);
-                _stats.setTotalTransferredSize(_stats.totalTransferredSize() +
-                                               fileInfo.attrs().size());
+                _stats._numTransferredFiles++;
+                _stats._totalTransferredSize += fileInfo.attrs().size();
 
                 if (isTransferred(index) && _log.isLoggable(Level.FINE)) {
                     _log.fine("Re-receiving " + fileInfo);
@@ -1479,7 +1473,7 @@ public class Receiver implements RsyncTask, MessageHandler
 
         long segmentSize = _in.numBytesRead() -
                            _in.numBytesPrefetched() - numBytesRead;
-        _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
+        _stats._totalFileListSize += segmentSize;
         return stubs;
     }
 
@@ -1509,7 +1503,7 @@ public class Receiver implements RsyncTask, MessageHandler
 
         long segmentSize = _in.numBytesRead() -
                            _in.numBytesPrefetched() - numBytesRead;
-        _stats.setTotalFileListSize(_stats.totalFileListSize() + segmentSize);
+        _stats._totalFileListSize += segmentSize;
         Filelist.Segment segment = _fileList.newSegment(builder);
         return segment;
     }
@@ -1819,8 +1813,8 @@ public class Receiver implements RsyncTask, MessageHandler
                 sizeMatch += blockSize(blockIndex, checksumHeader);
             }
         }
-        _stats.setTotalLiteralSize(_stats.totalLiteralSize() + sizeLiteral);
-        _stats.setTotalMatchedSize(_stats.totalMatchedSize() + sizeMatch);
+        _stats._totalLiteralSize += sizeLiteral;
+        _stats._totalMatchedSize += sizeMatch;
     }
 
     private Path mergeDataFromPeerAndReplica(LocatableFileInfo fileInfo,
@@ -1997,8 +1991,8 @@ public class Receiver implements RsyncTask, MessageHandler
                                     100 * sizeMatch /
                                           (float) (sizeMatch + sizeLiteral)));
         }
-        _stats.setTotalLiteralSize(_stats.totalLiteralSize() + sizeLiteral);
-        _stats.setTotalMatchedSize(_stats.totalMatchedSize() + sizeMatch);
+        _stats._totalLiteralSize += sizeLiteral;
+        _stats._totalMatchedSize += sizeMatch;
         return isDeferrable;
     }
 
