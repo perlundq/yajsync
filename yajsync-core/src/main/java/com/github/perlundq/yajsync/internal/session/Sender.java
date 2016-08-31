@@ -409,7 +409,7 @@ public final class Sender implements RsyncTask, MessageHandler
                 if (_isExitAfterEOF) {
                     readAllMessagesUntilEOF();
                 }
-                return isInitialListOK;
+                return isInitialListOK && _ioError == 0;
             }
 
             int ioError = sendFiles(fileList);
