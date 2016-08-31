@@ -42,11 +42,12 @@ exceptions:
 
 Misc:
 - No tabs, no carriage returns, no trailing whitespace.
-- Lines should be at most 80 characters long.
+- Lines should be at most 100 characters long.
 - Default to immutable fields and strive for possibly immutable
   objects.
 - Try to limit unnecessary usage of null. Assert fields that aren't
-  allowed to be null aren't assigned null. Any method that return null
-  should have its name suffixed with orNull.
+  allowed to be null aren't assigned null. Any (internal) method that
+  return null may have its name suffixed with orNull. Any public API
+  method that may return null should use an Optional instead.
 - Include javadoc for any unchecked exceptions that may be thrown for
   a method.
