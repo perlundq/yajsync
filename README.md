@@ -189,7 +189,7 @@ Requirements:
 
 - [git](http://git-scm.com)
 - [Apache Maven](https://maven.apache.org)
-- [OpenJDK 1.7 or later](http://openjdk.java.net/) or [Oracle JDK 7](http://java.oracle.com)
+- [OpenJDK 1.8 or later](http://openjdk.java.net/) or [Oracle JDK 8](http://java.oracle.com)
 
 Procedure:
 
