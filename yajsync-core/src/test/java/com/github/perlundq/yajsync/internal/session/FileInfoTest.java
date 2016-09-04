@@ -52,7 +52,7 @@ public class FileInfoTest {
         String str = ".a";
         FileInfo f = new FileInfoImpl(str, str.getBytes(), _fileAttrs);
         assertFalse(_dotDir.equals(f));
-        assertTrue(_dotDir.compareTo(f) == -1);
+        assertTrue(_dotDir.compareTo(f) <= -1);
     }
 
     @Test
@@ -61,7 +61,7 @@ public class FileInfoTest {
         String str = "...";
         FileInfoImpl f = new FileInfoImpl(str, str.getBytes(), _fileAttrs);
         assertFalse(_dotDir.equals(f));
-        assertTrue(_dotDir.compareTo(f) == -1);
+        assertTrue(_dotDir.compareTo(f) <= -1);
     }
 
     @Test
@@ -70,7 +70,7 @@ public class FileInfoTest {
         String str = "...";
         FileInfoImpl f = new FileInfoImpl(str, str.getBytes(), _dirAttrs);
         assertFalse(_dotDir.equals(f));
-        assertTrue(_dotDir.compareTo(f) == -1);
+        assertTrue(_dotDir.compareTo(f) <= -1);
     }
 
     // test empty throws illegalargumentexception
@@ -103,6 +103,95 @@ public class FileInfoTest {
         String str = "a.";
         FileInfoImpl f = new FileInfoImpl(str, str.getBytes(), _dirAttrs);
         assertFalse(_dotDir.equals(f));
-        assertTrue(_dotDir.compareTo(f) == -1);
+        assertTrue(_dotDir.compareTo(f) <= -1);
     }
+
+    @Test
+    public void testSortSubstringDirs1()
+    {
+        String str = "a"; // i.e. a/
+        FileInfoImpl f = new FileInfoImpl(str, str.getBytes(), _dirAttrs);
+        str = "a.";
+        FileInfoImpl g = new FileInfoImpl(str, str.getBytes(), _dirAttrs);
+        assertFalse(f.equals(g));
+        assertTrue(f.compareTo(g) >= 1);
+    }
+
+    @Test
+    public void testSortSubstringFileDir1()
+    {
+        String str = "a";
+        FileInfoImpl f = new FileInfoImpl(str, str.getBytes(), _fileAttrs);
+        str = "a.";
+        FileInfoImpl g = new FileInfoImpl(str, str.getBytes(), _dirAttrs);
+        assertFalse(f.equals(g));
+        assertTrue(f.compareTo(g) <= -1);
+    }
+
+    @Test
+    public void testSortSubstringFileDir2()
+    {
+        String str = "a";
+        FileInfoImpl f = new FileInfoImpl(str, str.getBytes(), _dirAttrs);
+        str = "a.";
+        FileInfoImpl g = new FileInfoImpl(str, str.getBytes(), _fileAttrs);
+        assertFalse(f.equals(g));
+        assertTrue(f.compareTo(g) >= 1);
+    }
+
+    @Test
+    public void testSortSubstringFiles1()
+    {
+        String str = "a";
+        FileInfoImpl f = new FileInfoImpl(str, str.getBytes(), _fileAttrs);
+        str = "a.";
+        FileInfoImpl g = new FileInfoImpl(str, str.getBytes(), _fileAttrs);
+        assertFalse(f.equals(g));
+        assertTrue(f.compareTo(g) <= -1);
+    }
+
+    @Test
+    public void testSortSubstringDirs2()
+    {
+        String str = "a"; //i.e. a/
+        FileInfoImpl f = new FileInfoImpl(str, str.getBytes(), _dirAttrs);
+        str = "a0";
+        FileInfoImpl g = new FileInfoImpl(str, str.getBytes(), _dirAttrs);
+        assertFalse(f.equals(g));
+        assertTrue(f.compareTo(g) <= -1);
+    }
+
+    @Test
+    public void testSortSubstringFileDir3()
+    {
+        String str = "a";
+        FileInfoImpl f = new FileInfoImpl(str, str.getBytes(), _fileAttrs);
+        str = "a0";
+        FileInfoImpl g = new FileInfoImpl(str, str.getBytes(), _dirAttrs);
+        assertFalse(f.equals(g));
+        assertTrue(f.compareTo(g) <= -1);
+    }
+
+    @Test
+    public void testSortSubstringFileDir4()
+    {
+        String str = "a";
+        FileInfoImpl f = new FileInfoImpl(str, str.getBytes(), _dirAttrs);
+        str = "a0";
+        FileInfoImpl g = new FileInfoImpl(str, str.getBytes(), _fileAttrs);
+        assertFalse(f.equals(g));
+        assertTrue(f.compareTo(g) >= 1);
+    }
+
+    @Test
+    public void testSortSubstringFiles2()
+    {
+        String str = "a";
+        FileInfoImpl f = new FileInfoImpl(str, str.getBytes(), _fileAttrs);
+        str = "a0";
+        FileInfoImpl g = new FileInfoImpl(str, str.getBytes(), _fileAttrs);
+        assertFalse(f.equals(g));
+        assertTrue(f.compareTo(g) <= -1);
+    }
+
 }
