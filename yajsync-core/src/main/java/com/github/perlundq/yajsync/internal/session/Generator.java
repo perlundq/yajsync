@@ -232,6 +232,7 @@ public class Generator implements RsyncTask
     private final TextEncoder _characterEncoder;
 
     private boolean _isRunning = true;
+    private FileAttributeManager _fileAttributeManager;
     private int _returnStatus;
     private volatile boolean _isDeletionsEnabled;
 
@@ -651,8 +652,7 @@ public class Generator implements RsyncTask
     {
         assert dir != null;
 
-        RsyncFileAttributes attrs =
-                RsyncFileAttributes.statOrNull(dir.path());
+        RsyncFileAttributes attrs = _fileAttributeManager.statOrNull(dir.path());
         if (attrs == null) {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine("(Generator) creating directory " + dir.path());
@@ -1195,8 +1195,7 @@ public class Generator implements RsyncTask
             throws IOException
     {
         // null if file does not exist; throws IOException on any other error
-        RsyncFileAttributes curAttrsOrNull =
-                RsyncFileAttributes.statIfExists(fileInfo.path());
+        RsyncFileAttributes curAttrsOrNull = _fileAttributeManager.statIfExists(fileInfo.path());
         if (curAttrsOrNull != null &&
             curAttrsOrNull.fileType() != fileInfo.attrs().fileType()) {
             if (_log.isLoggable(Level.FINE)) {
@@ -1300,6 +1299,11 @@ public class Generator implements RsyncTask
     public boolean isPreserveSpecials()
     {
         return _isPreserveSpecials;
+    }
+
+    synchronized void setFileAttributeManager(FileAttributeManager fileAttributeManager)
+    {
+        _fileAttributeManager = fileAttributeManager;
     }
 
     /**

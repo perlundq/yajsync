@@ -53,9 +53,14 @@ import com.github.perlundq.yajsync.RsyncServer;
 import com.github.perlundq.yajsync.Statistics;
 import com.github.perlundq.yajsync.attr.DeviceInfo;
 import com.github.perlundq.yajsync.attr.FileInfo;
+import com.github.perlundq.yajsync.attr.Group;
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.SymlinkInfo;
+import com.github.perlundq.yajsync.attr.User;
 import com.github.perlundq.yajsync.internal.channels.ChannelException;
+import com.github.perlundq.yajsync.internal.session.FileAttributeManager;
+import com.github.perlundq.yajsync.internal.session.FileAttributeManagerFactory;
+import com.github.perlundq.yajsync.internal.session.PosixFileAttributeManager;
 import com.github.perlundq.yajsync.internal.session.SessionStatistics;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.text.TextDecoder;
@@ -104,8 +109,13 @@ public class YajSyncClient
         {
             if (_passwordFile != null) {
                 if (!_passwordFile.equals("-")) {
-                    RsyncFileAttributes attrs =
-                        RsyncFileAttributes.stat(Paths.get(_passwordFile));
+                    Path p = Paths.get(_passwordFile);
+                    FileAttributeManager fileManager =
+                            FileAttributeManagerFactory.newMostAble(p.getFileSystem(),
+                                                                    User.NOBODY, Group.NOBODY,
+                                                                    Environment.DEFAULT_FILE_PERMS,
+                                                                    Environment.DEFAULT_DIR_PERMS);
+                    RsyncFileAttributes attrs = fileManager.stat(p);
                     if ((attrs.mode() & (FileOps.S_IROTH | FileOps.S_IWOTH)) != 0) {
                         throw new IOException(String.format(
                                 "insecure permissions on %s: %s",

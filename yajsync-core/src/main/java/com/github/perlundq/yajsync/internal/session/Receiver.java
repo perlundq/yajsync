@@ -61,6 +61,7 @@ import com.github.perlundq.yajsync.internal.io.AutoDeletable;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.text.TextConversionException;
 import com.github.perlundq.yajsync.internal.text.TextDecoder;
+import com.github.perlundq.yajsync.internal.util.Environment;
 import com.github.perlundq.yajsync.internal.util.FileOps;
 import com.github.perlundq.yajsync.internal.util.MD5;
 import com.github.perlundq.yajsync.internal.util.PathOps;
@@ -80,6 +81,11 @@ public class Receiver implements RsyncTask, MessageHandler
         private boolean _isReceiveStatistics;
         private boolean _isSafeFileList = true;
         private FilterMode _filterMode = FilterMode.NONE;
+
+        public User _defaultUser = User.NOBODY;
+        public Group _defaultGroup = Group.NOBODY;
+        public int _defaultFilePermissions = Environment.DEFAULT_FILE_PERMS;
+        public int _defaultDirectoryPermissions = Environment.DEFAULT_DIR_PERMS;
 
         public Builder(Generator generator, ReadableByteChannel in,
                        Path targetPath)
@@ -155,6 +161,30 @@ public class Receiver implements RsyncTask, MessageHandler
             return this;
         }
 
+        public Builder defaultUser(User defaultUser)
+        {
+            _defaultUser = defaultUser;
+            return this;
+        }
+
+        public Builder defaultGroup(Group defaultGroup)
+        {
+            _defaultGroup = defaultGroup;
+            return this;
+        }
+
+        public Builder defaultFilePermissions(int defaultFilePermissions)
+        {
+            _defaultFilePermissions = defaultFilePermissions;
+            return this;
+        }
+
+        public Builder defaultDirectoryPermissions(int defaultDirectoryPermissions)
+        {
+            _defaultDirectoryPermissions = defaultDirectoryPermissions;
+            return this;
+        }
+
         public Receiver build()
         {
             return new Receiver(this);
@@ -210,6 +240,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private final boolean _isNumericIds;
     private final boolean _isReceiveStatistics;
     private final boolean _isSafeFileList;
+    private final FileAttributeManager _fileAttributeManager;
     private final FileInfoCache _fileInfoCache = new FileInfoCache();
     private final Filelist _fileList;
     private final FileSelection _fileSelection;
@@ -249,6 +280,23 @@ public class Receiver implements RsyncTask, MessageHandler
         _targetPath = builder._targetPath;
         _isListOnly = _targetPath == null;
         _characterDecoder = TextDecoder.newStrict(_generator.charset());
+
+        if (!_isListOnly) {
+            _fileAttributeManager = FileAttributeManagerFactory.getMostPerformant(
+                                                              _targetPath.getFileSystem(),
+                                                              _isPreserveUser,
+                                                              _isPreserveGroup,
+                                                              _isPreserveDevices,
+                                                              _isPreserveSpecials,
+                                                              _isNumericIds,
+                                                              builder._defaultUser,
+                                                              builder._defaultGroup,
+                                                              builder._defaultFilePermissions,
+                                                              builder._defaultDirectoryPermissions);
+            _generator.setFileAttributeManager(_fileAttributeManager);
+        } else {
+            _fileAttributeManager = null;
+        }
     }
 
     @Override
@@ -273,7 +321,8 @@ public class Receiver implements RsyncTask, MessageHandler
                 "isSafeFileList=%b, " +
                 "fileSelection=%s, " +
                 "filterMode=%s, " +
-                "targetPath=%s" +
+                "targetPath=%s, " +
+                "fileAttributeManager=%s" +
                 ")",
                 getClass().getSimpleName(),
                 _isDeferWrite,
@@ -293,7 +342,8 @@ public class Receiver implements RsyncTask, MessageHandler
                 _isSafeFileList,
                 _fileSelection,
                 _filterMode,
-                _targetPath);
+                _targetPath,
+                _fileAttributeManager);
     }
 
     @Override
@@ -553,7 +603,7 @@ public class Receiver implements RsyncTask, MessageHandler
     {
         RsyncFileAttributes attrs;
         try {
-            attrs = RsyncFileAttributes.statIfExists(_targetPath);
+            attrs = _fileAttributeManager.statIfExists(_targetPath);
         } catch (IOException e) {
             throw new RsyncException(String.format("unable to stat %s: %s",
                                                    _targetPath, e));
@@ -1023,7 +1073,7 @@ public class Receiver implements RsyncTask, MessageHandler
     private void updateAttrsIfDiffer(Path path, RsyncFileAttributes targetAttrs)
         throws IOException
     {
-        RsyncFileAttributes curAttrs = RsyncFileAttributes.stat(path);
+        RsyncFileAttributes curAttrs = _fileAttributeManager.stat(path);
 
         if (_isPreservePermissions && curAttrs.mode() != targetAttrs.mode()) {
             if (_log.isLoggable(Level.FINE)) {
@@ -1835,13 +1885,12 @@ public class Receiver implements RsyncTask, MessageHandler
             Path p = fileInfo.path();
             try (FileChannel replica =
                     FileChannel.open(p, StandardOpenOption.READ)) {
-                RsyncFileAttributes attrs = RsyncFileAttributes.stat(p);
+                RsyncFileAttributes attrs = _fileAttributeManager.stat(p);
                 if (attrs.isRegularFile()) {
                     boolean isIntact = combineDataToFile(replica, target,
                                                          checksumHeader, md);
                     if (isIntact) {
-                        RsyncFileAttributes attrs2 =
-                                RsyncFileAttributes.statOrNull(p);
+                        RsyncFileAttributes attrs2 = _fileAttributeManager.statOrNull(p);
                         if (FileOps.isDataModified(attrs, attrs2)) {
                             String msg = String.format(
                                     "%s modified during verification " +

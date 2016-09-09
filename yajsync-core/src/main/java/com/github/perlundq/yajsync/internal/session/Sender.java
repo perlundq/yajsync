@@ -68,6 +68,7 @@ import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.text.TextConversionException;
 import com.github.perlundq.yajsync.internal.text.TextDecoder;
 import com.github.perlundq.yajsync.internal.text.TextEncoder;
+import com.github.perlundq.yajsync.internal.util.Environment;
 import com.github.perlundq.yajsync.internal.util.FileOps;
 import com.github.perlundq.yajsync.internal.util.MD5;
 import com.github.perlundq.yajsync.internal.util.PathOps;
@@ -97,7 +98,10 @@ public final class Sender implements RsyncTask, MessageHandler
         private Charset _charset = Charset.forName(Text.UTF8_NAME);
         private FileSelection _fileSelection = FileSelection.EXACT;
         private FilterMode _filterMode = FilterMode.NONE;
-
+        public User _defaultUser = User.NOBODY;
+        public Group _defaultGroup = Group.NOBODY;
+        public int _defaultFilePermissions = Environment.DEFAULT_FILE_PERMS;
+        public int _defaultDirectoryPermissions = Environment.DEFAULT_DIR_PERMS;
 
         public Builder(ReadableByteChannel in,
                        WritableByteChannel out,
@@ -159,6 +163,12 @@ public final class Sender implements RsyncTask, MessageHandler
             return this;
         }
 
+        public Builder isPreserveSpecials(boolean isPreserveSpecials)
+        {
+            _isPreserveSpecials = isPreserveSpecials;
+            return this;
+        }
+
         public Builder isPreserveUser(boolean isPreserveUser)
         {
             _isPreserveUser = isPreserveUser;
@@ -208,15 +218,33 @@ public final class Sender implements RsyncTask, MessageHandler
             return this;
         }
 
+        public Builder defaultUser(User defaultUser)
+        {
+            _defaultUser = defaultUser;
+            return this;
+        }
+
+        public Builder defaultGroup(Group defaultGroup)
+        {
+            _defaultGroup = defaultGroup;
+            return this;
+        }
+
+        public Builder defaultFilePermissions(int defaultFilePermissions)
+        {
+            _defaultFilePermissions = defaultFilePermissions;
+            return this;
+        }
+
+        public Builder defaultDirectoryPermissions(int defaultDirectoryPermissions)
+        {
+            _defaultDirectoryPermissions = defaultDirectoryPermissions;
+            return this;
+        }
+
         public Sender build()
         {
             return new Sender(this);
-        }
-
-        public Builder isPreserveSpecials(boolean isPreserveSpecials)
-        {
-            _isPreserveSpecials = isPreserveSpecials;
-            return this;
         }
     }
 
@@ -244,13 +272,18 @@ public final class Sender implements RsyncTask, MessageHandler
     private final FileInfoCache _fileInfoCache = new FileInfoCache();
     private final FileSelection _fileSelection;
     private final FilterMode _filterMode;
+    private final int _defaultFilePermissions;
+    private final int _defaultDirectoryPermissions;
     private final Iterable<Path> _sourceFiles;
     private final Set<User> _transferredUserNames = new LinkedHashSet<>();
     private final Set<Group> _transferredGroupNames = new LinkedHashSet<>();
     private final SessionStatistics _stats = new SessionStatistics();
     private final TextDecoder _characterDecoder;
     private final TextEncoder _characterEncoder;
+    private final User _defaultUser;
+    private final Group _defaultGroup;
 
+    private FileAttributeManager _fileAttributeManager;
     private int _curSegmentIndex;
     private int _ioError;
 
@@ -279,6 +312,10 @@ public final class Sender implements RsyncTask, MessageHandler
         _sourceFiles = builder._sourceFiles;
         _characterDecoder = TextDecoder.newStrict(builder._charset);
         _characterEncoder = TextEncoder.newStrict(builder._charset);
+        _defaultUser = builder._defaultUser;
+        _defaultGroup = builder._defaultGroup;
+        _defaultFilePermissions = builder._defaultFilePermissions;
+        _defaultDirectoryPermissions = builder._defaultDirectoryPermissions;
     }
 
     @Override
@@ -357,8 +394,7 @@ public final class Sender implements RsyncTask, MessageHandler
 
             long t1 = System.currentTimeMillis();
 
-            StatusResult<List<FileInfo>> expandResult =
-                    initialExpand(_sourceFiles);
+            StatusResult<List<FileInfo>> expandResult = initialExpand(_sourceFiles);
             boolean isInitialListOK = expandResult.isOK();
             Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
             builder.addAll(expandResult.value());
@@ -857,7 +893,7 @@ public final class Sender implements RsyncTask, MessageHandler
      */
     private LocatableFileInfo statAndEncode(Path path) throws IOException
     {
-        RsyncFileAttributes attrs = RsyncFileAttributes.stat(path);
+        RsyncFileAttributes attrs = _fileAttributeManager.stat(path);
         String fileName = path.getFileName().toString();
         // throws TextConversionException
         byte[] nameBytes = _characterEncoder.encode(fileName);
@@ -890,6 +926,10 @@ public final class Sender implements RsyncTask, MessageHandler
 
         for (Path p : files) {
             try {
+                if (_fileAttributeManager == null) {
+                    setFileAttributeManager(p.getFileSystem());
+                }
+
                 if (_log.isLoggable(Level.FINE)) {
                     _log.fine("expanding " + p);
                 }
@@ -944,6 +984,24 @@ public final class Sender implements RsyncTask, MessageHandler
         return new StatusResult<List<FileInfo>>(isOK, fileset);
     }
 
+    private void setFileAttributeManager(FileSystem fs)
+    {
+        _fileAttributeManager = FileAttributeManagerFactory.getMostPerformant(
+                                                                      fs,
+                                                                      _isPreserveUser,
+                                                                      _isPreserveGroup,
+                                                                      _isPreserveDevices,
+                                                                      _isPreserveSpecials,
+                                                                      _isNumericIds,
+                                                                      _defaultUser,
+                                                                      _defaultGroup,
+                                                                      _defaultFilePermissions,
+                                                                      _defaultDirectoryPermissions);
+        if (_log.isLoggable(Level.FINE)) {
+            _log.fine("fileAttributeManager=" + _fileAttributeManager);
+        }
+    }
+
     private StatusResult<List<FileInfo>> expand(LocatableFileInfo directory)
             throws ChannelException
     {
@@ -971,7 +1029,7 @@ public final class Sender implements RsyncTask, MessageHandler
 
                 RsyncFileAttributes attrs;
                 try {
-                    attrs = RsyncFileAttributes.stat(entry);
+                    attrs = _fileAttributeManager.stat(entry);
                 } catch (IOException e) {
                     String msg = String.format("Failed to stat %s: %s",
                                                entry, e.getMessage());

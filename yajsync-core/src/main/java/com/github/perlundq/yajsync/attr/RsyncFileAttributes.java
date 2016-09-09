@@ -19,23 +19,8 @@
  */
 package com.github.perlundq.yajsync.attr;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.FileTime;
-import java.nio.file.attribute.GroupPrincipal;
-import java.nio.file.attribute.PosixFileAttributes;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.UserPrincipal;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
-import com.github.perlundq.yajsync.internal.util.Environment;
 import com.github.perlundq.yajsync.internal.util.FileOps;
 
 public class RsyncFileAttributes
@@ -68,86 +53,6 @@ public class RsyncFileAttributes
         _lastModified = lastModified;
         _user = user;
         _group = group;
-    }
-
-    private RsyncFileAttributes(BasicFileAttributes attrs)
-    {
-        this(RsyncFileAttributes.toMode(attrs),
-             attrs.size(),
-             attrs.lastModifiedTime().to(TimeUnit.SECONDS),
-             User.JVM_USER,
-             Group.JVM_GROUP);
-    }
-
-    private RsyncFileAttributes(PosixFileAttributes attrs)
-    {
-        this(RsyncFileAttributes.toMode(attrs),
-             attrs.size(),
-             attrs.lastModifiedTime().to(TimeUnit.SECONDS),
-             new User(attrs.owner().getName(), User.JVM_USER.id()),
-             new Group(attrs.group().getName(), Group.JVM_GROUP.id()));
-    }
-
-    private static boolean isUnixFileSystem(Path path)
-    {
-        return path.
-                getFileSystem().
-                supportedFileAttributeViews().
-                contains("unix");
-    }
-
-    private static boolean isPosixFileSystem(Path path)
-    {
-        return path.
-                getFileSystem().
-                supportedFileAttributeViews().
-                contains("posix");
-    }
-
-    public static RsyncFileAttributes stat(Path path) throws IOException
-    {
-        if (isUnixFileSystem(path)) {
-            Map<String, Object> attrs =
-                Files.readAttributes(path, "unix:lastModifiedTime,mode,size,uid,owner,gid,group",
-                                     LinkOption.NOFOLLOW_LINKS);
-            long mtime = ((FileTime) attrs.get("lastModifiedTime")).to(TimeUnit.SECONDS);
-            int mode = (int) attrs.get("mode");
-            long size = (long) attrs.get("size");
-            String user = ((UserPrincipal) attrs.get("owner")).getName();
-            int uid = (int) attrs.get("uid");
-            String group = ((GroupPrincipal) attrs.get("group")).getName();
-            int gid = (int) attrs.get("gid");
-            return new RsyncFileAttributes(mode, size, mtime,
-                                           new User(user, uid), new Group(group, gid));
-        } else if (isPosixFileSystem(path)) {
-            PosixFileAttributes attrs =
-                Files.readAttributes(path, PosixFileAttributes.class,
-                                     LinkOption.NOFOLLOW_LINKS);
-            return new RsyncFileAttributes(attrs);
-        } else {
-            BasicFileAttributes attrs =
-                Files.readAttributes(path, BasicFileAttributes.class,
-                                     LinkOption.NOFOLLOW_LINKS);
-            return new RsyncFileAttributes(attrs);
-        }
-    }
-
-    public static RsyncFileAttributes statOrNull(Path path)
-    {
-        try {
-            return stat(path);
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
-    public static RsyncFileAttributes statIfExists(Path path) throws IOException
-    {
-        try {
-            return stat(path);
-        } catch (NoSuchFileException e) {
-            return null;
-        }
     }
 
     @Override
@@ -249,65 +154,5 @@ public class RsyncFileAttributes
     public int fileType()
     {
         return FileOps.fileType(_mode);
-    }
-
-    private static int toMode(BasicFileAttributes attrs)
-    {
-        if (attrs.isDirectory()) {
-            return FileOps.S_IFDIR | Environment.DEFAULT_DIR_PERMS;
-        } else if (attrs.isRegularFile()) {
-            return FileOps.S_IFREG | Environment.DEFAULT_FILE_PERMS;
-        } else if (attrs.isSymbolicLink()) { // NOTE: we can't modify permissions on the symlink anyway
-            return FileOps.S_IFLNK | Environment.DEFAULT_FILE_PERMS;
-        } else {
-            return FileOps.S_IFUNK;
-        }
-    }
-
-    private static int toMode(PosixFileAttributes attrs)
-    {
-        int mode = 0;
-
-        if (attrs.isDirectory()) {
-            mode |= FileOps.S_IFDIR;
-        } else if (attrs.isRegularFile()) {
-            mode |= FileOps.S_IFREG;
-        } else if (attrs.isSymbolicLink()) {
-            mode |= FileOps.S_IFLNK;
-        } else {
-            mode |= FileOps.S_IFUNK;
-        }
-
-        Set<PosixFilePermission> perms = attrs.permissions();
-
-        if (perms.contains(PosixFilePermission.OWNER_READ)) {
-            mode |= FileOps.S_IRUSR;
-        }
-        if (perms.contains(PosixFilePermission.OWNER_WRITE)) {
-            mode |= FileOps.S_IWUSR;
-        }
-        if (perms.contains(PosixFilePermission.OWNER_EXECUTE)) {
-            mode |= FileOps.S_IXUSR;
-        }
-        if (perms.contains(PosixFilePermission.GROUP_READ)) {
-            mode |= FileOps.S_IRGRP;
-        }
-        if (perms.contains(PosixFilePermission.GROUP_WRITE)) {
-            mode |= FileOps.S_IWGRP;
-        }
-        if (perms.contains(PosixFilePermission.GROUP_EXECUTE)) {
-            mode |= FileOps.S_IXGRP;
-        }
-        if (perms.contains(PosixFilePermission.OTHERS_READ)) {
-            mode |= FileOps.S_IROTH;
-        }
-        if (perms.contains(PosixFilePermission.OTHERS_WRITE)) {
-            mode |= FileOps.S_IWOTH;
-        }
-        if (perms.contains(PosixFilePermission.OTHERS_EXECUTE)) {
-            mode |= FileOps.S_IXOTH;
-        }
-
-        return mode;
     }
 }

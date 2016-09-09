@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2014-2016 Per Lundqvist
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package com.github.perlundq.yajsync.test;
 
 import static org.junit.Assert.assertFalse;
@@ -38,9 +54,12 @@ import org.junit.rules.TemporaryFolder;
 
 import com.github.perlundq.yajsync.RsyncClient;
 import com.github.perlundq.yajsync.Statistics;
+import com.github.perlundq.yajsync.attr.Group;
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.User;
 import com.github.perlundq.yajsync.internal.channels.ChannelException;
+import com.github.perlundq.yajsync.internal.session.FileAttributeManager;
+import com.github.perlundq.yajsync.internal.session.UnixFileAttributeManager;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.util.Environment;
 import com.github.perlundq.yajsync.internal.util.FileOps;
@@ -62,6 +81,16 @@ import com.github.perlundq.yajsync.ui.YajSyncServer;
 
 class FileUtil
 {
+    public static final FileAttributeManager _fileManager;
+
+    static {
+        try {
+            _fileManager = new UnixFileAttributeManager(User.JVM_USER, Group.JVM_GROUP);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static byte[] generateBytes(int content, int num)
     {
         byte[] res = new byte[num];
@@ -145,9 +174,8 @@ class FileUtil
             Path leftPath = entrySet.getValue();
             Path rightPath = rightFiles.get(name);
 
-            RsyncFileAttributes leftAttrs = RsyncFileAttributes.stat(leftPath);
-            RsyncFileAttributes rightAttrs =
-                RsyncFileAttributes.stat(rightPath);
+            RsyncFileAttributes leftAttrs = _fileManager.stat(leftPath);
+            RsyncFileAttributes rightAttrs = _fileManager.stat(rightPath);
             if (!FileUtil.isFileSameTypeAndSize(leftAttrs, rightAttrs)) {
                 return false;
             } else if (leftAttrs.isRegularFile()) {
@@ -818,8 +846,8 @@ public class SystemTest
         assertTrue(status.rc == 0);
         assertTrue(FileUtil.isDirectory(dst));
         assertTrue(FileUtil.isDirectoriesIdentical(src, copyOfSrc));
-        assertTrue(FileUtil.isFileSameOwner(RsyncFileAttributes.stat(srcFile),
-                                            RsyncFileAttributes.stat(dstFile)));
+        assertTrue(FileUtil.isFileSameOwner(FileUtil._fileManager.stat(srcFile),
+                                            FileUtil._fileManager.stat(dstFile)));
     }
 
     @Test
@@ -852,8 +880,8 @@ public class SystemTest
         assertTrue(status.rc == 0);
         assertTrue(FileUtil.isDirectory(dst));
         assertTrue(FileUtil.isDirectoriesIdentical(src, copyOfSrc));
-        assertTrue(FileUtil.isFileSameGroup(RsyncFileAttributes.stat(srcFile),
-                                            RsyncFileAttributes.stat(dstFile)));
+        assertTrue(FileUtil.isFileSameGroup(FileUtil._fileManager.stat(srcFile),
+                                            FileUtil._fileManager.stat(dstFile)));
     }
 
     @Test(timeout=100)
