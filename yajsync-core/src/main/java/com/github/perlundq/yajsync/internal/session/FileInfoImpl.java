@@ -109,6 +109,11 @@ class FileInfoImpl implements FileInfo
         return bytes.length == 1 && bytes[0] == Text.ASCII_DOT;
     }
 
+    private static int cmp(byte a, byte b)
+    {
+        return (0xFF & a) - (0xFF & b);
+    }
+
     /*
      * sort . (always a dir) before anything else
      * sort files before dirs
@@ -137,7 +142,7 @@ class FileInfoImpl implements FileInfo
 
         int i = 0;
         for (; i < leftBytes.length && i < rightBytes.length; i++) {
-            int diff = leftBytes[i] - rightBytes[i];
+            int diff = cmp(leftBytes[i], rightBytes[i]);
             if (diff != 0) {
                 return diff;
             }
@@ -152,9 +157,9 @@ class FileInfoImpl implements FileInfo
             if (isLeftAtEnd && isRightAtEnd) {
                 return 0;
             } else if (isLeftAtEnd) {
-                return Text.ASCII_SLASH - rightBytes[i];
+                return cmp(Text.ASCII_SLASH, rightBytes[i]);
             } else if (isRightAtEnd) {
-                return leftBytes[i] - Text.ASCII_SLASH;
+                return cmp(leftBytes[i], Text.ASCII_SLASH);
             }
         }
 

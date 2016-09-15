@@ -194,4 +194,14 @@ public class FileInfoTest {
         assertTrue(f.compareTo(g) <= -1);
     }
 
+    @Test
+    public void testSortUtfString()
+    {
+        String str1 = "Tuabc";
+        String str2 = "Tüabc";
+        FileInfoImpl f = new FileInfoImpl(str1, str1.getBytes(), _fileAttrs);
+        FileInfoImpl g = new FileInfoImpl(str2, str2.getBytes(), _fileAttrs);
+        assertFalse(f.equals(g));
+        assertTrue(f.compareTo(g) <= -1);
+    }
 }
