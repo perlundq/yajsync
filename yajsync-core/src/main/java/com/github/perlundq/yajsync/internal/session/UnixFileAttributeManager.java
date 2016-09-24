@@ -48,7 +48,7 @@ public final class UnixFileAttributeManager extends FileAttributeManager
         _defaultUser = defaultUser;
         _defaultGroup = defaultGroup;
         _userIdToUserName = readPasswdOrGroup("/etc/passwd");
-        _groupIdToGroupName = readPasswdOrGroup("/etc/passwd");
+        _groupIdToGroupName = readPasswdOrGroup("/etc/group");
     }
 
     private static Map<Integer, String> readPasswdOrGroup(String passwdOrGroup) throws IOException
