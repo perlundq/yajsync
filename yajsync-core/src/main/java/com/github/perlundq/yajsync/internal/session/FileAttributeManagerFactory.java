@@ -39,7 +39,8 @@ public final class FileAttributeManagerFactory
         if (isUnixSupported(fs) &&
             (isPreserveDevices || isPreserveSpecials || isPreserveUser || isPreserveGroup)) {
             try {
-                return new UnixFileAttributeManager(defaultUser, defaultGroup);
+                return new UnixFileAttributeManager(defaultUser, defaultGroup, isPreserveUser,
+                                                    isPreserveGroup);
             } catch (IOException e) {
                 return new PosixFileAttributeManager(defaultUser.id(), defaultGroup.id());
             }
@@ -69,7 +70,7 @@ public final class FileAttributeManagerFactory
     {
         if (isUnixSupported(fs)) {
             try {
-                return new UnixFileAttributeManager(defaultUser, defaultGroup);
+                return new UnixFileAttributeManager(defaultUser, defaultGroup, true, true);
             } catch (IOException e) {
                 // OK: skip to next
             }

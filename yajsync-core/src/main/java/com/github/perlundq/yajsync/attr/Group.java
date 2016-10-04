@@ -17,10 +17,6 @@
  */
 package com.github.perlundq.yajsync.attr;
 
-import java.io.IOException;
-import java.nio.file.FileSystems;
-import java.nio.file.attribute.GroupPrincipal;
-import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.Objects;
 
 import com.github.perlundq.yajsync.internal.util.Environment;
@@ -87,12 +83,5 @@ public final class Group
     public int id()
     {
         return _id;
-    }
-
-    public GroupPrincipal groupPrincipal() throws IOException
-    {
-        UserPrincipalLookupService lookupService =
-            FileSystems.getDefault().getUserPrincipalLookupService();
-        return lookupService.lookupPrincipalByGroupName(_name);
     }
 }

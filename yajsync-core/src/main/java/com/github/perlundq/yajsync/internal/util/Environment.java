@@ -19,6 +19,9 @@
 package com.github.perlundq.yajsync.internal.util;
 
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import com.github.perlundq.yajsync.attr.Group;
 import com.github.perlundq.yajsync.attr.User;
@@ -36,11 +39,13 @@ public final class Environment
     private static final String PROPERTY_SERVER_CONFIG = "rsync.cfg";
     private static final String WINDOWS_NAME = "Windows";
     private static final String PROPERTY_OS_NAME = "os.name";
+    private static final String PROPERTY_KEY_ALLOW_FORK = "allow.fork";
 
     public static final int UMASK = umask();
     public static final int DEFAULT_DIR_PERMS = 0777 & ~ UMASK;
     public static final int DEFAULT_FILE_PERMS = 0666 & ~ UMASK;
     public static final boolean IS_RUNNING_WINDOWS = isRunningWindows();
+    public static final boolean IS_FORK_ALLOWED = isForkAllowed();
 
     private Environment() {}
 
@@ -106,6 +111,12 @@ public final class Environment
         return Util.defaultIfNull(System.getProperty(key), defaultValue);
     }
 
+    private static boolean isForkAllowed()
+    {
+        String value = Util.defaultIfNull(System.getProperty(PROPERTY_KEY_ALLOW_FORK), "true");
+        return Boolean.valueOf(value);
+    }
+
     private static boolean isRunningWindows()
     {
         String osName = getNonNullProperty(PROPERTY_OS_NAME);
@@ -143,5 +154,16 @@ public final class Environment
     public static String getRsyncPasswordOrNull()
     {
         return System.getenv(ENV_RSYNC_PASSWORD);
+    }
+
+    public static boolean isExecutable(String commandName)
+    {
+        for (String dirName : System.getenv("PATH").split(":")) {
+            Path p = Paths.get(dirName).resolve(commandName);
+            if (Files.isRegularFile(p) && Files.isExecutable(p)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

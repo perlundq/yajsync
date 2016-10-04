@@ -1081,8 +1081,7 @@ public class Receiver implements RsyncTask, MessageHandler
                     "updating file permissions %o -> %o on %s",
                     curAttrs.mode(), targetAttrs.mode(), path));
             }
-            FileOps.setFileMode(path, targetAttrs.mode(),
-                                LinkOption.NOFOLLOW_LINKS);
+            _fileAttributeManager.setFileMode(path, targetAttrs.mode(), LinkOption.NOFOLLOW_LINKS);
         }
         if (_isPreserveTimes &&
             curAttrs.lastModifiedTime() != targetAttrs.lastModifiedTime())
@@ -1093,8 +1092,8 @@ public class Receiver implements RsyncTask, MessageHandler
                     curAttrs.lastModifiedTime(),
                     targetAttrs.lastModifiedTime(), path));
             }
-            FileOps.setLastModifiedTime(path, targetAttrs.lastModifiedTime(),
-                                        LinkOption.NOFOLLOW_LINKS);
+            _fileAttributeManager.setLastModifiedTime(path, targetAttrs.lastModifiedTime(),
+                                                      LinkOption.NOFOLLOW_LINKS);
         }
         if (_isPreserveUser) {
             if (!_isNumericIds && !targetAttrs.user().name().isEmpty() &&
@@ -1107,7 +1106,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 }
                 // FIXME: side effect of chown in Linux is that set user/group
                 // id bit are cleared.
-                FileOps.setOwner(path, targetAttrs.user(),
+                _fileAttributeManager.setOwner(path, targetAttrs.user(),
                                  LinkOption.NOFOLLOW_LINKS);
             } else if ((_isNumericIds || targetAttrs.user().name().isEmpty()) &&
                        curAttrs.user().id() != targetAttrs.user().id()) {
@@ -1119,7 +1118,7 @@ public class Receiver implements RsyncTask, MessageHandler
                 }
                 // NOTE: side effect of chown in Linux is that set user/group id
                 // bit might be cleared.
-                FileOps.setUserId(path, targetAttrs.user().id(),
+                _fileAttributeManager.setUserId(path, targetAttrs.user().id(),
                                   LinkOption.NOFOLLOW_LINKS);
             }
         }
@@ -1132,7 +1131,7 @@ public class Receiver implements RsyncTask, MessageHandler
                                             curAttrs.group(),
                                             targetAttrs.group(), path));
                 }
-                FileOps.setGroup(path, targetAttrs.group(),
+                _fileAttributeManager.setGroup(path, targetAttrs.group(),
                                  LinkOption.NOFOLLOW_LINKS);
             } else if ((_isNumericIds ||
                         targetAttrs.group().name().isEmpty()) &&
@@ -1142,7 +1141,7 @@ public class Receiver implements RsyncTask, MessageHandler
                                             curAttrs.group().id(),
                                             targetAttrs.group().id(), path));
                 }
-                FileOps.setGroupId(path, targetAttrs.group().id(),
+                _fileAttributeManager.setGroupId(path, targetAttrs.group().id(),
                                    LinkOption.NOFOLLOW_LINKS);
             }
         }

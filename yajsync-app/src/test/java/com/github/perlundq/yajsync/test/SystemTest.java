@@ -85,7 +85,7 @@ class FileUtil
 
     static {
         try {
-            _fileManager = new UnixFileAttributeManager(User.JVM_USER, Group.JVM_GROUP);
+            _fileManager = new UnixFileAttributeManager(User.JVM_USER, Group.JVM_GROUP, true, true);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -830,7 +830,7 @@ public class SystemTest
         Path srcFile = srcDir.resolve("file");
         Files.createDirectory(srcDir);
         FileUtil.writeToFiles(1, srcFile);
-        FileOps.setUserId(srcFile, User.NOBODY.id());
+        FileUtil._fileManager.setUserId(srcFile, User.NOBODY.id());
 
         Files.createDirectory(dst);
         Path copyOfSrc = dst.resolve(src.getFileName());
@@ -864,7 +864,7 @@ public class SystemTest
         Path srcFile = srcDir.resolve("file");
         Files.createDirectory(srcDir);
         FileUtil.writeToFiles(1, srcFile);
-        FileOps.setGroupId(srcFile, User.NOBODY.id());
+        FileUtil._fileManager.setGroupId(srcFile, User.NOBODY.id());
 
         Files.createDirectory(dst);
         Path copyOfSrc = dst.resolve(src.getFileName());

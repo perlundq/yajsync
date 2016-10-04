@@ -24,16 +24,8 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.FileTime;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.UserPrincipalNotFoundException;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
-import com.github.perlundq.yajsync.attr.Group;
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
-import com.github.perlundq.yajsync.attr.User;
 import com.github.perlundq.yajsync.internal.text.Text;
 
 public class FileOps
@@ -136,47 +128,47 @@ public class FileOps
         }
     }
 
-    private static boolean isUserReadable(int mode)
+    public static boolean isUserReadable(int mode)
     {
         return (mode & S_IRUSR) != 0;
     }
 
-    private static boolean isUserWritable(int mode)
+    public static boolean isUserWritable(int mode)
     {
         return (mode & S_IWUSR) != 0;
     }
 
-    private static boolean isUserExecutable(int mode)
+    public static boolean isUserExecutable(int mode)
     {
         return (mode & S_IXUSR) != 0;
     }
 
-    private static boolean isGroupReadable(int mode)
+    public static boolean isGroupReadable(int mode)
     {
         return (mode & S_IRGRP) != 0;
     }
 
-    private static boolean isGroupWritable(int mode)
+    public static boolean isGroupWritable(int mode)
     {
         return (mode & S_IWGRP) != 0;
     }
 
-    private static boolean isGroupExecutable(int mode)
+    public static boolean isGroupExecutable(int mode)
     {
         return (mode & S_IXGRP) != 0;
     }
 
-    private static boolean isOtherReadable(int mode)
+    public static boolean isOtherReadable(int mode)
     {
         return (mode & S_IROTH) != 0;
     }
 
-    private static boolean isOtherWritable(int mode)
+    public static boolean isOtherWritable(int mode)
     {
         return (mode & S_IWOTH) != 0;
     }
 
-    private static boolean isOtherExecutable(int mode)
+    public static boolean isOtherExecutable(int mode)
     {
         return (mode & S_IXOTH) != 0;
     }
@@ -279,122 +271,12 @@ public class FileOps
         }
     }
 
-    private static Set<PosixFilePermission> modeToPosixFilePermissions(int mode)
-    {
-        Set<PosixFilePermission> result = new HashSet<>();
-        if (isUserReadable(mode)) {
-            result.add(PosixFilePermission.OWNER_READ);
-        }
-        if (isUserWritable(mode)) {
-            result.add(PosixFilePermission.OWNER_WRITE);
-        }
-        if (isUserExecutable(mode)) {
-            result.add(PosixFilePermission.OWNER_EXECUTE);
-        }
-        if (isGroupReadable(mode)) {
-            result.add(PosixFilePermission.GROUP_READ);
-        }
-        if (isGroupWritable(mode)) {
-            result.add(PosixFilePermission.GROUP_WRITE);
-        }
-        if (isGroupExecutable(mode)) {
-            result.add(PosixFilePermission.GROUP_EXECUTE);
-        }
-        if (isOtherReadable(mode)) {
-            result.add(PosixFilePermission.OTHERS_READ);
-        }
-        if (isOtherWritable(mode)) {
-            result.add(PosixFilePermission.OTHERS_WRITE);
-        }
-        if (isOtherExecutable(mode)) {
-            result.add(PosixFilePermission.OTHERS_EXECUTE);
-        }
-        return result;
-    }
-
-    public static void setFileMode(Path path, int mode,
-                                   LinkOption... linkOption)
-        throws IOException
-    {
-        try {
-            boolean requiresUnix = (mode & (S_ISUID | S_ISGID | S_ISVTX)) != 0;
-            if (requiresUnix) {
-                Files.setAttribute(path, "unix:mode", mode, linkOption);
-            } else {
-                Files.setAttribute(path,
-                                   "posix:permissions",
-                                   modeToPosixFilePermissions(mode),
-                                   linkOption);
-            }
-        } catch (UnsupportedOperationException e) {
-            throw new IOException(e);
-        }
-    }
-
-    public static void setLastModifiedTime(Path path, long mtime,
-                                           LinkOption... linkOption)
-        throws IOException
-    {
-        Files.setAttribute(path,
-                           "basic:lastModifiedTime",
-                           FileTime.from(mtime, TimeUnit.SECONDS),
-                           linkOption);
-    }
-
     public static long sizeOf(Path file)
     {
         try {
             return Files.size(file);
         } catch (IOException e) {
             return -1;
-        }
-    }
-
-    public static void setOwner(Path path, User user, LinkOption... linkOption)
-        throws IOException
-    {
-        try {
-            Files.setAttribute(path, "posix:owner", user.userPrincipal(),
-                               linkOption);
-        } catch (UserPrincipalNotFoundException e) {
-           // fallback to user id
-           setUserId(path, user.id(), linkOption);
-        } catch (UnsupportedOperationException e) {
-            throw new IOException(e);
-        }
-    }
-
-    public static void setGroup(Path path, Group group, LinkOption... linkOption)
-            throws IOException
-    {
-        try {
-            Files.setAttribute(path, "posix:group", group.groupPrincipal(),
-                               linkOption);
-        } catch (UserPrincipalNotFoundException e) {
-            // fallback to group id
-            setGroupId(path, group.id(), linkOption);
-        } catch (UnsupportedOperationException e) {
-            throw new IOException(e);
-        }
-    }
-
-    public static void setUserId(Path path, int uid, LinkOption... linkOption)
-        throws IOException
-    {
-        try {
-            Files.setAttribute(path, "unix:uid", uid, linkOption);
-        } catch (UnsupportedOperationException e) {
-            throw new IOException(e);
-        }
-    }
-
-    public static void setGroupId(Path path, int gid, LinkOption... linkOption)
-            throws IOException
-    {
-        try {
-            Files.setAttribute(path, "unix:gid", gid, linkOption);
-        } catch (UnsupportedOperationException e) {
-            throw new IOException(e);
         }
     }
 
