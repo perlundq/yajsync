@@ -23,12 +23,12 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.Base64;
 
 import com.github.perlundq.yajsync.internal.text.TextConversionException;
 import com.github.perlundq.yajsync.internal.text.TextEncoder;
 import com.github.perlundq.yajsync.internal.util.Consts;
 import com.github.perlundq.yajsync.internal.util.MD5;
-import com.github.perlundq.yajsync.internal.util.Util;
 
 public class RsyncAuthContext
 {
@@ -64,17 +64,14 @@ public class RsyncAuthContext
     public String response(char[] password)
     {
         byte[] hashedBytes = hash(password);
-        String base64 = Util.base64encode(hashedBytes, false /* pad */);
-        return base64;
+        return Base64.getEncoder().withoutPadding().encodeToString(hashedBytes);
     }
 
     private String newChallenge()
     {
         long rand = new SecureRandom().nextLong();
-        byte[] randBytes =
-            ByteBuffer.allocate(Consts.SIZE_LONG).putLong(rand).array();
-        String challenge = Util.base64encode(randBytes, false /* pad */);
-        return challenge;
+        byte[] randBytes = ByteBuffer.allocate(Consts.SIZE_LONG).putLong(rand).array();
+        return Base64.getEncoder().withoutPadding().encodeToString(randBytes);
     }
 
     /**

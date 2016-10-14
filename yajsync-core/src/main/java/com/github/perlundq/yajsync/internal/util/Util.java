@@ -53,18 +53,6 @@ public final class Util
         return Math.log(n) / Math.log(2);
     }
 
-    // FIXME: this is so ugly, implement proper base64 encoding with optional padding
-    // TODO: update to Java.util.Base64.Encoder from JDK 8 when available
-    public static String base64encode(byte[] bytes, boolean pad)
-    {
-        StringBuilder sb = new StringBuilder();
-        sb.append(javax.xml.bind.DatatypeConverter.printBase64Binary(bytes));
-        while (!pad && sb.charAt(sb.length() - 1) == '=') {
-            sb.deleteCharAt(sb.length() - 1);
-        }
-        return sb.toString();
-    }
-
     public static void sleep(long millis)
     {
         try {
