@@ -60,10 +60,7 @@ import com.github.perlundq.yajsync.attr.User;
 import com.github.perlundq.yajsync.internal.channels.ChannelException;
 import com.github.perlundq.yajsync.internal.session.FileAttributeManager;
 import com.github.perlundq.yajsync.internal.session.FileAttributeManagerFactory;
-import com.github.perlundq.yajsync.internal.session.PosixFileAttributeManager;
 import com.github.perlundq.yajsync.internal.session.SessionStatistics;
-import com.github.perlundq.yajsync.internal.text.Text;
-import com.github.perlundq.yajsync.internal.text.TextDecoder;
 import com.github.perlundq.yajsync.internal.util.ArgumentParser;
 import com.github.perlundq.yajsync.internal.util.ArgumentParsingError;
 import com.github.perlundq.yajsync.internal.util.Environment;
@@ -162,8 +159,6 @@ public class YajsyncClient
     private String _cwdName = Environment.getWorkingDirectoryName();
     private String _passwordFile;
     private String _userName;
-    private TextDecoder _characterDecoder =
-            TextDecoder.newStrict(Charset.forName(Text.UTF8_NAME));
 
 
     public YajsyncClient setStandardOut(PrintStream out)
@@ -199,7 +194,7 @@ public class YajsyncClient
                     try {
                         Charset charset = Charset.forName(charsetName);
                         _clientBuilder.charset(charset);
-                        _characterDecoder = TextDecoder.newStrict(charset);
+//                        _characterDecoder = TextDecoder.newStrict(charset);
                     } catch (IllegalCharsetNameException |
                              UnsupportedCharsetException e) {
                         throw new ArgumentParsingError(
