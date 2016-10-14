@@ -34,10 +34,10 @@ public class Main
 
         String[] args2 = Arrays.copyOfRange(args, 1, args.length);
         if (args[0].equals("client")) {
-            int rc = new YajSyncClient().start(args2);
+            int rc = new YajsyncClient().start(args2);
             System.exit(rc);
         } else if (args[0].equals("server")) {
-            int rc = new YajSyncServer().start(args2);
+            int rc = new YajsyncServer().start(args2);
             System.exit(rc);
         } else {
             throw new IllegalArgumentException(helpText);

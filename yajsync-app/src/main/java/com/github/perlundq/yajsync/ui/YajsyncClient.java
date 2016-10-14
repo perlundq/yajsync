@@ -78,7 +78,7 @@ import com.github.perlundq.yajsync.net.DuplexByteChannel;
 import com.github.perlundq.yajsync.net.SSLChannelFactory;
 import com.github.perlundq.yajsync.net.StandardChannelFactory;
 
-public class YajSyncClient
+public class YajsyncClient
 {
     private static final int PORT_UNDEFINED = -1;
 
@@ -94,7 +94,7 @@ public class YajSyncClient
     }
 
     private static final Logger _log =
-        Logger.getLogger(YajSyncClient.class.getName());
+        Logger.getLogger(YajsyncClient.class.getName());
 
     private final AuthProvider _authProvider = new AuthProvider()
     {
@@ -166,13 +166,13 @@ public class YajSyncClient
             TextDecoder.newStrict(Charset.forName(Text.UTF8_NAME));
 
 
-    public YajSyncClient setStandardOut(PrintStream out)
+    public YajsyncClient setStandardOut(PrintStream out)
     {
         _stdout = out;
         return this;
     }
 
-    public YajSyncClient setStandardErr(PrintStream err)
+    public YajsyncClient setStandardErr(PrintStream err)
     {
         _stderr = err;
         _clientBuilder.stderr(_stderr);

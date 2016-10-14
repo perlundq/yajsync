@@ -54,10 +54,10 @@ import com.github.perlundq.yajsync.server.module.ModuleProvider;
 import com.github.perlundq.yajsync.server.module.Modules;
 
 
-public final class YajSyncServer
+public final class YajsyncServer
 {
     private static final Logger _log =
-        Logger.getLogger(YajSyncServer.class.getName());
+        Logger.getLogger(YajsyncServer.class.getName());
     private static final int THREAD_FACTOR = 4;
     private boolean _isTLS;
     private CountDownLatch _isListeningLatch;
@@ -73,21 +73,21 @@ public final class YajSyncServer
     private final RsyncServer.Builder _serverBuilder = new RsyncServer.Builder();
 
 
-    public YajSyncServer() {}
+    public YajsyncServer() {}
 
-    public YajSyncServer setStandardOut(PrintStream out)
+    public YajsyncServer setStandardOut(PrintStream out)
     {
         _out = out;
         return this;
     }
 
-    public YajSyncServer setStandardErr(PrintStream err)
+    public YajsyncServer setStandardErr(PrintStream err)
     {
         _err = err;
         return this;
     }
 
-    public YajSyncServer setIsListeningLatch(CountDownLatch isListeningLatch)
+    public YajsyncServer setIsListeningLatch(CountDownLatch isListeningLatch)
     {
         _isListeningLatch = isListeningLatch;
         return this;

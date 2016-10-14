@@ -74,8 +74,8 @@ import com.github.perlundq.yajsync.server.module.Modules;
 import com.github.perlundq.yajsync.server.module.RestrictedModule;
 import com.github.perlundq.yajsync.server.module.RestrictedPath;
 import com.github.perlundq.yajsync.server.module.RsyncAuthContext;
-import com.github.perlundq.yajsync.ui.YajSyncClient;
-import com.github.perlundq.yajsync.ui.YajSyncServer;
+import com.github.perlundq.yajsync.ui.YajsyncClient;
+import com.github.perlundq.yajsync.ui.YajsyncServer;
 
 
 
@@ -408,16 +408,16 @@ public class SystemTest
 
     private ExecutorService _service;
 
-    private YajSyncClient newClient()
+    private YajsyncClient newClient()
     {
-        return new YajSyncClient().
+        return new YajsyncClient().
             setStandardOut(_nullOut).
             setStandardErr(_nullOut);
     }
 
-    private YajSyncServer newServer(Modules modules)
+    private YajsyncServer newServer(Modules modules)
     {
-        YajSyncServer server = new YajSyncServer().setStandardOut(_nullOut).
+        YajsyncServer server = new YajsyncServer().setStandardOut(_nullOut).
                                                    setStandardErr(_nullOut);
         server.setModuleProvider(new TestModuleProvider(modules));
         return server;
@@ -425,7 +425,7 @@ public class SystemTest
 
     private ReturnStatus listFiles(Path src, String ... args)
     {
-        YajSyncClient client = newClient();
+        YajsyncClient client = newClient();
         String[] nargs = new String[args.length + 1];
         int i = 0;
         for (String arg : args) {
@@ -438,7 +438,7 @@ public class SystemTest
 
     private ReturnStatus fileCopy(Path src, Path dst, String ... args)
     {
-        YajSyncClient client = newClient();
+        YajsyncClient client = newClient();
         String[] nargs = new String[args.length + 2];
         int i = 0;
         for (String arg : args) {
@@ -452,7 +452,7 @@ public class SystemTest
 
     private ReturnStatus recursiveCopyTrailingSlash(Path src, Path dst)
     {
-        YajSyncClient client = newClient();
+        YajsyncClient client = newClient();
         int rc = client.start(new String[] { "--recursive",
                                              src.toString() + "/",
                                              dst.toString() });
@@ -915,7 +915,7 @@ public class SystemTest
         };
         _service.submit(serverTask);
         isListeningLatch.await();
-        YajSyncClient client = newClient().setStandardOut(_nullOut);
+        YajsyncClient client = newClient().setStandardOut(_nullOut);
         int rc = client.start(new String[] { "--port=14415", "localhost::" });
         assertTrue(rc == 0);
     }
@@ -948,7 +948,7 @@ public class SystemTest
         };
         _service.submit(serverTask);
         isListeningLatch.await();
-        YajSyncClient client = newClient().setStandardOut(_nullOut);
+        YajsyncClient client = newClient().setStandardOut(_nullOut);
         System.setIn(new ByteArrayInputStream(authToken.getBytes()));
         int rc = client.start(new String[] {
                 "--port=14415", "--password-file=-",
@@ -985,7 +985,7 @@ public class SystemTest
         };
         _service.submit(serverTask);
         isListeningLatch.await();
-        YajSyncClient client = newClient().setStandardOut(_nullOut);
+        YajsyncClient client = newClient().setStandardOut(_nullOut);
         System.setIn(new ByteArrayInputStream((authToken + "fail").getBytes()));
         int rc = client.start(new String[] {
                 "--port=14415", "--password-file=-",
