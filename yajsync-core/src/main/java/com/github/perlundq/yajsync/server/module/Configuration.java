@@ -42,6 +42,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.github.perlundq.yajsync.internal.text.Text;
+import com.github.perlundq.yajsync.internal.util.ArgumentParser;
 import com.github.perlundq.yajsync.internal.util.Environment;
 import com.github.perlundq.yajsync.internal.util.Option;
 import com.github.perlundq.yajsync.internal.util.PathOps;
@@ -92,20 +93,14 @@ public class Configuration implements Modules
         @Override
         public Collection<Option> options()
         {
-            Option.ContinuingHandler handler = new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _cfgFileName = (String) option.getValue();
-                }
-            };
-            Option o = Option.newStringOption(Option.Policy.OPTIONAL,
-                                              "config", "",
-                                              String.format("path to " +
-                                                            "configuration " +
-                                                            "file (default %s)",
-                                                            _cfgFileName),
-                                              handler);
             List<Option> options = new LinkedList<>();
-            options.add(o);
+            options.add(Option.newStringOption(Option.Policy.OPTIONAL, "config", "",
+                                              String.format("path to configuration file (default " +
+                                                            "%s)", _cfgFileName),
+                                              option -> {
+                                                  _cfgFileName = (String) option.getValue();
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
             return options;
         }
 

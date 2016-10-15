@@ -182,250 +182,191 @@ public class YajsyncClient
     private List<Option> options()
     {
         List<Option> options = new LinkedList<>();
-        options.add(
-            Option.newStringOption(Option.Policy.OPTIONAL,
-                                   "charset", "",
-                                   "which charset to use (default UTF-8)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option)
-                        throws ArgumentParsingError
-                {
-                    String charsetName = (String) option.getValue();
-                    try {
-                        Charset charset = Charset.forName(charsetName);
-                        _clientBuilder.charset(charset);
-//                        _characterDecoder = TextDecoder.newStrict(charset);
-                    } catch (IllegalCharsetNameException |
-                             UnsupportedCharsetException e) {
-                        throw new ArgumentParsingError(
-                            String.format("failed to set character set to %s:" +
-                                          " %s", charsetName, e));
-                    }
-                }}));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "dirs", "d",
-                                      "transfer directories without recursing " +
-                                      "(default false unless listing files)",
+        options.add(Option.newStringOption(Option.Policy.OPTIONAL, "charset", "",
+                                           "which charset to use (default UTF-8)",
+                                           option -> {
+                                               String charsetName = (String) option.getValue();
+                                               try {
+                                                   Charset charset = Charset.forName(charsetName);
+                                                   _clientBuilder.charset(charset);
+                                                   return ArgumentParser.Status.CONTINUE;
+                                               } catch (IllegalCharsetNameException |
+                                                        UnsupportedCharsetException e) {
+                                                   throw new ArgumentParsingError(String.format(
+                                                           "failed to set character set to %s: %s",
+                                                           charsetName, e));
+                                               }}));
 
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option)
-                        throws ArgumentParsingError {
-                    if (_fileSelection == FileSelection.RECURSE) {
-                        throw new ArgumentParsingError(
-                                "--recursive and --dirs are incompatible " +
-                                "options");
-                    }
-                    _fileSelection = FileSelection.TRANSFER_DIRS;
-                    _clientBuilder.fileSelection(_fileSelection);
-                }
-            }));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "dirs", "d",
+                                              "transfer directories without recursing (default " +
+                                              "false unless listing files)",
+                                              option -> {
+                                                  if (_fileSelection == FileSelection.RECURSE) {
+                                                      throw new ArgumentParsingError(
+                                                              "--recursive and --dirs are " +
+                                                              "incompatible options");
+                                                  }
+                                                  _fileSelection = FileSelection.TRANSFER_DIRS;
+                                                  _clientBuilder.fileSelection(_fileSelection);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "recursive", "r",
-                                      "recurse into directories " +
-                                      "(default false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option)
-                        throws ArgumentParsingError {
-                    if (_fileSelection == FileSelection.TRANSFER_DIRS) {
-                        throw new ArgumentParsingError(
-                                "--recursive and --dirs are incompatible " +
-                                "options");
-                    }
-                    _fileSelection = FileSelection.RECURSE;
-                    _clientBuilder.fileSelection(_fileSelection);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "recursive", "r",
+                                              "recurse into directories (default false)",
+                                              option -> {
+                                                  if (_fileSelection == FileSelection.TRANSFER_DIRS)
+                                                  {
+                                                      throw new ArgumentParsingError(
+                                                              "--recursive and --dirs are " +
+                                                              "incompatible options");
+                                                  }
+                                                  _fileSelection = FileSelection.RECURSE;
+                                                  _clientBuilder.fileSelection(_fileSelection);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "verbose", "v",
-                                      "increase output verbosity " +
-                                      "(default quiet)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _verbosity++;
-                    _clientBuilder.verbosity(_verbosity);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "verbose", "v",
+                                              "increase output verbosity (default quiet)",
+                                              option -> {
+                                                  _clientBuilder.verbosity(_verbosity++);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "devices", "",
-                                      "_simulate_ preserve character device " +
-                                      "files and block device files (default " +
-                                      "false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.isPreserveDevices(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "devices", "",
+                                              "_simulate_ preserve character device files and " +
+                                              "block device files (default false)",
+                                              option -> {
+                                                  _clientBuilder.isPreserveDevices(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "specials", "",
-                                      "_simulate_ preserve special device " +
-                                      "files - named sockets and named pipes " +
-                                      "(default false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.isPreserveSpecials(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "specials", "",
+                                              "_simulate_ preserve special device files - named " +
+                                              "sockets and named pipes (default false)",
+                                              option -> {
+                                                  _clientBuilder.isPreserveSpecials(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "", "D",
-                                      "same as --devices and --specials " +
-                                      "(default false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.isPreserveDevices(true);
-                    _clientBuilder.isPreserveSpecials(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "", "D",
+                                              "same as --devices and --specials (default false)",
+                                              option -> {
+                                                  _clientBuilder.isPreserveDevices(true);
+                                                  _clientBuilder.isPreserveSpecials(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "links", "l",
-                                      "preserve symlinks (default false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.isPreserveLinks(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "links", "l",
+                                              "preserve symlinks (default false)",
+                                              option -> {
+                                                  _clientBuilder.isPreserveLinks(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "perms", "p",
-                                      "preserve file permissions " +
-                                      "(default false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.isPreservePermissions(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "perms", "p",
+                                              "preserve file permissions (default false)",
+                                              option -> {
+                                                  _clientBuilder.isPreservePermissions(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "times", "t",
-                                      "preserve last modification time " +
-                                      "(default false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.isPreserveTimes(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "times", "t",
+                                              "preserve last modification time (default false)",
+                                              option -> {
+                                                  _clientBuilder.isPreserveTimes(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "owner", "o",
-                                      "preserve owner (default false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.isPreserveUser(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "owner", "o",
+                                              "preserve owner (default false)",
+                                              option -> {
+                                                  _clientBuilder.isPreserveUser(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "group", "g",
-                                      "preserve group (default false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.isPreserveGroup(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "group", "g",
+                                              "preserve group (default false)",
+                                              option -> {
+                                                  _clientBuilder.isPreserveGroup(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "archive", "a",
-                                      "archive mode - same as -rlptgoD " +
-                                      "(default false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.fileSelection(FileSelection.RECURSE).
-                                   isPreserveLinks(true).
-                                   isPreservePermissions(true).
-                                   isPreserveTimes(true).
-                                   isPreserveGroup(true).
-                                   isPreserveUser(true).
-                                   isPreserveDevices(true).
-                                   isPreserveSpecials(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "archive", "a",
+                                              "archive mode - same as -rlptgoD (default false)",
+                                              option -> {
+                                                  _clientBuilder.
+                                                      fileSelection(FileSelection.RECURSE).
+                                                      isPreserveLinks(true).
+                                                      isPreservePermissions(true).
+                                                      isPreserveTimes(true).
+                                                      isPreserveGroup(true).
+                                                      isPreserveUser(true).
+                                                      isPreserveDevices(true).
+                                                      isPreserveSpecials(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "delete", "",
+                                              "delete extraneous files (default false)",
+                                              option -> {
+                                                  _clientBuilder.isDelete(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "delete", "",
-                                      "delete extraneous files " +
-                                      "(default false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.isDelete(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "numeric-ids", "",
+                                              "don't map uid/gid values by user/group name " +
+                                              "(default false)",
+                                              option -> {
+                                                  _clientBuilder.isNumericIds(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "numeric-ids", "",
-                                      "don't map uid/gid values by " +
-                                      "user/group name (default false)",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.isNumericIds(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "ignore-times", "I",
+                                              "transfer files that match both size and time " +
+                                              "(default false)",
+                                              option -> {
+                                                  _clientBuilder.isIgnoreTimes(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-                Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                          "ignore-times", "I",
-                                          "transfer files that match both " +
-                                          "size and time (default false)",
-                new Option.ContinuingHandler() {
-                    @Override public void handleAndContinue(Option option) {
-                        _clientBuilder.isIgnoreTimes(true);
-                    }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "stats", "",
+                                              "show file transfer statistics",
+                                              option -> {
+                                                  _isShowStatistics = true;
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "stats", "",
-                                      "show file transfer statistics",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _isShowStatistics = true;
-                }}));
+        options.add(Option.newStringOption(Option.Policy.OPTIONAL, "password-file", "",
+                                           "read daemon-access password from specified file " +
+                                           "(where `-' is stdin)",
+                                           option -> {
+                                               _passwordFile = (String) option.getValue();
+                                               return ArgumentParser.Status.CONTINUE;
+                                           }));
 
-        options.add(
-                Option.newStringOption(Option.Policy.OPTIONAL,
-                                       "password-file", "",
-                                       "read daemon-access password from " +
-                                       "specified file (where `-' is stdin)",
-                new Option.ContinuingHandler() {
-                    @Override public void handleAndContinue(Option option) {
-                        _passwordFile = (String) option.getValue();
-                    }}));
+        options.add(Option.newIntegerOption(Option.Policy.OPTIONAL, "port", "",
+                                            String.format("server port number (default %d)",
+                                                          RsyncServer.DEFAULT_LISTEN_PORT),
+                                            option -> {
+                                                int port = (int) option.getValue();
+                                                if (ConnInfo.isValidPortNumber(port)) {
+                                                    _remotePort = port;
+                                                    return ArgumentParser.Status.CONTINUE;
+                                                } else {
+                                                    throw new ArgumentParsingError(String.format(
+                                                            "illegal port %d - must be within " +
+                                                            "the range [%d, %d]", port,
+                                                            ConnInfo.PORT_MIN, ConnInfo.PORT_MAX));
+                                                }
+                                            }));
 
-        options.add(
-            Option.newIntegerOption(Option.Policy.OPTIONAL,
-                                    "port", "",
-                                    String.format("server port number " +
-                                                  "(default %d)",
-                                                  RsyncServer.DEFAULT_LISTEN_PORT),
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option)
-                        throws ArgumentParsingError
-                {
-                    int port = (int) option.getValue();
-                    if (ConnInfo.isValidPortNumber(port)) {
-                        _remotePort = port;
-                    } else {
-                        throw new ArgumentParsingError(String.format(
-                                "illegal port %d - must be within the range " +
-                                "[%d, %d]", port, ConnInfo.PORT_MIN,
-                                ConnInfo.PORT_MAX));
-                    }
-                }}));
-
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "stdin", "",
-                                      "read list of source files from stdin",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _readStdin = true;
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "stdin", "",
+                                              "read list of source files from stdin",
+                                              option -> {
+                                                  _readStdin = true;
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
         String deferredWriteHelp =
             "(receiver only) receiver defers writing into target tempfile as " +
@@ -434,104 +375,88 @@ public class YajsyncClient
             "risk of the file being modified by a process already having it " +
             "opened (default false)";
 
-        options.add(
-            Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                      "defer-write", "", deferredWriteHelp,
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _clientBuilder.isDeferWrite(true);
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "defer-write", "",
+                                              deferredWriteHelp,
+                                              option -> {
+                                                  _clientBuilder.isDeferWrite(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-                Option.newIntegerOption(Option.Policy.OPTIONAL,
-                                        "timeout", "",
-                                        "set I/O read timeout in seconds " +
-                                        "(default 0 - disabled)",
-                new Option.ContinuingHandler() {
-                    @Override public void handleAndContinue(Option option)
-                            throws ArgumentParsingError
-                    {
-                        int timeout = (int) option.getValue();
-                        if (timeout >= 0) {
-                            _timeout = timeout * 1000;
-                        } else {
-                            throw new ArgumentParsingError(String.format(
-                                    "invalid timeout %d - mut be greater " +
-                                    "than or equal to 0", timeout));
-                        }
-                        // Timeout socket operations depend on
-                        // ByteBuffer.array and ByteBuffer.arrayOffset. Disable direct
-                        // allocation if the resulting ByteBuffer won't have an array.
-                        if (timeout > 0 && !Environment.hasAllocateDirectArray()) {
-                            Environment.setAllocateDirect(false);
-                        }
-                    }}));
+        options.add(Option.newIntegerOption(Option.Policy.OPTIONAL, "timeout", "",
+                                            "set I/O read timeout in seconds (default 0 - " +
+                                            "disabled)",
+                                            option -> {
+                                                int timeout = (int) option.getValue();
+                                                if (timeout < 0) {
+                                                    throw new ArgumentParsingError(String.format(
+                                                            "invalid timeout %d - mut be greater " +
+                                                            "than or equal to 0", timeout));
+                                                }
+                                                _timeout = timeout * 1000;
+                                                // Timeout socket operations depend on
+                                                // ByteBuffer.array and ByteBuffer.arrayOffset.
+                                                // Disable direct allocation if the resulting
+                                                // ByteBuffer won't have an array.
+                                                if (timeout > 0 &&
+                                                    !Environment.hasAllocateDirectArray())
+                                                {
+                                                    Environment.setAllocateDirect(false);
+                                                }
+                                                return ArgumentParser.Status.CONTINUE;
+                                            }));
 
-        options.add(
-                Option.newIntegerOption(Option.Policy.OPTIONAL,
-                                        "contimeout", "",
-                                        "set daemon connection timeout in " +
-                                        "seconds (default 0 - disabled)",
-                new Option.ContinuingHandler() {
-                    @Override public void handleAndContinue(Option option)
-                            throws ArgumentParsingError
-                    {
-                        int contimeout = (int) option.getValue();
-                        if (contimeout >= 0) {
-                            _contimeout = contimeout * 1000;
-                        } else {
-                            throw new ArgumentParsingError(String.format(
-                                    "invalid connection timeout %d - must be " +
-                                    "greater than or equal to 0", contimeout));
-                        }
-                    }}));
+        options.add(Option.newIntegerOption(Option.Policy.OPTIONAL, "contimeout", "",
+                                            "set daemon connection timeout in seconds (default " +
+                                            "0 - disabled)",
+                                            option -> {
+                                                int contimeout = (int) option.getValue();
+                                                if (contimeout >= 0) {
+                                                    _contimeout = contimeout * 1000;
+                                                    return ArgumentParser.Status.CONTINUE;
+                                                } else {
+                                                    throw new ArgumentParsingError(String.format(
+                                                            "invalid connection timeout %d - " +
+                                                            "must be greater than or equal to 0",
+                                                            contimeout));
+                                                }
+                                            }));
 
-        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                              "tls", "",
-                                              String.format("tunnel all data " +
-                                                            "over TLS/SSL " +
-                                                            "(default %s)",
-                                                            _isTLS),
-            new Option.ContinuingHandler() {
-            @Override public void handleAndContinue(Option option) {
-                _isTLS = true;
-                // SSLChannel.read and SSLChannel.write depends on
-                // ByteBuffer.array and ByteBuffer.arrayOffset. Disable direct
-                // allocation if the resulting ByteBuffer won't have an array.
-                if (!Environment.hasAllocateDirectArray()) {
-                    Environment.setAllocateDirect(false);
-                }
-            }
-        }));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "tls", "",
+                                              String.format("tunnel all data over TLS/SSL " +
+                                                            "(default %s)", _isTLS),
+                                              option -> {
+                                                  _isTLS = true;
+                                                  // SSLChannel.read and SSLChannel.write depends on
+                                                  // ByteBuffer.array and ByteBuffer.arrayOffset.
+                                                  // Disable direct allocation if the resulting
+                                                  // ByteBuffer won't have an array.
+                                                  if (!Environment.hasAllocateDirectArray()) {
+                                                      Environment.setAllocateDirect(false);
+                                                  }
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(Option.newStringOption(
-                Option.Policy.OPTIONAL, "cwd", "",
-                "change current working directory (usable in combination " +
-                "with --fs)",
-                new Option.ContinuingHandler() {
-                    @Override
-                    public void handleAndContinue(Option option) {
-                        _cwdName = (String) option.getValue();
-                    }
-                }));
+        options.add(Option.newStringOption(Option.Policy.OPTIONAL, "cwd", "",
+                                           "change current working directory (usable in " +
+                                           "combination with --fs)",
+                                           option -> {
+                                               _cwdName = (String) option.getValue();
+                                               return ArgumentParser.Status.CONTINUE;
+                                           }));
 
-        options.add(Option.newStringOption(
-                Option.Policy.OPTIONAL, "fs", "",
-                "use a non-default Java nio FileSystem implementation " +
-                "(see also --cwd)",
-                new Option.ContinuingHandler() {
-                    @Override
-                    public void handleAndContinue(Option option)
-                            throws ArgumentParsingError {
-                        try {
-                            String fsName = (String) option.getValue();
-                            _fs = PathOps.fileSystemOf(fsName);
-                            _cwdName = Util.firstOf(_fs.getRootDirectories()).toString();
-                        } catch (IOException | URISyntaxException e) {
-                            throw new ArgumentParsingError(e);
-                        }
-                    }
-                }));
+        options.add(Option.newStringOption(Option.Policy.OPTIONAL, "fs", "",
+                                           "use a non-default Java nio FileSystem implementation " +
+                                           "(see also --cwd)",
+                                           option -> {
+                                               try {
+                                                   String fsName = (String) option.getValue();
+                                                   _fs = PathOps.fileSystemOf(fsName);
+                                                   _cwdName = Util.firstOf(_fs.getRootDirectories()).toString();
+                                                   return ArgumentParser.Status.CONTINUE;
+                                               } catch (IOException | URISyntaxException e) {
+                                                   throw new ArgumentParsingError(e);
+                                               }
+                                           }));
 
         return options;
     }

@@ -280,157 +280,121 @@ public class ServerSessionConfig extends SessionConfig
     private void parseArguments(Collection<String> receivedArguments)
         throws ArgumentParsingError, RsyncProtocolException, RsyncSecurityException
     {
-        ArgumentParser argsParser =
-            ArgumentParser.newWithUnnamed("", "files...");
+        ArgumentParser argsParser = ArgumentParser.newWithUnnamed("", "files...");
         // NOTE: has no argument handler
         argsParser.add(Option.newWithoutArgument(Option.Policy.REQUIRED,
                                                  "server", "", "", null));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "sender", "", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    setIsSender();
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "sender", "", "",
+                                                 option -> {
+                                                     _isSender = true;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "recursive", "r", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _fileSelection = FileSelection.RECURSE;
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "recursive", "r", "",
+                                                 option -> {
+                                                     _fileSelection = FileSelection.RECURSE;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "no-r", "", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    // is sent when transfer dirs and delete
-                    if (_fileSelection == FileSelection.RECURSE) {
-                        _fileSelection = FileSelection.EXACT;
-                    }
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "no-r", "", "",
+                                                 option -> {
+                                                     // is sent when transfer dirs and delete
+                                                     if (_fileSelection == FileSelection.RECURSE) {
+                                                         _fileSelection = FileSelection.EXACT;
+                                                     }
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newStringOption(
-            Option.Policy.REQUIRED,
-            "rsh", "e", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option)
-                        throws ArgumentParsingError
-                {
-                    try {
-                        parsePeerCompatibilites((String) option.getValue());
-                    } catch (RsyncProtocolException e) {
-                        throw new ArgumentParsingError(e);
-                    }
-                }}));
+        argsParser.add(Option.newStringOption(Option.Policy.REQUIRED, "rsh", "e", "",
+                                              option -> {
+                                                  try {
+                                                      String val = (String) option.getValue();
+                                                      parsePeerCompatibilites(val);
+                                                      return ArgumentParser.Status.CONTINUE;
+                                                  } catch (RsyncProtocolException e) {
+                                                      throw new ArgumentParsingError(e);
+                                                  }
+                                              }));
 
-        argsParser.add(Option.newWithoutArgument(
-                Option.Policy.OPTIONAL,
-                "ignore-times", "I", "",
-                new Option.ContinuingHandler() {
-                    @Override public void handleAndContinue(Option option) {
-                        setIsIgnoreTimes();
-                    }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "ignore-times", "I", "",
+                                                 option -> {
+                                                     _isIgnoreTimes = true;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "verbose", "v", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    increaseVerbosity();
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "verbose", "v", "",
+                                                 option -> {
+                                                     _verbosity++;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "delete", "", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    setIsDelete();
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "delete", "", "",
+                                                 option -> {
+                                                     _isDelete = true;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "", "D", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _isPreserveDevices = true;
-                    _isPreserveSpecials = true;
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,"", "D", "",
+                                                 option -> {
+                                                     _isPreserveDevices = true;
+                                                     _isPreserveSpecials = true;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "specials", "", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _isPreserveSpecials = true;
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "specials", "", "",
+                                                 option -> {
+                                                     _isPreserveSpecials = true;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "no-specials", "", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _isPreserveSpecials = false;
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "no-specials", "", "",
+                                                 option -> {
+                                                     _isPreserveSpecials = false;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "links", "l", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    setIsPreserveLinks();
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "links", "l", "",
+                                                 option -> {
+                                                     _isPreserveLinks = true;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "owner", "o", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    setIsPreserveUser();
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "owner", "o", "",
+                                                 option -> {
+                                                     _isPreserveUser = true;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "group", "g", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    setIsPreserveGroup();
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "group", "g", "",
+                                                 option -> {
+                                                     _isPreserveGroup = true;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "numeric-ids", "", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    setIsNumericIds();
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "numeric-ids", "", "",
+                                                 option -> {
+                                                     _isNumericIds = true;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "perms", "p", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    setIsPreservePermissions();
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "perms", "p", "",
+                                                 option -> {
+                                                     _isPreservePermissions = true;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "times", "t", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    setIsPreserveTimes();
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "times", "t", "",
+                                                 option -> {
+                                                     _isPreserveTimes = true;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
-        argsParser.add(Option.newWithoutArgument(
-            Option.Policy.OPTIONAL,
-            "dirs", "d", "",
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _fileSelection = FileSelection.TRANSFER_DIRS;
-                }}));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "dirs", "d", "",
+                                                 option -> {
+                                                     _fileSelection = FileSelection.TRANSFER_DIRS;
+                                                     return ArgumentParser.Status.CONTINUE;
+                                                 }));
 
         // FIXME: let ModuleProvider mutate this argsParser instance before
         // calling parse (e.g. adding specific options or removing options)
@@ -488,11 +452,6 @@ public class ServerSessionConfig extends SessionConfig
         }
     }
 
-    private void increaseVerbosity()
-    {
-        _verbosity++;
-    }
-
     // @throws RsyncProtocolException
     private void parsePeerCompatibilites(String str)
             throws RsyncProtocolException
@@ -537,46 +496,6 @@ public class ServerSessionConfig extends SessionConfig
                        BitOps.toBigEndianInt(_checksumSeed));
         }
         _peerConnection.putInt(BitOps.toBigEndianInt(_checksumSeed));
-    }
-
-    private void setIsDelete()
-    {
-        _isDelete = true;
-    }
-
-    private void setIsPreserveLinks()
-    {
-        _isPreserveLinks = true;
-    }
-
-    private void setIsPreservePermissions()
-    {
-        _isPreservePermissions = true;
-    }
-
-    private void setIsPreserveTimes()
-    {
-        _isPreserveTimes = true;
-    }
-
-    private void setIsPreserveUser()
-    {
-        _isPreserveUser = true;
-    }
-
-    private void setIsPreserveGroup()
-    {
-        _isPreserveGroup = true;
-    }
-
-    private void setIsNumericIds()
-    {
-        _isNumericIds = true;
-    }
-
-    private void setIsIgnoreTimes()
-    {
-        _isIgnoreTimes = true;
     }
 
     public boolean isSender()
@@ -648,11 +567,6 @@ public class ServerSessionConfig extends SessionConfig
     {
         assert _receiverDestination != null;
         return _receiverDestination;
-    }
-
-    private void setIsSender()
-    {
-        _isSender = true;
     }
 
     /**

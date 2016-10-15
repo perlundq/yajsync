@@ -101,125 +101,105 @@ public final class YajsyncServer
     private Iterable<Option> options()
     {
         List<Option> options = new LinkedList<>();
-        options.add(Option.newStringOption(Option.Policy.OPTIONAL,
-                                           "charset", "",
-                                           "which charset to use (default " +
-                                           "UTF-8)",
-            new Option.ContinuingHandler() {
-                @Override
-                public void handleAndContinue(Option option)
-                        throws ArgumentParsingError
-                {
-                    String charsetName = (String) option.getValue();
-                    try {
-                        Charset charset = Charset.forName(charsetName);
-                        _serverBuilder.charset(charset);
-                    } catch (IllegalCharsetNameException |
-                             UnsupportedCharsetException e) {
-                        throw new ArgumentParsingError(
-                            String.format("failed to set character set to %s:" +
-                                          " %s", charsetName, e));
-                    }
-                }}));
+        options.add(Option.newStringOption(Option.Policy.OPTIONAL, "charset", "",
+                                           "which charset to use (default UTF-8)",
+                                           option -> {
+                                               String charsetName = (String) option.getValue();
+                                               try {
+                                                   Charset charset = Charset.forName(charsetName);
+                                                   _serverBuilder.charset(charset);
+                                                   return ArgumentParser.Status.CONTINUE;
+                                               } catch (IllegalCharsetNameException |
+                                                        UnsupportedCharsetException e) {
+                                                   throw new ArgumentParsingError(String.format(
+                                                           "failed to set character set to %s: %s",
+                                                           charsetName, e));
+                                               }}));
 
-        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                              "verbose", "v",
-                                              String.format("output verbosity" +
-                                                            " (default %d)",
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "verbose", "v",
+                                              String.format("output verbosity (default %d)",
                                                             _verbosity),
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _verbosity++;
-                }}));
+                                              option -> {
+                                                  _verbosity++;
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(Option.newStringOption(Option.Policy.OPTIONAL,
-                                           "address", "",
-                                           String.format("address to bind to" +
-                                                         "(default %s)",
+        options.add(Option.newStringOption(Option.Policy.OPTIONAL, "address", "",
+                                           String.format("address to bind to (default %s)",
                                                          _address),
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) throws ArgumentParsingError {
-                    try {
-                        _address = InetAddress.getByName((String) option.getValue());
-                    } catch (UnknownHostException e) {
-                        throw new ArgumentParsingError(e);
-                    }
-                }}));
+                                           option -> {
+                                               try {
+                                                   String name = (String) option.getValue();
+                                                   _address = InetAddress.getByName(name);
+                                                   return ArgumentParser.Status.CONTINUE;
+                                               } catch (UnknownHostException e) {
+                                                   throw new ArgumentParsingError(e);
+                                               }}));
 
-        options.add(Option.newIntegerOption(Option.Policy.OPTIONAL,
-                                            "port", "",
-                                            String.format("port number to " +
-                                                          "listen on (default" +
-                                                          " %d)", _port),
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _port = (int) option.getValue();
-                }}));
+        options.add(Option.newIntegerOption(Option.Policy.OPTIONAL, "port", "",
+                                            String.format("port number to listen on (default %d)",
+                                                          _port),
+                                            option -> {
+                                                _port = (int) option.getValue();
+                                                return ArgumentParser.Status.CONTINUE;
+                                            }));
 
-        options.add(Option.newIntegerOption(Option.Policy.OPTIONAL,
-                                            "threads", "",
-                                            String.format("size of thread " +
-                                                          "pool (default %d)",
+        options.add(Option.newIntegerOption(Option.Policy.OPTIONAL, "threads", "",
+                                            String.format("size of thread pool (default %d)",
                                                           _numThreads),
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _numThreads = (int) option.getValue();
-                }}));
+                                            option -> {
+                                                _numThreads = (int) option.getValue();
+                                                return ArgumentParser.Status.CONTINUE;
+                                            }));
 
-        String deferredWriteHelp = "receiver defers writing into target " +
-                "tempfile as long as possible to reduce I/O, at the cost of " +
-                "highly increased risk of the file being modified by a " +
-                "process already having it opened (default false)";
+        String deferredWriteHelp = "receiver defers writing into target tempfile as long as " +
+                                   "possible to reduce I/O, at the cost of highly increased risk " +
+                                   "of the file being modified by a process already having it " +
+                                   "opened (default false)";
 
-        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                              "defer-write", "",
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "defer-write", "",
                                               deferredWriteHelp,
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _serverBuilder.isDeferWrite(true);
-                }}));
+                                              option -> {
+                                                  _serverBuilder.isDeferWrite(true);
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
-        options.add(
-                Option.newIntegerOption(Option.Policy.OPTIONAL,
-                                        "timeout", "",
-                                        "set I/O timeout in seconds",
-                new Option.ContinuingHandler() {
-                    @Override public void handleAndContinue(Option option)
-                            throws ArgumentParsingError
-                    {
-                        int timeout = (int) option.getValue();
-                        if (timeout >= 0) {
-                            _timeout = timeout * 1000;
-                        } else {
-                            throw new ArgumentParsingError(String.format(
-                                    "invalid timeout %d - must be greater " +
-                                    "than or equal to 0", timeout));
-                        }
-                        // Timeout socket operations depend on
-                        // ByteBuffer.array and ByteBuffer.arrayOffset. Disable direct
-                        // allocation if the resulting ByteBuffer won't have an array.
-                        if (timeout > 0 && !Environment.hasAllocateDirectArray()) {
-                            Environment.setAllocateDirect(false);
-                        }
-                    }}));
+        options.add(Option.newIntegerOption(Option.Policy.OPTIONAL, "timeout", "",
+                                            "set I/O timeout in seconds",
+                                            option -> {
+                                                int timeout = (int) option.getValue();
+                                                if (timeout < 0) {
+                                                    throw new ArgumentParsingError(String.format(
+                                                            "invalid timeout %d - must be " +
+                                                            "greater than or equal to 0", timeout));
+                                                }
+                                                _timeout = timeout * 1000;
+                                                // Timeout socket operations depend on
+                                                // ByteBuffer.array and ByteBuffer.arrayOffset.
+                                                // Disable direct allocation if the resulting
+                                                // ByteBuffer won't have an array.
+                                                if (timeout > 0 &&
+                                                    !Environment.hasAllocateDirectArray())
+                                                {
+                                                    Environment.setAllocateDirect(false);
+                                                }
+                                                return ArgumentParser.Status.CONTINUE;
+                                            }));
 
-        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL,
-                                              "tls", "",
-                                              String.format("tunnel all data " +
-                                                            "over TLS/SSL " +
-                                                            "(default %s)",
-                                                            _isTLS),
-            new Option.ContinuingHandler() {
-                @Override public void handleAndContinue(Option option) {
-                    _isTLS = true;
-                    // SSLChannel.read and SSLChannel.write depends on
-                    // ByteBuffer.array and ByteBuffer.arrayOffset. Disable
-                    // direct allocation if the resulting ByteBuffer won't have
-                    // an array.
-                    if (!Environment.hasAllocateDirectArray()) {
-                        Environment.setAllocateDirect(false);
-                    }
-                }}));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "tls", "",
+                                              String.format("tunnel all data over TLS/SSL " +
+                                                            "(default %s)", _isTLS),
+                                              option -> {
+                                                  _isTLS = true;
+                                                  // SSLChannel.read and SSLChannel.write depends on
+                                                  // ByteBuffer.array and ByteBuffer.arrayOffset.
+                                                  // Disable direct allocation if the resulting
+                                                  // ByteBuffer won't have an array.
+                                                  if (!Environment.hasAllocateDirectArray()) {
+                                                      Environment.setAllocateDirect(false);
+                                                  }
+                                                  return ArgumentParser.Status.CONTINUE;
+                                              }));
 
         return options;
     }
@@ -290,8 +270,7 @@ public final class YajsyncServer
 
     public int start(String[] args) throws IOException, InterruptedException
     {
-        ArgumentParser argsParser =
-            ArgumentParser.newNoUnnamed(getClass().getSimpleName());
+        ArgumentParser argsParser = ArgumentParser.newNoUnnamed(getClass().getSimpleName());
         try {
             argsParser.addHelpTextDestination(_out);
             for (Option o : options()) {

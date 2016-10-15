@@ -20,23 +20,10 @@ package com.github.perlundq.yajsync.internal.util;
 
 public class Option
 {
+    @FunctionalInterface
     public interface Handler
     {
         ArgumentParser.Status handle(Option option) throws ArgumentParsingError;
-    }
-
-    public static abstract class ContinuingHandler implements Handler
-    {
-        @Override
-        public ArgumentParser.Status handle(Option option)
-            throws ArgumentParsingError
-        {
-            handleAndContinue(option);
-            return ArgumentParser.Status.CONTINUE;
-        }
-
-        public abstract void handleAndContinue(Option option)
-            throws ArgumentParsingError;
     }
 
     public enum Policy { OPTIONAL, REQUIRED }
