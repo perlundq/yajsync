@@ -1317,6 +1317,9 @@ public class Receiver implements RsyncTask, MessageHandler
         {
             if ((flags & TransmitFlags.SAME_RDEV_MAJOR) == 0) {
                 res[0] = receiveAndDecodeInt();
+                _fileInfoCache.setPrevMajor(res[0]);
+            } else {
+                res[0] = _fileInfoCache.getPrevMajor();
             }
             res[1] = receiveAndDecodeInt();
         }
