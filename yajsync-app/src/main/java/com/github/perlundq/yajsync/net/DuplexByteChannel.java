@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Per Lundqvist
+ * Copyright (C) 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,11 +20,11 @@ import java.net.InetAddress;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.security.Principal;
+import java.util.Optional;
 
 public interface DuplexByteChannel extends ReadableByteChannel,
                                            WritableByteChannel
 {
     InetAddress peerAddress();
-    boolean isPeerAuthenticated();
-    Principal peerPrincipal();
+    Optional<Principal> peerPrincipal();
 }

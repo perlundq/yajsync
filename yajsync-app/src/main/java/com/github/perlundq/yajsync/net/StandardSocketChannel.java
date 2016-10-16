@@ -23,6 +23,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.security.Principal;
+import java.util.Optional;
 
 import com.github.perlundq.yajsync.internal.util.Environment;
 
@@ -119,14 +120,8 @@ public class StandardSocketChannel implements DuplexByteChannel
     }
 
     @Override
-    public boolean isPeerAuthenticated()
+    public Optional<Principal> peerPrincipal()
     {
-        return false;
-    }
-
-    @Override
-    public Principal peerPrincipal()
-    {
-        throw new UnsupportedOperationException();
+        return Optional.empty();
     }
 }

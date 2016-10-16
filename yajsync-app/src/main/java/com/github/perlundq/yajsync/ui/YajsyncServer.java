@@ -214,15 +214,15 @@ public final class YajsyncServer
                 boolean isOK = false;
                 try {
                     Modules modules;
-                    if (sock.isPeerAuthenticated()) {
+                    if (sock.peerPrincipal().isPresent()) {
                         if (_log.isLoggable(Level.FINE)) {
                             _log.fine(String.format("%s connected from %s",
-                                                    sock.peerPrincipal(),
+                                                    sock.peerPrincipal().get(),
                                                     sock.peerAddress()));
                         }
                         modules = _moduleProvider.newAuthenticated(
                                                         sock.peerAddress(),
-                                                        sock.peerPrincipal());
+                                                        sock.peerPrincipal().get());
                     } else {
                         if (_log.isLoggable(Level.FINE)) {
                             _log.fine("got anonymous connection from " +
@@ -237,7 +237,7 @@ public final class YajsyncServer
                         _log.severe(String.format(
                             "Error: failed to initialise modules for " +
                             "principal %s using ModuleProvider %s: %s%n",
-                                sock.peerPrincipal(), _moduleProvider, e));
+                                sock.peerPrincipal().get(), _moduleProvider, e));
                     }
                 } catch (ChannelException e) {
                     if (_log.isLoggable(Level.SEVERE)) {

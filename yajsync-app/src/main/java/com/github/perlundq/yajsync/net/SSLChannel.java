@@ -26,6 +26,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.security.Principal;
+import java.util.Optional;
 
 import javax.net.SocketFactory;
 import javax.net.ssl.SSLPeerUnverifiedException;
@@ -116,23 +117,12 @@ public class SSLChannel implements DuplexByteChannel
     }
 
     @Override
-    public boolean isPeerAuthenticated()
+    public Optional<Principal> peerPrincipal()
     {
         try {
-            peerPrincipal();
-            return true;
-        } catch (IllegalStateException e) {
-            return false;
-        }
-    }
-
-    @Override
-    public Principal peerPrincipal()
-    {
-        try {
-            return _sslSocket.getSession().getPeerPrincipal();
+            return Optional.of(_sslSocket.getSession().getPeerPrincipal());
         } catch (SSLPeerUnverifiedException e) {
-            throw new IllegalStateException(e);
+            return Optional.empty();
         }
     }
 }
