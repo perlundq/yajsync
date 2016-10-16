@@ -1631,9 +1631,7 @@ public final class Sender implements RsyncTask, MessageHandler
          return PathOps.subtractPathOrNull(fileInfo.path(), relativePath);
     }
 
-    // NOTE: code duplication with Receiver
-    public void readAllMessagesUntilEOF() throws ChannelException,
-                                                 RsyncProtocolException
+    private void readAllMessagesUntilEOF() throws ChannelException, RsyncProtocolException
     {
         try {
             if (_log.isLoggable(Level.FINE)) {
