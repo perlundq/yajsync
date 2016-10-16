@@ -322,48 +322,48 @@ public class Generator implements RsyncTask
         _out.close();
     }
 
-    public boolean isPreservePermissions()
+    boolean isPreservePermissions()
     {
         return _isPreservePermissions;
     }
 
-    public boolean isPreserveTimes()
+    boolean isPreserveTimes()
     {
         return _isPreserveTimes;
     }
 
-    public boolean isPreserveUser()
+    boolean isPreserveUser()
     {
         return _isPreserveUser;
     }
 
-    public boolean isPreserveGroup()
+    boolean isPreserveGroup()
     {
         return _isPreserveGroup;
     }
 
-    public boolean isNumericIds()
+    boolean isNumericIds()
     {
         return _isNumericIds;
     }
 
-    public Charset charset()
+    Charset charset()
     {
         return _characterEncoder.charset();
     }
 
-    public FileSelection fileSelection()
+    FileSelection fileSelection()
     {
         return _fileSelection;
     }
 
 
-    public Filelist fileList()
+    Filelist fileList()
     {
         return _fileList;
     }
 
-    public void processJobQueueBatched() throws InterruptedException,
+    private void processJobQueueBatched() throws InterruptedException,
                                                 RsyncException
     {
         List<Job> jobList = new LinkedList<>();
@@ -415,7 +415,7 @@ public class Generator implements RsyncTask
         }
     }
 
-    public void purgeFile(final Filelist.Segment segment, final int index)
+    void purgeFile(final Filelist.Segment segment, final int index)
         throws InterruptedException
     {
         Job j = new Job() {
@@ -444,7 +444,7 @@ public class Generator implements RsyncTask
         appendJob(j);
     }
 
-    public void stop() throws InterruptedException
+    void stop() throws InterruptedException
     {
         Job job = new Job() {
             @Override
@@ -460,7 +460,7 @@ public class Generator implements RsyncTask
     }
 
     // used for sending empty filter rules only
-    public void sendBytes(final ByteBuffer buf) throws InterruptedException
+    void sendBytes(final ByteBuffer buf) throws InterruptedException
     {
         assert buf != null;
 
@@ -490,7 +490,7 @@ public class Generator implements RsyncTask
     /**
      * @throws TextConversionException
      */
-    public void sendMessage(final MessageCode code, final String text)
+    void sendMessage(final MessageCode code, final String text)
         throws InterruptedException
     {
         assert code != null;
@@ -522,7 +522,7 @@ public class Generator implements RsyncTask
         return listing;
     }
 
-    public void listSegment(final Filelist.Segment segment)
+    void listSegment(final Filelist.Segment segment)
         throws InterruptedException
     {
         assert segment != null;
@@ -559,7 +559,7 @@ public class Generator implements RsyncTask
     }
 
 
-    public void generateSegment(final Filelist.Segment segment)
+    void generateSegment(final Filelist.Segment segment)
         throws InterruptedException
     {
         assert segment != null;
@@ -580,9 +580,9 @@ public class Generator implements RsyncTask
         appendJob(j);
     }
 
-    public void generateFile(final Filelist.Segment segment,
-                             final int fileIndex,
-                             final LocatableFileInfo fileInfo)
+    void generateFile(final Filelist.Segment segment,
+                      final int fileIndex,
+                      final LocatableFileInfo fileInfo)
         throws InterruptedException
     {
         assert segment != null;
@@ -624,7 +624,7 @@ public class Generator implements RsyncTask
         appendJob(j);
     }
 
-    public void sendSegmentDone() throws InterruptedException
+    void sendSegmentDone() throws InterruptedException
     {
         Job j = new Job() {
             @Override
@@ -1268,32 +1268,32 @@ public class Generator implements RsyncTask
         }
     }
 
-    public synchronized long numBytesWritten()
+    synchronized long numBytesWritten()
     {
         return _out.numBytesWritten();
     }
 
-    public void prune(int index)
+    void prune(int index)
     {
         _pruned.set(index);
     }
 
-    public boolean isPruned(int index)
+    boolean isPruned(int index)
     {
         return _pruned.get(index);
     }
 
-    public boolean isPreserveDevices()
+    boolean isPreserveDevices()
     {
         return _isPreserveDevices;
     }
 
-    public boolean isPreserveLinks()
+    boolean isPreserveLinks()
     {
         return _isPreserveLinks;
     }
 
-    public boolean isPreserveSpecials()
+    boolean isPreserveSpecials()
     {
         return _isPreserveSpecials;
     }
@@ -1389,7 +1389,7 @@ public class Generator implements RsyncTask
         }
     }
 
-    public void disableDelete()
+    void disableDelete()
     {
         if (_isDelete && _isDeletionsEnabled) {
             if (_log.isLoggable(Level.WARNING)) {
@@ -1400,7 +1400,7 @@ public class Generator implements RsyncTask
         }
     }
 
-    public void processDeferredJobs() throws InterruptedException
+    void processDeferredJobs() throws InterruptedException
     {
         Job job = new Job() {
             @Override
