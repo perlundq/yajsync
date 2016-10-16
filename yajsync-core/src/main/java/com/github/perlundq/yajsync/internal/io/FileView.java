@@ -95,7 +95,7 @@ public class FileView implements AutoCloseable
     }
 
     @Override
-    public void close() throws FileViewReadError
+    public void close() throws FileViewException
     {
         if (_is != null) {
             try {
@@ -103,12 +103,12 @@ public class FileView implements AutoCloseable
             } catch (ClosedByInterruptException e) {
                 throw new RuntimeInterruptException(e);
             } catch (IOException e) {
-                throw new FileViewReadError(e);
+                throw new FileViewException(e);
             }
         }
 
         if (_ioError != null) {
-            throw new FileViewReadError(_ioError);
+            throw new FileViewException(_ioError);
         }
     }
 

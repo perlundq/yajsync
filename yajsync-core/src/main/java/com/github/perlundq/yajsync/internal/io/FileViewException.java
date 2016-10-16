@@ -1,7 +1,7 @@
 /*
  * Exception type for deferred IOException:s thrown during FileView reading
  *
- * Copyright (C) 2013, 2014 Per Lundqvist
+ * Copyright (C) 2013, 2014, 2016 Per Lundqvist
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,14 +19,14 @@
 package com.github.perlundq.yajsync.internal.io;
 
 @SuppressWarnings("serial")
-public class FileViewReadError extends Exception
+public class FileViewException extends Exception
 {
-    FileViewReadError(Exception e)
+    FileViewException(Exception e)
     {
         super(e);
     }
 
-    FileViewReadError(String message)
+    FileViewException(String message)
     {
         super(message);
     }

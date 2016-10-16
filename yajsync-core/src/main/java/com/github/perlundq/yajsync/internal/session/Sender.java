@@ -63,7 +63,7 @@ import com.github.perlundq.yajsync.internal.channels.RsyncOutChannel;
 import com.github.perlundq.yajsync.internal.io.FileView;
 import com.github.perlundq.yajsync.internal.io.FileViewNotFound;
 import com.github.perlundq.yajsync.internal.io.FileViewOpenFailed;
-import com.github.perlundq.yajsync.internal.io.FileViewReadError;
+import com.github.perlundq.yajsync.internal.io.FileViewException;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.text.TextConversionException;
 import com.github.perlundq.yajsync.internal.text.TextDecoder;
@@ -837,7 +837,7 @@ public final class Sender implements RsyncTask, MessageHandler
                         }
                         sendIntMessage(MessageCode.NO_SEND, index);
                         continue;
-                    } catch (FileViewReadError e) {  // on FileView.close()
+                    } catch (FileViewException e) {  // on FileView.close()
                         if (_log.isLoggable(Level.WARNING)) {
                             _log.warning(String.format(
                                 "Error: general I/O error on %s (ignored and" +

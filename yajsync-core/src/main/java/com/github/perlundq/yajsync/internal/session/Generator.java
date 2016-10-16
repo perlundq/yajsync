@@ -63,7 +63,7 @@ import com.github.perlundq.yajsync.internal.channels.MessageCode;
 import com.github.perlundq.yajsync.internal.channels.RsyncOutChannel;
 import com.github.perlundq.yajsync.internal.io.FileView;
 import com.github.perlundq.yajsync.internal.io.FileViewOpenFailed;
-import com.github.perlundq.yajsync.internal.io.FileViewReadError;
+import com.github.perlundq.yajsync.internal.io.FileViewException;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.text.TextConversionException;
 import com.github.perlundq.yajsync.internal.text.TextEncoder;
@@ -912,7 +912,7 @@ public class Generator implements RsyncTask
             }
             sendItemizeInfo(index, null, fileInfo.attrs(), Item.TRANSFER);
             sendChecksumHeader(ZERO_SUM);
-        } catch (FileViewReadError e) {
+        } catch (FileViewException e) {
             // occurs at FileView.close() - if there were any I/O errors during
             // file read
             if (_log.isLoggable(Level.WARNING)) {

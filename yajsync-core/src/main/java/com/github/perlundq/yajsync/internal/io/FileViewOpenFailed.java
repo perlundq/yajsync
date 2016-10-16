@@ -19,7 +19,7 @@
 package com.github.perlundq.yajsync.internal.io;
 
 @SuppressWarnings("serial")
-public class FileViewOpenFailed extends FileViewReadError
+public class FileViewOpenFailed extends FileViewException
 {
     FileViewOpenFailed(String message)
     {
