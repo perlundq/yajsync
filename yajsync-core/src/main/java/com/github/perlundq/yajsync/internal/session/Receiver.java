@@ -2131,9 +2131,7 @@ public class Receiver implements RsyncTask, MessageHandler
         }
     }
 
-    // NOTE: code duplication with Sender
-    public void readAllMessagesUntilEOF() throws ChannelException,
-                                                 RsyncProtocolException
+    private void readAllMessagesUntilEOF() throws ChannelException, RsyncProtocolException
     {
         try {
             if (_log.isLoggable(Level.FINE)) {
