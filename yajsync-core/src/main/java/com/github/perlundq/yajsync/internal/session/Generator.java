@@ -1333,7 +1333,7 @@ public class Generator implements RsyncTask
                             "deleting symlink %s -> %s",
                             linkInfo.path(), curTarget));
                 }
-                Files.deleteIfExists(linkInfo.path());
+                FileOps.unlink(linkInfo.path());
             }
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(String.format("creating symlink %s -> %s",
