@@ -57,7 +57,7 @@ public class PathOpsTest
     @Test
     public void testSubtractPaths2()
     {
-        Path expected = Paths.get("/a");
+        Path expected = Paths.get("a");
         Path sub = Paths.get("b");
         Path parent = expected.resolve(sub);
         Path res = PathOps.subtractPathOrNull(parent, sub);
