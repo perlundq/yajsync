@@ -85,7 +85,7 @@ public class ServerSessionConfig extends SessionConfig
     {
         super(in, out, charset);
         int seedValue = (int) System.currentTimeMillis();
-        _checksumSeed = BitOps.toLittleEndianBuf(seedValue);
+        _checksumSeed = seedValue;
     }
 
     /**
@@ -317,6 +317,17 @@ public class ServerSessionConfig extends SessionConfig
                                                   }
                                               }));
 
+        argsParser.add(Option.newStringOption(Option.Policy.OPTIONAL, "checksum-choice", "c", "checksum algorithm to use: md5, xxhash",
+                        option -> {
+                            try {
+                                String val = (String) option.getValue();
+                                _checksumHash = ChecksumHash.valueOf( val );
+                                return ArgumentParser.Status.CONTINUE;
+                            } catch (IllegalArgumentException e) {
+                                throw new ArgumentParsingError(e);
+                            }
+                        }));
+
         argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "ignore-times", "I", "",
                                                  option -> {
                                                      _isIgnoreTimes = true;
@@ -490,12 +501,11 @@ public class ServerSessionConfig extends SessionConfig
 
     private void sendChecksumSeed() throws ChannelException
     {
-        assert _checksumSeed != null;
+        assert _checksumSeed != 0;
         if (_log.isLoggable(Level.FINER)) {
-            _log.finer("> (checksum seed) " +
-                       BitOps.toBigEndianInt(_checksumSeed));
+            _log.finer("> (checksum seed) " + _checksumSeed);
         }
-        _peerConnection.putInt(BitOps.toBigEndianInt(_checksumSeed));
+        _peerConnection.putInt( _checksumSeed );
     }
 
     public boolean isSender()

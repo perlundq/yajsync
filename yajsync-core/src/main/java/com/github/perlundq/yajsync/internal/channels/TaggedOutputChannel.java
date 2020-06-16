@@ -20,6 +20,7 @@
  */
 package com.github.perlundq.yajsync.internal.channels;
 
+import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
 import com.github.perlundq.yajsync.internal.util.Consts;
@@ -79,6 +80,24 @@ public class TaggedOutputChannel extends BufferedOutputChannel
             updateTagOffsetAndBufPos(DEFAULT_TAG_OFFSET);
         }
     }
+    
+    @Override
+    public void put( ByteBuffer src ) throws ChannelException
+    {
+        if ( !src.isDirect() || !src.hasRemaining() ) {
+            super.put( src );
+            return;
+        }
+
+        // for direct buffers we want to avoid extra byte copy of src into _buffer
+        // ( this copy takes 70% of cpu sending file literal data )
+        tagCurrentData( src.remaining() );
+        super.flush();
+
+        send( src );
+        updateTagOffsetAndBufPos(DEFAULT_TAG_OFFSET);
+        
+    }
 
     @Override
     public int numBytesBuffered()
@@ -96,8 +115,13 @@ public class TaggedOutputChannel extends BufferedOutputChannel
 
     private void tagCurrentData()
     {
+        tagCurrentData(0);
+    }
+
+    private void tagCurrentData( int delta )
+    {
         putMessageHeader(_tag_offset, new MessageHeader(MessageCode.DATA,
-                                                        numBytesUntagged()));
+                                                        numBytesUntagged() + delta ));
     }
 
     private void putMessageHeader(int offset, MessageHeader header)

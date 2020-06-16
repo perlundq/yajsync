@@ -67,7 +67,7 @@ public class TextEncoder
     /**
      * @throws TextConversionException 
      */
-    private byte[] encode(CharBuffer input,
+    private ByteBuffer encode(CharBuffer input,
                           ErrorPolicy errorPolicy,
                           MemoryPolicy memoryPolicy)
     {
@@ -98,9 +98,8 @@ public class TextEncoder
             }
 
             if (result.isUnderflow()) {
-                return Arrays.copyOfRange(output.array(),
-                                          output.arrayOffset(),
-                                          output.position());
+                output.flip();
+                return output;
             }
 
             if (errorPolicy == ErrorPolicy.THROW) { // NOTE: in some circumstances we should avoid printing the contents
@@ -124,7 +123,7 @@ public class TextEncoder
         }
     }
 
-    public byte[] secureEncodeOrNull(char[] inputChars)
+    public ByteBuffer secureEncodeOrNull(char[] inputChars)
     {
         CharBuffer input = CharBuffer.wrap(inputChars);
         return encode(input,
@@ -132,7 +131,7 @@ public class TextEncoder
                       MemoryPolicy.ZERO);
     }
 
-    public byte[] encodeOrNull(String string)
+    public ByteBuffer encodeOrNull(String string)
     {
         char[] inputChars = string.toCharArray();
         CharBuffer input = CharBuffer.wrap(inputChars);
@@ -144,7 +143,7 @@ public class TextEncoder
     /**
      * @throws TextConversionException 
      */
-    public byte[] encode(String string)
+    public ByteBuffer encode(String string)
     {
         char[] inputChars = string.toCharArray();
         CharBuffer input = CharBuffer.wrap(inputChars);

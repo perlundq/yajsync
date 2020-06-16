@@ -77,7 +77,7 @@ public class TaggedInputChannel extends SimpleInputChannel
                                         dst.position(),
                                         dst.position() + Math.min(chunkLength,
                                                                   64));
-            _log.finest(Text.byteBufferToString(tmp));
+            _log.finest(Text.bytesToString(tmp));
         }
         dst.position(slice.position());
         _readAmountAvailable -= chunkLength;

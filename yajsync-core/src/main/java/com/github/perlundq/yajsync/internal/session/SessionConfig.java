@@ -54,7 +54,8 @@ public abstract class SessionConfig
     protected SessionStatus _status;
     protected TextEncoder _characterEncoder;
     protected TextDecoder _characterDecoder;
-    protected byte[] _checksumSeed; // always stored in little endian
+    protected int _checksumSeed; // always stored in little endian
+    protected ChecksumHash _checksumHash = ChecksumHash.md5; 
 
     private Charset _charset;
 
@@ -76,9 +77,13 @@ public abstract class SessionConfig
         return _charset;
     }
 
-    public byte[] checksumSeed()
+    public ChecksumHash checksumHash() {
+        assert _checksumHash != null;
+        return _checksumHash;
+    }
+
+    public int checksumSeed()
     {
-        assert _checksumSeed != null;
         return _checksumSeed;
     }
 
@@ -87,7 +92,7 @@ public abstract class SessionConfig
         assert _status != null;
         return _status;
     }
-
+    
     /**
      * @throws RsyncProtocolException if peer sent a version less than ours
      * @throws RsyncProtocolException if protocol version is invalid
@@ -168,8 +173,7 @@ public abstract class SessionConfig
             if (_log.isLoggable(Level.FINER)) {
                 _log.finer("> " + text);
             }
-            byte[] textEncoded = _characterEncoder.encode(text);
-            _peerConnection.put(textEncoded, 0, textEncoded.length);
+            _peerConnection.put( _characterEncoder.encode(text) );
         } catch (TextConversionException e) {
             throw new IllegalStateException(e);
         }

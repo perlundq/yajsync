@@ -68,9 +68,9 @@ import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.text.TextConversionException;
 import com.github.perlundq.yajsync.internal.text.TextDecoder;
 import com.github.perlundq.yajsync.internal.text.TextEncoder;
+import com.github.perlundq.yajsync.internal.util.ChecksumDigest;
 import com.github.perlundq.yajsync.internal.util.Environment;
 import com.github.perlundq.yajsync.internal.util.FileOps;
-import com.github.perlundq.yajsync.internal.util.MD5;
 import com.github.perlundq.yajsync.internal.util.PathOps;
 import com.github.perlundq.yajsync.internal.util.Rolling;
 import com.github.perlundq.yajsync.internal.util.RuntimeInterruptException;
@@ -83,7 +83,8 @@ public final class Sender implements RsyncTask, MessageHandler
         private final ReadableByteChannel _in;
         private final WritableByteChannel _out;
         private final Iterable<Path> _sourceFiles;
-        private final byte[] _checksumSeed;
+        private final int _checksumSeed;
+        private ChecksumHash _checksumHash;
         private boolean _isExitAfterEOF;
         private boolean _isExitEarlyIfEmptyList;
         private boolean _isInterruptible = true;
@@ -106,24 +107,25 @@ public final class Sender implements RsyncTask, MessageHandler
         public Builder(ReadableByteChannel in,
                        WritableByteChannel out,
                        Iterable<Path> sourceFiles,
-                       byte[] checksumSeed)
+                       int checksumSeed, ChecksumHash hash )
         {
             assert in != null;
             assert out != null;
             assert sourceFiles != null;
-            assert checksumSeed != null;
+            assert hash != null;
             _in = in;
             _out = out;
             _sourceFiles = sourceFiles;
             _checksumSeed = checksumSeed;
+            _checksumHash = hash;
         }
 
         public static Builder newServer(ReadableByteChannel in,
                                         WritableByteChannel out,
                                         Iterable<Path> sourceFiles,
-                                        byte[] checksumSeed)
+                                        int checksumSeed, ChecksumHash hash)
         {
-            Builder builder = new Builder(in, out, sourceFiles, checksumSeed);
+            Builder builder = new Builder(in, out, sourceFiles, checksumSeed, hash);
             builder._isSendStatistics = true;
             builder._isExitEarlyIfEmptyList = true;
             builder._isExitAfterEOF = false;
@@ -133,9 +135,9 @@ public final class Sender implements RsyncTask, MessageHandler
         public static Builder newClient(ReadableByteChannel in,
                                         WritableByteChannel out,
                                         Iterable<Path> sourceFiles,
-                                        byte[] checksumSeed)
+                                        int checksumSeed, ChecksumHash hash)
         {
-            Builder builder = new Builder(in, out, sourceFiles, checksumSeed);
+            Builder builder = new Builder(in, out, sourceFiles, checksumSeed, hash);
             builder._isSendStatistics = false;
             builder._isExitEarlyIfEmptyList = false;
             builder._isExitAfterEOF = true;
@@ -199,6 +201,7 @@ public final class Sender implements RsyncTask, MessageHandler
             _charset = charset;
             return this;
         }
+        
 
         public Builder isExitEarlyIfEmptyList(boolean isExitEarlyIfEmptyList)
         {
@@ -250,10 +253,10 @@ public final class Sender implements RsyncTask, MessageHandler
 
     private static final Logger _log =
         Logger.getLogger(Sender.class.getName());
-    private static final int INPUT_CHANNEL_BUF_SIZE = 8 * 1024;
-    private static final int OUTPUT_CHANNEL_BUF_SIZE = 8 * 1024;
+    private static final int INPUT_CHANNEL_BUF_SIZE = 128 * 1024;
+    private static final int OUTPUT_CHANNEL_BUF_SIZE = 128 * 1024;
     private static final int PARTIAL_FILE_LIST_SIZE = 1024;
-    private static final int CHUNK_SIZE = 8 * 1024;
+    private static final int CHUNK_SIZE = 128 * 1024;
 
     private final AutoFlushableRsyncDuplexChannel _duplexChannel;
     private final BitSet _transferred = new BitSet();
@@ -268,7 +271,8 @@ public final class Sender implements RsyncTask, MessageHandler
     private final boolean _isNumericIds;
     private final boolean _isSafeFileList;
     private final boolean _isSendStatistics;
-    private final byte[] _checksumSeed;
+    private final int _checksumSeed;
+    private final ChecksumHash _checksumHash;
     private final FileInfoCache _fileInfoCache = new FileInfoCache();
     private final FileSelection _fileSelection;
     private final FilterMode _filterMode;
@@ -307,6 +311,7 @@ public final class Sender implements RsyncTask, MessageHandler
         _isSafeFileList = builder._isSafeFileList;
         _isSendStatistics = builder._isSendStatistics;
         _checksumSeed = builder._checksumSeed;
+        _checksumHash = builder._checksumHash;
         _fileSelection = builder._fileSelection;
         _filterMode = builder._filterMode;
         _sourceFiles = builder._sourceFiles;
@@ -334,6 +339,7 @@ public final class Sender implements RsyncTask, MessageHandler
                 "isPreserveGroup=%b, " +
                 "isSafeFileList=%b, " +
                 "isSendStatistics=%b, " +
+                "checksumHash=%s, " +
                 "checksumSeed=%s, " +
                 "fileSelection=%s, " +
                 "filterMode=%s, " +
@@ -351,7 +357,8 @@ public final class Sender implements RsyncTask, MessageHandler
                 _isPreserveGroup,
                 _isSafeFileList,
                 _isSendStatistics,
-                Text.bytesToString(_checksumSeed),
+                _checksumHash,
+                _checksumSeed,
                 _fileSelection,
                 _filterMode,
                 _sourceFiles);
@@ -512,7 +519,7 @@ public final class Sender implements RsyncTask, MessageHandler
         if (_log.isLoggable(Level.FINER)) {
             _log.finer("sending user name " + name);
         }
-        ByteBuffer buf = ByteBuffer.wrap(_characterEncoder.encode(name));
+        ByteBuffer buf = _characterEncoder.encode(name);
         // unlikely scenario, we could also recover from this (by truncating or
         // falling back to nobody)
         if (buf.remaining() > 0xFF) {
@@ -529,7 +536,7 @@ public final class Sender implements RsyncTask, MessageHandler
         if (_log.isLoggable(Level.FINER)) {
             _log.finer("sending group name " + name);
         }
-        ByteBuffer buf = ByteBuffer.wrap(_characterEncoder.encode(name));
+        ByteBuffer buf = _characterEncoder.encode(name);
         if (buf.remaining() > 0xFF) {
             throw new IllegalStateException(String.format(
                 "encoded length of group name %s is %d, which is larger than " +
@@ -800,22 +807,20 @@ public final class Sender implements RsyncTask, MessageHandler
                     boolean isNew = header.blockLength() == 0;
                     int blockSize = isNew ? FileView.DEFAULT_BLOCK_SIZE
                                           : header.blockLength();
-                    int blockFactor = isNew ? 1 : 10;
                     long fileSize = fileInfo.attrs().size();
 
-                    byte[] fileMD5sum = null;
+                    ByteBuffer filesum = null;
                     try (FileView fv = new FileView(fileInfo.path(),
                                                     fileInfo.attrs().size(),
-                                                    blockSize,
-                                                    blockSize * blockFactor)) {
+                                                    blockSize)) {
 
                         sendIndexAndIflags(index, iFlags);
                         sendChecksumHeader(header);
 
                         if (isNew) {
-                            fileMD5sum = skipMatchSendData(fv, fileSize);
+                            filesum = skipMatchSendData(fv, fileSize);
                         } else {
-                            fileMD5sum = sendMatchesAndData(fv, checksum,
+                            filesum = sendMatchesAndData(fv, checksum,
                                                             fileSize);
                         }
                     } catch (FileViewOpenFailed e) { // on FileView.open()
@@ -845,15 +850,15 @@ public final class Sender implements RsyncTask, MessageHandler
                         }
                         // fileMD5sum is only null for FileViewOpenFailed - not
                         // FileViewReadError which is caused by FileView.close()
-                        createIncorrectChecksum(fileMD5sum);
+                        createIncorrectChecksum(filesum);
                     }
 
                     if (_log.isLoggable(Level.FINE)) {
                         _log.finer(String.format(
                             "sending checksum for %s: %s",
-                            fileInfo.path(), Text.bytesToString(fileMD5sum)));
+                            fileInfo.path(), Text.bytesToString(filesum)));
                     }
-                    _duplexChannel.put(fileMD5sum, 0, fileMD5sum.length);
+                    _duplexChannel.put( filesum );
                     setIsTransferred(index);
 
                     if (_log.isLoggable(Level.FINE)) {
@@ -882,9 +887,9 @@ public final class Sender implements RsyncTask, MessageHandler
         return ioError;
     }
 
-    private static void createIncorrectChecksum(byte[] checksum)
+    private void createIncorrectChecksum( ByteBuffer checksum )
     {
-        checksum[0]++;
+        checksum.put( 0, (byte) ( checksum.get( 0 ) + 1 ) );
     }
 
     /**
@@ -896,7 +901,7 @@ public final class Sender implements RsyncTask, MessageHandler
         RsyncFileAttributes attrs = _fileAttributeManager.stat(path);
         String fileName = path.getFileName().toString();
         // throws TextConversionException
-        byte[] nameBytes = _characterEncoder.encode(fileName);
+        ByteBuffer nameBytes = _characterEncoder.encode(fileName);
 
         if (attrs.isRegularFile() || attrs.isDirectory()) {
             return new LocatableFileInfoImpl(fileName, nameBytes, attrs, path);
@@ -1045,7 +1050,7 @@ public final class Sender implements RsyncTask, MessageHandler
                 Path relativePath = localDir.relativize(entry).normalize();
                 String relativePathName =
                     Text.withSlashAsPathSepator(relativePath);
-                byte[] pathNameBytes =
+                ByteBuffer pathNameBytes =
                     _characterEncoder.encodeOrNull(relativePathName);
                 if (pathNameBytes != null) {
                     LocatableFileInfo f;
@@ -1354,10 +1359,10 @@ public final class Sender implements RsyncTask, MessageHandler
             sendEncodedInt(dev.minor());
         } else if (_isPreserveLinks && fileInfo instanceof SymlinkInfo) {
             String symlinkTarget = ((SymlinkInfo) fileInfo).targetPathName();
-            byte[] symlinkTargetBytes =
+            ByteBuffer symlinkTargetBytes =
                     _characterEncoder.encode(symlinkTarget);
-            sendEncodedInt(symlinkTargetBytes.length);
-            _duplexChannel.put(ByteBuffer.wrap(symlinkTargetBytes));
+            sendEncodedInt(symlinkTargetBytes.limit());
+            _duplexChannel.put(symlinkTargetBytes);
         }
     }
 
@@ -1425,32 +1430,30 @@ public final class Sender implements RsyncTask, MessageHandler
         Checksum checksum = new Checksum(header);
         for (int i = 0; i < header.chunkCount(); i++) {
             int rolling = _duplexChannel.getInt();
-            byte[] md5sum = new byte[header.digestLength()];
-            _duplexChannel.get(md5sum, 0, md5sum.length);
+            ByteBuffer md5sum = _duplexChannel.get(header.digestLength() );
             checksum.addChunkInformation(rolling, md5sum);
         }
         return checksum;
     }
 
-    private byte[] skipMatchSendData(FileView view, long fileSize)
+    private ByteBuffer skipMatchSendData(FileView view, long fileSize)
         throws ChannelException
     {
-        MessageDigest fileDigest = MD5.newInstance();
+        ChecksumDigest checksum = _checksumHash.instance( 0 );
         long bytesSent = 0;
         while (view.windowLength() > 0) {
-            sendDataFrom(view.array(), view.startOffset(), view.windowLength());
+            sendDataFrom( view.windowBuffer() );
             bytesSent += view.windowLength();
-            fileDigest.update(view.array(), view.startOffset(),
-                              view.windowLength());
+            checksum.chunk( view.windowBuffer() );
             view.slide(view.windowLength());
         }
         _stats._totalLiteralSize += fileSize;
         _duplexChannel.putInt(0);
         assert bytesSent == fileSize;
-        return fileDigest.digest();
+        return checksum.digest( );
     }
 
-    private byte[] sendMatchesAndData(FileView fv,
+    private ByteBuffer sendMatchesAndData(FileView fv,
                                       Checksum peerChecksum,
                                       long fileSize)
         throws ChannelException
@@ -1459,16 +1462,18 @@ public final class Sender implements RsyncTask, MessageHandler
         assert peerChecksum != null;
         assert peerChecksum.header().blockLength() > 0;
         assert fileSize > 0;
+        
+        int blockCount = (int) ( fileSize / fv.windowLength() + Math.min( fileSize % fv.windowLength(), 1 ) );
+        
+        ChecksumDigest checksum = _checksumHash.instance( _checksumSeed );
+        ChecksumDigest fileChecksum = _checksumHash.instance( 0 );
+        ByteBuffer digest = checksum.newDigest();
 
-        MessageDigest fileDigest = MD5.newInstance();
-        MessageDigest chunkDigest = MD5.newInstance();
-
-        int rolling = Rolling.compute(fv.array(), fv.startOffset(),
-                                      fv.windowLength());
+        int rolling = Rolling.compute( fv.windowBuffer() );
         int preferredIndex = 0;
         long sizeLiteral = 0;
         long sizeMatch = 0;
-        byte[] localChunkMd5sum = null;
+        boolean localCheck = true;
         fv.setMarkRelativeToStart(0);
 
         while (fv.windowLength() >= peerChecksum.header().smallestChunkSize()) {
@@ -1482,49 +1487,40 @@ public final class Sender implements RsyncTask, MessageHandler
                                                             fv.windowLength(),
                                                             preferredIndex)) {
 
-                if (localChunkMd5sum == null) {
-                    chunkDigest.update(fv.array(),
-                                       fv.startOffset(),
-                                       fv.windowLength());
-                    chunkDigest.update(_checksumSeed);
-                    localChunkMd5sum = Arrays.copyOf(
-                                                chunkDigest.digest(),
-                                                chunk.md5Checksum().length);
-                }
+                if ( localCheck ) {
+                    checksum.digest(fv.windowBuffer(), digest ).flip();
+                    
+                    localCheck = ChecksumDigest.match( digest, chunk.checksum(), chunk.checksum().remaining() );
+                    
+                    if ( localCheck ) {
+                        if (_log.isLoggable(Level.FINER)) {
+                            _log.finer(String.format(
+                                            "match %s == %s %s",
+                                            ChecksumDigest.toString(digest),
+                                            ChecksumDigest.toString(chunk.checksum()),
+                                            fv));
+                        }
+                        sizeMatch += fv.windowLength();
+                        sendDataFrom( fv.markedBuffer() );
+                        sizeLiteral += fv.numBytesMarked();
 
-                if (Arrays.equals(localChunkMd5sum, chunk.md5Checksum())) {
-                    if (_log.isLoggable(Level.FINER)) {
-                        _log.finer(String.format(
-                            "match %s == %s %s",
-                            MD5.md5DigestToString(localChunkMd5sum),
-                            MD5.md5DigestToString(chunk.md5Checksum()),
-                            fv));
+                        fileChecksum.chunk( fv.totalBuffer() ); // yes, not marked buffer
+
+                        _duplexChannel.putInt(- (chunk.chunkIndex() + 1));
+                        preferredIndex = chunk.chunkIndex() + 1;
+                        // we have sent all literal data until start of this
+                        // chunk which in turn is matching peer's checksum,
+                        // reset cursor:
+                        fv.setMarkRelativeToStart(fv.windowLength());
+                        // slide start to 1 byte left of mark offset,
+                        // will be subtracted immediately after break of loop
+                        fv.slide( fv.windowLength() - 1 );
+                        // TODO: optimize away an unnecessary expensive compact
+                        // operation here while we only have 1 byte to compact,
+                        // before reading in more data (if we're at the last block)
+                        rolling = Rolling.compute( fv.windowBuffer() );
+                        break;
                     }
-                    sizeMatch += fv.windowLength();
-                    sendDataFrom(fv.array(), fv.markOffset(),
-                                 fv.numBytesMarked());
-                    sizeLiteral += fv.numBytesMarked();
-                    fileDigest.update(fv.array(),
-                                      fv.markOffset(),
-                                      fv.totalBytes());
-
-                    _duplexChannel.putInt(- (chunk.chunkIndex() + 1));
-                    preferredIndex = chunk.chunkIndex() + 1;
-                    // we have sent all literal data until start of this
-                    // chunk which in turn is matching peer's checksum,
-                    // reset cursor:
-                    fv.setMarkRelativeToStart(fv.windowLength());
-                    // slide start to 1 byte left of mark offset,
-                    // will be subtracted immediately after break of loop
-                    fv.slide(fv.windowLength() - 1);
-                    // TODO: optimize away an unnecessary expensive compact
-                    // operation here while we only have 1 byte to compact,
-                    // before reading in more data (if we're at the last block)
-                    rolling = Rolling.compute(fv.array(),
-                                              fv.startOffset(),
-                                              fv.windowLength());
-                    localChunkMd5sum = null;
-                    break;
                 }
             }
 
@@ -1536,10 +1532,9 @@ public final class Sender implements RsyncTask, MessageHandler
                 if (_log.isLoggable(Level.FINER)) {
                     _log.finer("view is full " + fv);
                 }
-                sendDataFrom(fv.array(), fv.firstOffset(), fv.totalBytes());
+                sendDataFrom( fv.totalBuffer() );
                 sizeLiteral += fv.totalBytes();
-                fileDigest.update(fv.array(), fv.firstOffset(),
-                                  fv.totalBytes());
+                fileChecksum.chunk( fv.totalBuffer() );
                 fv.setMarkRelativeToStart(fv.windowLength());
                 fv.slide(fv.windowLength());
             } else {
@@ -1552,9 +1547,9 @@ public final class Sender implements RsyncTask, MessageHandler
             }
         }
 
-        sendDataFrom(fv.array(), fv.firstOffset(), fv.totalBytes());
+        sendDataFrom( fv.totalBuffer() );
         sizeLiteral += fv.totalBytes();
-        fileDigest.update(fv.array(), fv.firstOffset(), fv.totalBytes());
+        fileChecksum.chunk( fv.totalBuffer() );
         _duplexChannel.putInt(0);
 
         if (_log.isLoggable(Level.FINE)) {
@@ -1569,26 +1564,24 @@ public final class Sender implements RsyncTask, MessageHandler
         _stats._totalLiteralSize += sizeLiteral;
         _stats._totalMatchedSize += sizeMatch;
         assert sizeLiteral + sizeMatch == fileSize;
-        return fileDigest.digest();
+        return fileChecksum.digest(  );
     }
 
 
-    private void sendDataFrom(byte[] buf, int startOffset, int length)
+    private void sendDataFrom( ByteBuffer buf )
         throws ChannelException
     {
         assert buf != null;
-        assert startOffset >= 0;
-        assert length >= 0;
-        assert startOffset + length <= buf.length;
+        assert buf.remaining() >= 0;
+        
+        int limit = buf.limit();
 
-        int endOffset = startOffset + length - 1;
-        int currentOffset = startOffset;
-        while (currentOffset <= endOffset) {
-            int len = Math.min(CHUNK_SIZE, endOffset - currentOffset + 1);
+        while ( buf.remaining() > 0 ) {
+            int len = Math.min(CHUNK_SIZE, buf.remaining() );
             assert len > 0;
-            _duplexChannel.putInt(len);
-            _duplexChannel.put(buf, currentOffset, len);
-            currentOffset += len;
+            _duplexChannel.putInt( len );
+            _duplexChannel.put( (ByteBuffer) buf.limit( buf.position() + len ) );
+            buf.limit( limit );
         }
     }
 
@@ -1655,7 +1648,7 @@ public final class Sender implements RsyncTask, MessageHandler
             throw new RsyncProtocolException(String.format(
                     "Unexpectedly got %d bytes from peer during connection " +
                     "tear down: %s",
-                    buf.remaining(), Text.byteBufferToString(buf)));
+                    buf.remaining(), Text.bytesToString(buf)));
 
         } catch (ChannelEOFException e) {
             // It's OK, we expect EOF without having received any data
@@ -1677,7 +1670,7 @@ public final class Sender implements RsyncTask, MessageHandler
      */
     private Message toMessage(MessageCode code, String text)
     {
-        ByteBuffer payload = ByteBuffer.wrap(_characterEncoder.encode(text));
+        ByteBuffer payload = _characterEncoder.encode(text);
         return new Message(code, payload);
     }
 }

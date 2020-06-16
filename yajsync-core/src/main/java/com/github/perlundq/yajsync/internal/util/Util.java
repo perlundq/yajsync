@@ -192,18 +192,18 @@ public final class Util
 
         // TODO: add '.' also
         final String testString = Text.SLASH + Text.DOT + '\n' + '\r' + '\0';
-        final byte[] expected = { Text.ASCII_SLASH, Text.ASCII_DOT,
+        final ByteBuffer expected = ByteBuffer.wrap( new byte[] { Text.ASCII_SLASH, Text.ASCII_DOT,
                                   Text.ASCII_NEWLINE, Text.ASCII_CR,
-                                  Text.ASCII_NULL };
+                                  Text.ASCII_NULL } );
 
-        byte[] encodeResult = encoder.encodeOrNull(testString);
-        if (!Arrays.equals(encodeResult, expected)) { // NOTE: returns false if encodeResult is null
+        ByteBuffer encodeResult = encoder.encodeOrNull( testString );
+        if ( !expected.equals( encodeResult ) ) { // NOTE: returns false if
+                                                  // encodeResult is null
             return false;
         }
 
-        String decodeResult =
-            decoder.decodeOrNull(ByteBuffer.wrap(encodeResult));
-        if (decodeResult == null || !decodeResult.equals(testString)) {
+        String decodeResult = decoder.decodeOrNull( encodeResult );
+        if ( decodeResult == null || !decodeResult.equals( testString ) ) {
             return false;
         }
 
