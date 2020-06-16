@@ -16,6 +16,8 @@
  */
 package com.github.perlundq.yajsync.internal.session;
 
+import java.nio.ByteBuffer;
+
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.SymlinkInfo;
 
@@ -23,7 +25,7 @@ class SymlinkInfoImpl extends FileInfoImpl implements SymlinkInfo
 {
     private final String _targetPathName;
 
-    public SymlinkInfoImpl(String pathName, byte[] pathNameBytes,
+    public SymlinkInfoImpl(String pathName, ByteBuffer pathNameBytes,
                            RsyncFileAttributes attrs, String targetPathName)
     {
         super(pathName, pathNameBytes, attrs);

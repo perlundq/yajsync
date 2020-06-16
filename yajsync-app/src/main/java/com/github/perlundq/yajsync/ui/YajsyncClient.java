@@ -58,6 +58,7 @@ import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.SymlinkInfo;
 import com.github.perlundq.yajsync.attr.User;
 import com.github.perlundq.yajsync.internal.channels.ChannelException;
+import com.github.perlundq.yajsync.internal.session.ChecksumHash;
 import com.github.perlundq.yajsync.internal.session.FileAttributeManager;
 import com.github.perlundq.yajsync.internal.session.FileAttributeManagerFactory;
 import com.github.perlundq.yajsync.internal.session.SessionStatistics;
@@ -458,6 +459,18 @@ public class YajsyncClient
                                                }
                                            }));
 
+        options.add(Option.newStringOption(Option.Policy.OPTIONAL, "checksum-choice", "c",
+                        "which hash to use for checksum ( md5, xxhash )",
+                        option -> {
+                            String checksumName = (String) option.getValue();
+                            try {
+                                _clientBuilder.checksumHash( ChecksumHash.valueOf( checksumName ));
+                                return ArgumentParser.Status.CONTINUE;
+                            } catch (IllegalArgumentException e) {
+                                throw new ArgumentParsingError(String.format(
+                                        "failed to set checksum hash to %s: %s",
+                                        checksumName, e));
+                            }}));
         return options;
     }
 

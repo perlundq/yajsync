@@ -40,6 +40,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.attr.FileInfo;
+import com.github.perlundq.yajsync.internal.session.ChecksumHash;
 import com.github.perlundq.yajsync.internal.session.ClientSessionConfig;
 import com.github.perlundq.yajsync.internal.session.FilterMode;
 import com.github.perlundq.yajsync.internal.session.Generator;
@@ -153,7 +154,7 @@ public final class RsyncClient
                             return Result.success();
                         }
                         Generator generator = new Generator.Builder(out,
-                                                                    cfg.checksumSeed()).
+                                                                    cfg.checksumSeed(), cfg.checksumHash() ).
                                 charset(cfg.charset()).
                                 fileSelection(fileSelection).
                                 isDelete(_isDelete).
@@ -351,11 +352,11 @@ public final class RsyncClient
             FileSelection fileSelection =
                     Util.defaultIfNull(_fileSelectionOrNull,
                                        FileSelection.TRANSFER_DIRS);
-            byte[] seed = BitOps.toLittleEndianBuf((int) System.currentTimeMillis());
+            int seed = (int) System.currentTimeMillis();
             Sender sender = new Sender.Builder(toSender.source(),
                                                toReceiver.sink(),
                                                srcPaths,
-                                               seed).
+                                               seed, _checksumHash).
                     isExitEarlyIfEmptyList(true).
                     charset(_charset).
                     isPreserveDevices(_isPreserveDevices).
@@ -365,7 +366,7 @@ public final class RsyncClient
                     isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
                     fileSelection(fileSelection).build();
-            Generator generator = new Generator.Builder(toSender.sink(), seed).
+            Generator generator = new Generator.Builder(toSender.sink(), seed, _checksumHash).
                     charset(_charset).
                     fileSelection(fileSelection).
                     isDelete(_isDelete).
@@ -403,11 +404,11 @@ public final class RsyncClient
             FileSelection fileSelection =
                     Util.defaultIfNull(_fileSelectionOrNull,
                                        FileSelection.EXACT);
-            byte[] seed = BitOps.toLittleEndianBuf((int) System.currentTimeMillis());
+            int seed = (int) System.currentTimeMillis();
             Sender sender = new Sender.Builder(toSender.source(),
                                                toReceiver.sink(),
                                                srcPaths,
-                                               seed).
+                                               seed, _checksumHash).
                     isExitEarlyIfEmptyList(true).
                     charset(_charset).
                     isPreserveDevices(_isPreserveDevices).
@@ -417,7 +418,7 @@ public final class RsyncClient
                     isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
                     fileSelection(fileSelection).build();
-            Generator generator = new Generator.Builder(toSender.sink(), seed).
+            Generator generator = new Generator.Builder(toSender.sink(), seed, _checksumHash).
                     charset(_charset).
                     fileSelection(fileSelection).
                     isDelete(_isDelete).
@@ -487,8 +488,10 @@ public final class RsyncClient
             ClientSessionConfig cfg = new ClientSessionConfig(_in,
                                                               _out,
                                                               _charset,
+                                                              _checksumHash,
                                                               fileSelection == FileSelection.RECURSE,
-                                                              _stderr);
+                                                              _stderr
+                                                              );
             return new FileListing(cfg,
                                    moduleName,
                                    serverArgs,
@@ -523,6 +526,7 @@ public final class RsyncClient
             ClientSessionConfig cfg = new ClientSessionConfig(_in,
                                                               _out,
                                                               _charset,
+                                                              _checksumHash,
                                                               fileSelection == FileSelection.RECURSE,
                                                               _stderr);
             return new ModuleListing(cfg, serverArgs);
@@ -585,6 +589,7 @@ public final class RsyncClient
                 ClientSessionConfig cfg = new ClientSessionConfig(_in,
                                                                   _out,
                                                                   _charset,
+                                                                  _checksumHash,
                                                                   fileSelection == FileSelection.RECURSE,
                                                                   _stderr);
                 SessionStatus status = cfg.handshake(moduleName, serverArgs,
@@ -603,7 +608,7 @@ public final class RsyncClient
                     Sender sender = Sender.Builder.newClient(_in,
                                                              _out,
                                                              _srcPaths,
-                                                             cfg.checksumSeed()).
+                                                             cfg.checksumSeed(), cfg.checksumHash()).
                             filterMode(_isDelete ? FilterMode.SEND
                                                  : FilterMode.NONE).
                             charset(_charset).
@@ -665,6 +670,7 @@ public final class RsyncClient
                 ClientSessionConfig cfg = new ClientSessionConfig(_in,
                                                                   _out,
                                                                   _charset,
+                                                                  _checksumHash,
                                                                   fileSelection == FileSelection.RECURSE,
                                                                   _stderr);
                 SessionStatus status = cfg.handshake(_moduleName, serverArgs,
@@ -681,7 +687,7 @@ public final class RsyncClient
 
                 try {
                     Generator generator = new Generator.Builder(_out,
-                                                                cfg.checksumSeed()).
+                                                                cfg.checksumSeed(), cfg.checksumHash()).
                             charset(cfg.charset()).
                             fileSelection(fileSelection).
                             isDelete(_isDelete).
@@ -793,6 +799,9 @@ public final class RsyncClient
             if (_isPreserveDevices && !_isPreserveSpecials) {
                 serverArgs.add("--no-specials");
             }
+            if ( _checksumHash != ChecksumHash.md5 ) {
+                serverArgs.add("--checksum-choice=" + _checksumHash );
+            }
 
             serverArgs.add("."); // arg delimiter
 
@@ -838,6 +847,7 @@ public final class RsyncClient
         private boolean _isNumericIds;
         private boolean _isPreservePermissions;
         private boolean _isPreserveTimes;
+        private ChecksumHash _checksumHash = ChecksumHash.xxhash;
         private Charset _charset = Charset.forName(Text.UTF8_NAME);
         private ExecutorService _executorService;
         private FileSelection _fileSelection;
@@ -933,6 +943,11 @@ public final class RsyncClient
             _isPreserveTimes = isPreserveTimes;
             return this;
         }
+        
+        public Builder checksumHash( ChecksumHash hash ) {
+            _checksumHash = hash;
+            return this;
+        }
 
         /**
          *
@@ -987,6 +1002,7 @@ public final class RsyncClient
     private final boolean _isPreservePermissions;
     private final boolean _isPreserveTimes;
     private final Charset _charset;
+    private final ChecksumHash _checksumHash;
     private final ExecutorService _executorService;
     private final FileSelection _fileSelectionOrNull;
     private final int _verbosity;
@@ -1010,6 +1026,7 @@ public final class RsyncClient
         _isPreservePermissions = builder._isPreservePermissions;
         _isPreserveTimes = builder._isPreserveTimes;
         _charset = builder._charset;
+        _checksumHash = builder._checksumHash;
         if (builder._executorService == null) {
             _executorService = Executors.newCachedThreadPool();
             _isOwnerOfExecutorService = true;

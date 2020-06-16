@@ -20,60 +20,61 @@
  */
 package com.github.perlundq.yajsync.internal.io;
 
-import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
-import java.nio.file.Files;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.nio.file.StandardOpenOption;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.internal.util.RuntimeInterruptException;
 
+// TODO: to mmapped file
 public class FileView implements AutoCloseable
 {
     private static final Logger _log =
         Logger.getLogger(FileView.class.getName());
-    public final static int DEFAULT_BLOCK_SIZE = 8 * 1024;
-    private final InputStream _is;
+    public final static int DEFAULT_BLOCK_SIZE = 128 * 1024;
+    private final FileChannel _channel;
     private final int _windowLength;  // size of sliding window (<= _buf.length)
-    private final byte[] _buf;
+    private ByteBuffer _map;
+    private long _mappedPosition = 0; // start position in file of the currently mapped buffer
     private final String _fileName;
-    private int _startOffset = 0;
-    private int _endOffset = -1;     // length == _endOffset - _startOffset + 1
+    private final long _fileSize;
+    private int _startOffset = 0;  // current window start offset in buffer
+    private int _endOffset = 0;   // current window exclusive end offset in buffer  // window length == _endOffset - _startOffset 
     private int _markOffset = -1;
-    private int _readOffset = -1;
-    private long _remainingBytes;
+    private long _remainingBytes; // remaining bytes in file, not read yet into buffer
     private IOException _ioError = null;
 
-    public FileView(Path path, long fileSize, int windowLength, int bufferSize)
+    public FileView(Path path, long fileSize, int windowLength)
         throws FileViewOpenFailed
     {
         assert path != null;
         assert fileSize >= 0;
         assert windowLength >= 0;
-        assert bufferSize >= 0;
-        assert windowLength <= bufferSize;
 
         try {
             _fileName = path.toString();
+            _fileSize= fileSize;
             _remainingBytes = fileSize;
 
+            _map = ByteBuffer.allocate( 0 );
+
             if (fileSize > 0) {
-                _is = Files.newInputStream(path);
+                _channel = FileChannel.open(path, StandardOpenOption.READ);
                 _windowLength = windowLength;
-                _buf = new byte[bufferSize];
                 slide(0);
                 assert _startOffset == 0;
-                assert _endOffset >= 0;
+                assert _endOffset > 0;
             } else {
-                _is = null;
+                _channel = null;
                 _windowLength = 0;
-                _buf = new byte[0];
             }
 
         } catch (FileNotFoundException | NoSuchFileException e) { // TODO: which exception should we really catch
@@ -88,18 +89,19 @@ public class FileView implements AutoCloseable
     {
         return String.format("%s (fileName=%s, startOffset=%d, markOffset=%d," +
                              " endOffset=%d, windowLength=%d, " +
-                             "prefetchedOffset=%d, remainingBytes=%d)",
+                             "mapPosition=%d, remainingBytes=%d)",
                              this.getClass().getSimpleName(),
-                             _fileName, _startOffset, _markOffset, endOffset(),
-                             windowLength(), _readOffset, _remainingBytes);
+                             _fileName, _startOffset, _markOffset, _endOffset,
+                             windowLength(), _mappedPosition, _remainingBytes);
     }
 
     @Override
     public void close() throws FileViewException
     {
-        if (_is != null) {
+        if (_channel != null) {
             try {
-                _is.close();
+                _channel.close();
+                _map = null;
             } catch (ClosedByInterruptException e) {
                 throw new RuntimeInterruptException(e);
             } catch (IOException e) {
@@ -111,17 +113,24 @@ public class FileView implements AutoCloseable
             throw new FileViewException(_ioError);
         }
     }
+    
+    public ByteBuffer windowBuffer() {
+        return (ByteBuffer) _map.duplicate().position( _startOffset ).limit( _endOffset );
+    }
+    
+    public ByteBuffer markedBuffer() {
+        return (ByteBuffer) _map.duplicate().position( markOffset() ).limit( _startOffset );
+    }
 
-    public byte[] array()
-    {
-        return _buf;
+    public ByteBuffer totalBuffer() {
+        return (ByteBuffer) _map.duplicate().position( firstOffset() ).limit( _endOffset );
     }
 
     // TODO: the names startOffset and firstOffset are confusingly similar
     public int startOffset()
     {
         assert _startOffset >= 0;
-        assert _startOffset <= _buf.length - 1 || _is == null;
+        assert _startOffset < _map.limit() || _channel == null;
         return _startOffset;
     }
 
@@ -129,7 +138,7 @@ public class FileView implements AutoCloseable
     public int markOffset()
     {
         assert _markOffset >= -1;
-        assert _markOffset <= _buf.length - 1 || _is == null;
+        assert _markOffset < _map.limit() || _channel == null;
         return _markOffset;
     }
 
@@ -145,8 +154,8 @@ public class FileView implements AutoCloseable
 
     public int endOffset()
     {
-        assert _endOffset >= -1;
-        return _endOffset;
+        assert _endOffset > 0;
+        return _endOffset - 1;
     }
 
     public void setMarkRelativeToStart(int relativeOffset)
@@ -154,13 +163,13 @@ public class FileView implements AutoCloseable
         assert relativeOffset >= 0;
         // it's allowed to move 1 passed _endOffset, as length is defined as:
         // _endOffset - _startOffset + 1
-        assert _startOffset + relativeOffset <= _endOffset + 1;
+        assert _startOffset + relativeOffset <= _endOffset;
         _markOffset = _startOffset + relativeOffset;
     }
 
     public int windowLength()
     {
-        int length = _endOffset - _startOffset + 1;
+        int length = _endOffset - _startOffset ;
         assert length >= 0;
         assert length <= _windowLength : length + " maxWindowLength=" +
                                          _windowLength;
@@ -169,7 +178,7 @@ public class FileView implements AutoCloseable
 
     public int numBytesPrefetched()
     {
-        return _readOffset - _startOffset + 1;
+        return _map.limit() - _startOffset ;
     }
 
     public int numBytesMarked()
@@ -179,62 +188,20 @@ public class FileView implements AutoCloseable
 
     public int totalBytes()
     {
-        return _endOffset - firstOffset() + 1;
-    }
-
-    private int bufferSpaceAvailable()
-    {
-        assert _readOffset <= _buf.length - 1;
-        return (_buf.length - 1) - _readOffset;
+        return _endOffset - firstOffset();
     }
 
     public byte valueAt(int offset)
     {
         assert offset >= firstOffset();
-        assert offset <= _endOffset;
-        return _buf[offset];
+        assert offset < _endOffset;
+        return _map.get( offset );
     }
 
     public boolean isFull()
     {
-        assert totalBytes() <= _buf.length;
-        return totalBytes() == _buf.length; // || windowLength() == 0 && _remainingBytes == 0
-    }
-
-    private void readBetween(int min, int max) throws IOException
-    {
-        assert min >= 0 && min <= max;
-        assert max <= _remainingBytes;
-        assert max <= bufferSpaceAvailable();
-
-        int numBytesRead = 0;
-        while (numBytesRead < min) {
-            int len = _is.read(_buf, _readOffset + 1 , max - numBytesRead);
-            if (len <= 0) {
-                throw new EOFException(String.format("File ended prematurely " +
-                                                     "(%d)", len));
-            }
-            numBytesRead += len;
-            _readOffset += len;
-            _remainingBytes -= len;
-        }
-
-        if (_log.isLoggable(Level.FINEST)) {
-            _log.finest(String.format("prefetched %d bytes (min=%d, max=%d)",
-                                      numBytesRead, min, max));
-        }
-        assert _remainingBytes >= 0;
-    }
-
-
-    private void readZeroes(int amount)
-    {
-        assert amount <= _remainingBytes;
-        assert amount <= bufferSpaceAvailable();
-
-        Arrays.fill(_buf, _readOffset + 1, _readOffset + 1 + amount, (byte)0);
-        _readOffset += amount;
-        _remainingBytes -= amount;
+        assert totalBytes() <= _map.limit();
+        return totalBytes() == _map.limit(); // || windowLength() == 0 && _remainingBytes == 0
     }
 
     /*
@@ -255,12 +222,11 @@ public class FileView implements AutoCloseable
         if (_log.isLoggable(Level.FINEST)) {
             _log.finest(String.format("sliding %s %d", this, slideAmount));
         }
-
+        
         _startOffset += slideAmount;
         int windowLength = (int) Math.min(_windowLength, numBytesPrefetched() +
                                                          _remainingBytes);
         assert windowLength >= 0;
-        assert numBytesPrefetched() >= 0; // a negative value would imply a skip, which we don't (yet at least) support
         int minBytesToRead = windowLength - numBytesPrefetched();
 
         if (_log.isLoggable(Level.FINEST)) {
@@ -270,65 +236,55 @@ public class FileView implements AutoCloseable
         }
 
         if (minBytesToRead > 0) {
-            if (minBytesToRead > bufferSpaceAvailable()) {
-                compact();
-            }
 
-            int saveOffset = _readOffset;
             try {
                 if (_ioError == null) {
-                    readBetween(minBytesToRead,
-                                (int) Math.min(_remainingBytes,
-                                               bufferSpaceAvailable()));
+                    // remap of up to 2g bytes starting with new offset.
+                    // old buffer will be GCed
+                    int shift = firstOffset();
+                    long mapsize = Math.min( Integer.MAX_VALUE/_windowLength*_windowLength, _fileSize - _mappedPosition - shift );
+                    _map = _channel.map( MapMode.READ_ONLY, _mappedPosition + shift, mapsize );
+
+                    _mappedPosition += shift;
+                    _startOffset -= shift;
+                    if ( _markOffset >= 0 )
+                        _markOffset -= shift;
+                    _remainingBytes = _fileSize - _mappedPosition - mapsize;
+                    if (_log.isLoggable(Level.FINEST)) {
+                        _log.finest(String.format("remaped %s ", this));
+                    }
                 } else {
-                    readZeroes(minBytesToRead);
+                    // PENDING: the idea of sending zeroes on read error instead if bailing out from sync
+                    // process early seems broken
+                    
+                    // reuse zero filled bytebuffer, if its capacity is not less when required
+                    if ( minBytesToRead > _map.capacity() ) {
+                        _map = ByteBuffer.allocate( minBytesToRead );
+                    }
+                    _map.limit( minBytesToRead );
+                    _startOffset = 0;
+                    _markOffset = -1;
+                    _remainingBytes -= _map.limit();
                 }
             } catch (ClosedByInterruptException e) {
                 throw new RuntimeInterruptException(e);
             } catch (IOException e) {
                 _ioError = e;
-                int numBytesRead = _readOffset - saveOffset;
-                readZeroes(minBytesToRead - numBytesRead);
+                // PENDING: idea of writing zeroes on read error instead if bailing out from sync
+                // process early seems broken
+
+                // zero filled byte buffer
+                _map = ByteBuffer.allocate( minBytesToRead );
+                _startOffset = 0;
+                _markOffset = -1;
+                _remainingBytes -= _map.limit();
             }
         }
 
-        _endOffset = _startOffset + windowLength - 1;
+        _endOffset = _startOffset + windowLength ;
 
         assert windowLength() == windowLength;
-        assert _endOffset <= _readOffset;
+        assert _endOffset <= _map.limit();
     }
 
-    private void compact()
-    {
-        assert numBytesPrefetched() >= 0;
-        assert totalBytes() >= 0; // unless we'd support skipping
-
-        int shiftOffset = firstOffset();
-        int numShifts = numBytesMarked() + numBytesPrefetched();
-
-        if (_log.isLoggable(Level.FINEST)) {
-            _log.finest(String.format(
-                "compact of %s before - buf[%d] %d bytes to buf[0], " +
-                "buf.length = %d",
-                this, shiftOffset, numShifts, _buf.length));
-        }
-
-        System.arraycopy(_buf, shiftOffset, _buf, 0, numShifts);
-        _startOffset -= shiftOffset;
-        _endOffset -= shiftOffset;
-        _readOffset -= shiftOffset;
-        if (_markOffset >= 0) {
-            _markOffset -= shiftOffset;
-        }
-
-        assert _startOffset >= 0;
-        assert _endOffset >= -1;
-        assert _readOffset >= -1;
-        assert _markOffset >= -1;
-
-        if (_log.isLoggable(Level.FINEST)) {
-            _log.finest(String.format("compacted %d bytes, result after: %s",
-                                      numShifts, this));
-        }
-    }
 }

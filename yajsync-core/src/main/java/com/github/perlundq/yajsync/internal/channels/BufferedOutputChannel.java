@@ -90,8 +90,8 @@ public class BufferedOutputChannel implements Bufferable
                 flush();
             } else {
                 ByteBuffer slice = Util.slice(src,
-                                              src.position(),
-                                              src.position() + l);
+                                src.position(),
+                                src.position() + l);
                 _buffer.put(slice);
                 src.position(slice.position());
             }
@@ -102,7 +102,7 @@ public class BufferedOutputChannel implements Bufferable
     public void put(byte[] src, int offset, int length)
         throws ChannelException
     {
-        put(ByteBuffer.wrap(src, offset, length));
+        put( ByteBuffer.wrap( src, offset, length ) );
     }
 
     @Override

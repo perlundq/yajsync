@@ -51,15 +51,17 @@ public class ClientSessionConfig extends SessionConfig
 
 
     /**
+     * @param checksumHash 
      * @throws IllegalArgumentException if charset is not supported
      */
     public ClientSessionConfig(ReadableByteChannel in, WritableByteChannel out,
-                               Charset charset, boolean isRecursive,
+                               Charset charset, ChecksumHash checksumHash, boolean isRecursive,
                                PrintStream stderr)
     {
         super(in, out, charset);
         _isRecursive = isRecursive;
         _err = stderr;
+        _checksumHash = checksumHash;
     }
 
     /**
@@ -209,7 +211,7 @@ public class ClientSessionConfig extends SessionConfig
     private void receiveChecksumSeed() throws ChannelException
     {
         int seedValue = _peerConnection.getInt();
-        _checksumSeed = BitOps.toLittleEndianBuf(seedValue);
+        _checksumSeed = seedValue;
         if (_log.isLoggable(Level.FINER)) {
             _log.finer("< (checksum seed) " + seedValue);
         }

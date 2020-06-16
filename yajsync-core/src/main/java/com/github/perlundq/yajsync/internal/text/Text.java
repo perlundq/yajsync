@@ -105,10 +105,10 @@ public final class Text
 
     public static String bytesToString(byte[] buf)
     {
-        return byteBufferToString(ByteBuffer.wrap(buf));
+        return bytesToString(ByteBuffer.wrap(buf));
     }
 
-    public static String byteBufferToString(ByteBuffer buf)
+    public static String bytesToString(ByteBuffer buf)
     {
         StringBuilder sb = new StringBuilder();
         ByteBuffer dup = buf.duplicate();
@@ -138,7 +138,7 @@ public final class Text
 
     public static String byteBufferToString(ByteBuffer buf, int start, int end)
     {
-        return byteBufferToString(Util.slice(buf, start, end));
+        return bytesToString(Util.slice(buf, start, end));
     }
 
     public static String charBufferToString(CharBuffer buf, int start, int end)

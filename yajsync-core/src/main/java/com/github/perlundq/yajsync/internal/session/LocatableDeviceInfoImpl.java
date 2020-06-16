@@ -16,6 +16,7 @@
  */
 package com.github.perlundq.yajsync.internal.session;
 
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 
 import com.github.perlundq.yajsync.attr.LocatableDeviceInfo;
@@ -26,7 +27,7 @@ class LocatableDeviceInfoImpl extends DeviceInfoImpl
 {
     private final Path _path;
 
-    public LocatableDeviceInfoImpl(String pathName, byte[] pathNameBytes,
+    public LocatableDeviceInfoImpl(String pathName, ByteBuffer pathNameBytes,
                                    RsyncFileAttributes attrs,
                                    int major, int minor, Path path)
     {

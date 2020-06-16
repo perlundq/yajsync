@@ -28,7 +28,8 @@ import java.util.Base64;
 import com.github.perlundq.yajsync.internal.text.TextConversionException;
 import com.github.perlundq.yajsync.internal.text.TextEncoder;
 import com.github.perlundq.yajsync.internal.util.Consts;
-import com.github.perlundq.yajsync.internal.util.MD5;
+import com.github.perlundq.yajsync.internal.util.MD5Digest;
+import com.github.perlundq.yajsync.internal.util.Util;
 
 public class RsyncAuthContext
 {
@@ -63,8 +64,8 @@ public class RsyncAuthContext
      */
     public String response(char[] password)
     {
-        byte[] hashedBytes = hash(password);
-        return Base64.getEncoder().withoutPadding().encodeToString(hashedBytes);
+        ByteBuffer encoded = Base64.getEncoder().withoutPadding().encode( hash( password ) );
+        return new String( encoded.array(), encoded.arrayOffset(), encoded.limit());
     }
 
     private String newChallenge()
@@ -77,23 +78,22 @@ public class RsyncAuthContext
     /**
      * @throws TextConversionException if _challenge cannot be encoded
      */
-    private byte[] hash(char[] password)
+    private ByteBuffer hash(char[] password)
     {
-        byte[] passwordBytes = null;
+        ByteBuffer passwordBytes = null;
         try {
             passwordBytes = _characterEncoder.secureEncodeOrNull(password);
             if (passwordBytes == null) {
                 throw new RuntimeException("Unable to encode characters in " +
                                            "password");
             }
-            byte[] challengeBytes = _characterEncoder.encode(_challenge);       // throws TextConversionException
-            MessageDigest md = MD5.newInstance();
-            md.update(passwordBytes);
-            md.update(challengeBytes);
-            return md.digest();
+            ByteBuffer challengeBytes = _characterEncoder.encode(_challenge);       // throws TextConversionException
+            
+            MD5Digest md5 = new MD5Digest();
+            return (ByteBuffer) md5.digest( md5.newDigest(), passwordBytes, challengeBytes ).flip();
         } finally {
             if (passwordBytes != null) {
-                Arrays.fill(passwordBytes, (byte) 0);
+                Util.zeroByteBuffer( passwordBytes );
             }
         }
     }

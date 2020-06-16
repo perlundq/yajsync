@@ -17,6 +17,7 @@
  */
 package com.github.perlundq.yajsync.internal.session;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import com.github.perlundq.yajsync.attr.FileInfo;
@@ -29,18 +30,25 @@ class FileInfoImpl implements FileInfo
     // _pathNameOrNull may only be null internally in Receiver, any such
     // instance will never be exposed externally
     private final String _pathNameOrNull;
-    private final byte[] _pathNameBytes;
+    private final ByteBuffer _pathNameBytes;
     private final RsyncFileAttributes _attrs;
 
     FileInfoImpl(String pathNameOrNull, byte[] pathNameBytes,
+                    RsyncFileAttributes attrs)
+    {
+        this(pathNameOrNull, ByteBuffer.wrap( pathNameBytes ), attrs );
+    }
+    
+    FileInfoImpl(String pathNameOrNull, ByteBuffer pathNameBytes,
                  RsyncFileAttributes attrs)
     {
         assert pathNameBytes != null;
         assert attrs != null;
-        assert pathNameBytes.length > 0;
-        assert pathNameBytes[0] != Text.ASCII_SLASH;
+        assert pathNameBytes.remaining() > 0;
+        assert pathNameBytes.position() == 0;
+        assert pathNameBytes.get( 0 ) != Text.ASCII_SLASH;
         assert !isDotDir(pathNameBytes) || attrs.isDirectory();
-        assert pathNameBytes[pathNameBytes.length - 1] != Text.ASCII_SLASH;
+        assert pathNameBytes.get(pathNameBytes.limit() - 1) != Text.ASCII_SLASH;
 
         _pathNameOrNull = pathNameOrNull;
         _pathNameBytes = pathNameBytes;
@@ -63,7 +71,7 @@ class FileInfoImpl implements FileInfo
         // user and all our FileInfo implementing classes extends FileInfoImpl.
         if (obj instanceof FileInfoImpl) {
             FileInfoImpl other = (FileInfoImpl) obj;
-            return Arrays.equals(_pathNameBytes, other._pathNameBytes);
+            return _pathNameBytes.equals( other._pathNameBytes );
         } else {
             return false;
         }
@@ -72,7 +80,7 @@ class FileInfoImpl implements FileInfo
     @Override
     public int hashCode()
     {
-        return Arrays.hashCode(_pathNameBytes);
+        return _pathNameBytes.hashCode();
     }
 
     @Override
@@ -104,9 +112,9 @@ class FileInfoImpl implements FileInfo
         return isDotDir(_pathNameBytes);
     }
 
-    private static boolean isDotDir(byte[] bytes)
+    private static boolean isDotDir(ByteBuffer bytes)
     {
-        return bytes.length == 1 && bytes[0] == Text.ASCII_DOT;
+        return bytes.remaining() == 1 && bytes.get( bytes.position() ) == Text.ASCII_DOT;
     }
 
     private static int cmp(byte a, byte b)
@@ -119,9 +127,9 @@ class FileInfoImpl implements FileInfo
      * sort files before dirs
      * compare dirs using a trailing slash
      */
-    private static int compareUnixFileNamesBytes(byte[] leftBytes,
+    private static int compareUnixFileNamesBytes(ByteBuffer leftBytes,
                                                  boolean isLeftDir,
-                                                 byte[] rightBytes,
+                                                 ByteBuffer rightBytes,
                                                  boolean isRightDir)
     {
         if (isDotDir(leftBytes)) {
@@ -139,10 +147,10 @@ class FileInfoImpl implements FileInfo
             }
             return -1;
         }
-
+        
         int i = 0;
-        for (; i < leftBytes.length && i < rightBytes.length; i++) {
-            int diff = cmp(leftBytes[i], rightBytes[i]);
+        for (; i < leftBytes.limit() && i < rightBytes.limit(); i++) {
+            int diff = cmp(leftBytes.get(i), rightBytes.get(i));
             if (diff != 0) {
                 return diff;
             }
@@ -150,16 +158,16 @@ class FileInfoImpl implements FileInfo
         // one or both are at the end
         // one or both are a substring of the other
         // either both are directories or none is
-        boolean isLeftAtEnd = i == leftBytes.length;
-        boolean isRightAtEnd = i == rightBytes.length;
+        boolean isLeftAtEnd = i == leftBytes.limit();
+        boolean isRightAtEnd = i == rightBytes.limit();
 
         if (isLeftDir) { // && isRightDir
             if (isLeftAtEnd && isRightAtEnd) {
                 return 0;
             } else if (isLeftAtEnd) {
-                return cmp(Text.ASCII_SLASH, rightBytes[i]);
+                return cmp(Text.ASCII_SLASH, rightBytes.get(i));
             } else if (isRightAtEnd) {
-                return cmp(leftBytes[i], Text.ASCII_SLASH);
+                return cmp(leftBytes.get(i), Text.ASCII_SLASH);
             }
         }
 

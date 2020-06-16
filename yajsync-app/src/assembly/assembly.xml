@@ -13,9 +13,11 @@
             <includes>
                 <include>com.github.perlundq:yajsync-core</include>
                 <include>com.github.perlundq:yajsync-app</include>
+                <include>net.openhft:zero-allocation-hashing</include>
             </includes>
             <useProjectArtifact>true</useProjectArtifact>
             <unpack>true</unpack>
+            
         </dependencySet>
     </dependencySets>
 

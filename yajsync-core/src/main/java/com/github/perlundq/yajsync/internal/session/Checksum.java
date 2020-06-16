@@ -19,6 +19,7 @@
  */
 package com.github.perlundq.yajsync.internal.session;
 
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -37,23 +38,23 @@ class Checksum
 
     public static class Chunk {
 
-        private final byte[] _md5sum;
+        private final ByteBuffer _checksum;
         private final int _length;
         private final int _chunkIndex;
 
-        private Chunk(int length, byte[] md5sum, int chunkIndex)
+        private Chunk(int length, ByteBuffer checksum, int chunkIndex)
         {
             assert length >= 0;
-            assert md5sum != null;
-            assert md5sum.length > 0;
+            assert checksum != null;
+            assert checksum.remaining() > 0;
             _length = length;
-            _md5sum = md5sum;
+            _checksum = checksum;
             _chunkIndex = chunkIndex;
         }
 
-        public byte[] md5Checksum()
+        public ByteBuffer checksum()
         {
-            return _md5sum;
+            return _checksum;
         }
 
         public int length()
@@ -211,11 +212,11 @@ class Checksum
         return _header._blockLength;
     }
 
-    public void addChunkInformation(int rolling, byte[] md5sum)
+    public void addChunkInformation(int rolling, ByteBuffer md5sum)
     {
         assert md5sum != null;
-        assert md5sum.length >= MIN_DIGEST_LENGTH &&
-               md5sum.length <= MAX_DIGEST_LENGTH;
+        assert md5sum.remaining() >= MIN_DIGEST_LENGTH &&
+               md5sum.remaining() <= MAX_DIGEST_LENGTH;
         assert _sums.size() <= _header._chunkCount - 1;
 
         int chunkIndex = _sums.size();

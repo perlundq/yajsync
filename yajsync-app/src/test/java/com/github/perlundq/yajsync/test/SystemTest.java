@@ -45,6 +45,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.junit.After;
 import org.junit.Before;
@@ -387,6 +389,7 @@ class TestModuleProvider extends ModuleProvider
 
 public class SystemTest
 {
+
     private static class ReturnStatus
     {
         final int rc;

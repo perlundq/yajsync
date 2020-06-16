@@ -16,6 +16,7 @@
  */
 package com.github.perlundq.yajsync.internal.session;
 
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 
 import com.github.perlundq.yajsync.attr.LocatableSymlinkInfo;
@@ -27,7 +28,7 @@ class LocatableSymlinkInfoImpl extends SymlinkInfoImpl
 {
     private final Path _path;
 
-    LocatableSymlinkInfoImpl(String pathName, byte[] pathNameBytes,
+    LocatableSymlinkInfoImpl(String pathName, ByteBuffer pathNameBytes,
                              RsyncFileAttributes attrs, String targetPathName,
                              Path path)
     {

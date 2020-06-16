@@ -17,6 +17,9 @@
 package com.github.perlundq.yajsync.internal.session;
 
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
+
+import java.nio.ByteBuffer;
+
 import com.github.perlundq.yajsync.attr.DeviceInfo;
 
 class DeviceInfoImpl extends FileInfoImpl implements DeviceInfo
@@ -24,7 +27,7 @@ class DeviceInfoImpl extends FileInfoImpl implements DeviceInfo
     private final int _major;
     private final int _minor;
 
-    DeviceInfoImpl(String pathName, byte[] pathNameBytes,
+    DeviceInfoImpl(String pathName, ByteBuffer pathNameBytes,
                    RsyncFileAttributes attrs, int major, int minor)
     {
         super(pathName, pathNameBytes, attrs);

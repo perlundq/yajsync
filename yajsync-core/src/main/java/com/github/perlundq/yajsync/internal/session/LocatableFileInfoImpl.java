@@ -16,6 +16,7 @@
  */
 package com.github.perlundq.yajsync.internal.session;
 
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 
 import com.github.perlundq.yajsync.attr.LocatableFileInfo;
@@ -25,7 +26,7 @@ class LocatableFileInfoImpl extends FileInfoImpl implements LocatableFileInfo
 {
     private final Path _path;
 
-    LocatableFileInfoImpl(String pathName, byte[] pathNameBytes,
+    LocatableFileInfoImpl(String pathName, ByteBuffer pathNameBytes,
                           RsyncFileAttributes attrs, Path path)
     {
         super(pathName, pathNameBytes, attrs);
