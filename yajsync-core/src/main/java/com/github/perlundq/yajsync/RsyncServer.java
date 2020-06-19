@@ -117,6 +117,7 @@ public class RsyncServer
                     isPreserveGroup(cfg.isPreserveGroup()).
                     isNumericIds(cfg.isNumericIds()).
                     isInterruptible(isChannelsInterruptible).
+                    blockSize( cfg.blockSize() ).
                     isSafeFileList(cfg.isSafeFileList()).build();
             return _rsyncTaskExecutor.exec(sender);
         } else {

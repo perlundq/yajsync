@@ -43,8 +43,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.FileSelection;
+import com.github.perlundq.yajsync.RsyncClient;
 import com.github.perlundq.yajsync.RsyncProtocolException;
 import com.github.perlundq.yajsync.Statistics;
+import com.github.perlundq.yajsync.RsyncClient.Builder;
 import com.github.perlundq.yajsync.attr.DeviceInfo;
 import com.github.perlundq.yajsync.attr.FileInfo;
 import com.github.perlundq.yajsync.attr.Group;
@@ -104,6 +106,7 @@ public final class Sender implements RsyncTask, MessageHandler
         public Group _defaultGroup = Group.NOBODY;
         public int _defaultFilePermissions = Environment.DEFAULT_FILE_PERMS;
         public int _defaultDirectoryPermissions = Environment.DEFAULT_DIR_PERMS;
+        private int _blockSize = RsyncClient.DEFAULT_BLOCK_SIZE;
 
         public Builder(ReadableByteChannel in,
                        WritableByteChannel out,
@@ -245,6 +248,11 @@ public final class Sender implements RsyncTask, MessageHandler
             _defaultDirectoryPermissions = defaultDirectoryPermissions;
             return this;
         }
+        
+        public Builder blockSize( int blockSize ) {
+            _blockSize = blockSize;
+            return this;
+        }
 
         public Sender build()
         {
@@ -254,10 +262,7 @@ public final class Sender implements RsyncTask, MessageHandler
 
     private static final Logger _log =
         Logger.getLogger(Sender.class.getName());
-    private static final int INPUT_CHANNEL_BUF_SIZE = 128 * 1024;
-    private static final int OUTPUT_CHANNEL_BUF_SIZE = 128 * 1024;
     private static final int PARTIAL_FILE_LIST_SIZE = 1024;
-    private static final int CHUNK_SIZE = 128 * 1024;
 
     private final AutoFlushableRsyncDuplexChannel _duplexChannel;
     private final BitSet _transferred = new BitSet();
@@ -287,6 +292,7 @@ public final class Sender implements RsyncTask, MessageHandler
     private final TextEncoder _characterEncoder;
     private final User _defaultUser;
     private final Group _defaultGroup;
+    private final int _blockSize;
 
     private FileAttributeManager _fileAttributeManager;
     private int _curSegmentIndex;
@@ -297,9 +303,9 @@ public final class Sender implements RsyncTask, MessageHandler
         _duplexChannel = new AutoFlushableRsyncDuplexChannel(
                              new RsyncInChannel(builder._in,
                                                 this,
-                                                INPUT_CHANNEL_BUF_SIZE),
+                                                builder._blockSize),
                              new RsyncOutChannel(builder._out,
-                                                 OUTPUT_CHANNEL_BUF_SIZE));
+                                                 builder._blockSize));
         _isExitAfterEOF = builder._isExitAfterEOF;
         _isExitEarlyIfEmptyList = builder._isExitEarlyIfEmptyList;
         _isInterruptible = builder._isInterruptible;
@@ -322,6 +328,7 @@ public final class Sender implements RsyncTask, MessageHandler
         _defaultGroup = builder._defaultGroup;
         _defaultFilePermissions = builder._defaultFilePermissions;
         _defaultDirectoryPermissions = builder._defaultDirectoryPermissions;
+        _blockSize = builder._blockSize;
     }
 
     @Override
@@ -819,8 +826,7 @@ public final class Sender implements RsyncTask, MessageHandler
                     Checksum checksum = receiveChecksumsFor(header);
 
                     boolean isNew = header.blockLength() == 0;
-                    int blockSize = isNew ? FileView.DEFAULT_BLOCK_SIZE
-                                          : header.blockLength();
+                    int blockSize = isNew ? _blockSize : header.blockLength();
                     long fileSize = fileInfo.attrs().size();
 
                     ByteBuffer filesum = null;
@@ -1616,7 +1622,7 @@ public final class Sender implements RsyncTask, MessageHandler
         int limit = buf.limit();
 
         while ( buf.remaining() > 0 ) {
-            int len = Math.min(CHUNK_SIZE, buf.remaining() );
+            int len = Math.min(_blockSize, buf.remaining() );
             assert len > 0;
             _duplexChannel.putInt( len );
             _duplexChannel.put( (ByteBuffer) buf.limit( buf.position() + len ) );

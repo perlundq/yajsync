@@ -2180,13 +2180,15 @@ public class Receiver implements RsyncTask, MessageHandler
 
         ByteBuffer takeNext( int length )
         {
+            long position = -1;
             try {
                 // checksum header have 0 for block length, if file is new.
                 // first packet from sender will have correct block length or less for the last chunk of file
                 _blockLength = Math.max( _blockLength, length );
-                return _target.map( FileChannel.MapMode.READ_WRITE, _target.position(), length );
+                position = _target.position();
+                return _target.map( FileChannel.MapMode.READ_WRITE, position, length );
             } catch ( IOException e ) {
-                throw new UncheckedIOException( e );
+                throw new UncheckedIOException(String.format("Cannot take buffer at position %s of len %s. Probably FS has restrictions on file size ( e.g. hugetlbfs restrict to have it multiple of huge page size. use -B to specify block size )",position, length), e );
             }
         }
         

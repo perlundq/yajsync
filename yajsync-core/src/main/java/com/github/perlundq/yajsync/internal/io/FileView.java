@@ -34,12 +34,10 @@ import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.internal.util.RuntimeInterruptException;
 
-// TODO: to mmapped file
 public class FileView implements AutoCloseable
 {
     private static final Logger _log =
         Logger.getLogger(FileView.class.getName());
-    public final static int DEFAULT_BLOCK_SIZE = 128 * 1024;
     private final FileChannel _channel;
     private final int _windowLength;  // size of sliding window (<= _buf.length)
     private ByteBuffer _map;

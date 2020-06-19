@@ -50,12 +50,13 @@ import com.github.perlundq.yajsync.internal.session.Sender;
 import com.github.perlundq.yajsync.internal.session.SessionStatistics;
 import com.github.perlundq.yajsync.internal.session.SessionStatus;
 import com.github.perlundq.yajsync.internal.text.Text;
-import com.github.perlundq.yajsync.internal.util.BitOps;
 import com.github.perlundq.yajsync.internal.util.Pair;
 import com.github.perlundq.yajsync.internal.util.Util;
 
 public final class RsyncClient
 {
+    public static final int DEFAULT_BLOCK_SIZE = 8 * 1024;
+
     private enum Mode
     {
         LOCAL_COPY, LOCAL_LIST, REMOTE_SEND, REMOTE_RECEIVE, REMOTE_LIST
@@ -365,6 +366,7 @@ public final class RsyncClient
                     isPreserveUser(_isPreserveUser).
                     isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
+                    blockSize( _blockSize ).
                     fileSelection(fileSelection).build();
             Generator generator = new Generator.Builder(toSender.sink(), seed, _checksumHash).
                     charset(_charset).
@@ -417,6 +419,7 @@ public final class RsyncClient
                     isPreserveUser(_isPreserveUser).
                     isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
+                    blockSize( _blockSize ).
                     fileSelection(fileSelection).build();
             Generator generator = new Generator.Builder(toSender.sink(), seed, _checksumHash).
                     charset(_charset).
@@ -618,6 +621,7 @@ public final class RsyncClient
                             isPreserveGroup(_isPreserveGroup).
                             isNumericIds(_isNumericIds).
                             isInterruptible(_isInterruptible).
+                            blockSize( _blockSize ).
                             isSafeFileList(cfg.isSafeFileList()).build();
                     boolean isOK = _rsyncTaskExecutor.exec(sender);
                     return new Result(isOK, sender.statistics());
@@ -802,6 +806,9 @@ public final class RsyncClient
             if ( _checksumHash != ChecksumHash.md5 ) {
                 serverArgs.add("--checksum-choice=" + _checksumHash );
             }
+            if ( _blockSize != DEFAULT_BLOCK_SIZE ) {
+                serverArgs.add("-B" + _blockSize );
+            }
 
             serverArgs.add("."); // arg delimiter
 
@@ -852,6 +859,7 @@ public final class RsyncClient
         private ExecutorService _executorService;
         private FileSelection _fileSelection;
         private int _verbosity;
+        private int _blockSize = DEFAULT_BLOCK_SIZE;
         private PrintStream _stderr = System.err;
 
         public Local buildLocal()
@@ -949,6 +957,11 @@ public final class RsyncClient
             return this;
         }
 
+        public Builder blockSize( int blockSize ) {
+            _blockSize = blockSize;
+            return this;
+        }
+
         /**
          *
          * @throws UnsupportedCharsetException if charset is not supported
@@ -1008,6 +1021,7 @@ public final class RsyncClient
     private final int _verbosity;
     private final PrintStream _stderr;
     private final RsyncTaskExecutor _rsyncTaskExecutor;
+    private int _blockSize;
 
     private RsyncClient(Builder builder)
     {
@@ -1027,6 +1041,7 @@ public final class RsyncClient
         _isPreserveTimes = builder._isPreserveTimes;
         _charset = builder._charset;
         _checksumHash = builder._checksumHash;
+        _blockSize = builder._blockSize;
         if (builder._executorService == null) {
             _executorService = Executors.newCachedThreadPool();
             _isOwnerOfExecutorService = true;

@@ -406,6 +406,16 @@ public class YajsyncClient
                                                 return ArgumentParser.Status.CONTINUE;
                                             }));
 
+        options.add(Option.newIntegerOption(Option.Policy.OPTIONAL, "block-size", "B", "force a fixed checksum block-size",
+                        option -> {
+                            try {
+                                _clientBuilder.blockSize( (int) option.getValue() );
+                                return ArgumentParser.Status.CONTINUE;
+                            } catch (IllegalArgumentException e) {
+                                throw new ArgumentParsingError(e);
+                            }
+                        }));
+
         options.add(Option.newIntegerOption(Option.Policy.OPTIONAL, "contimeout", "",
                                             "set daemon connection timeout in seconds (default " +
                                             "0 - disabled)",

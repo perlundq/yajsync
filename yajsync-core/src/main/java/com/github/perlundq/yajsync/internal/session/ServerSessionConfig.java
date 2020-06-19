@@ -317,6 +317,16 @@ public class ServerSessionConfig extends SessionConfig
                                                   }
                                               }));
 
+        argsParser.add(Option.newIntegerOption(Option.Policy.OPTIONAL, "block-size", "B", "force a fixed checksum block-size",
+                        option -> {
+                            try {
+                                _blockSize = (Integer) option.getValue();
+                                return ArgumentParser.Status.CONTINUE;
+                            } catch (IllegalArgumentException e) {
+                                throw new ArgumentParsingError(e);
+                            }
+                        }));
+
         argsParser.add(Option.newStringOption(Option.Policy.OPTIONAL, "checksum-choice", "c", "checksum algorithm to use: md5, xxhash",
                         option -> {
                             try {

@@ -56,6 +56,7 @@ public abstract class SessionConfig
     protected TextDecoder _characterDecoder;
     protected int _checksumSeed; // always stored in little endian
     protected ChecksumHash _checksumHash = ChecksumHash.md5; 
+    protected int _blockSize = 128 * 1024;
 
     private Charset _charset;
 
@@ -85,6 +86,10 @@ public abstract class SessionConfig
     public int checksumSeed()
     {
         return _checksumSeed;
+    }
+    
+    public int blockSize() {
+        return _blockSize;
     }
 
     public SessionStatus status()
@@ -229,4 +234,5 @@ public abstract class SessionConfig
         _characterEncoder = TextEncoder.newStrict(_charset);
         _characterDecoder = TextDecoder.newStrict(_charset);
     }
+    
 }
