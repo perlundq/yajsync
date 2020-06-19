@@ -309,11 +309,17 @@ public class YajsyncClient
                                               }));
 
         options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "delete", "",
-                                              "delete extraneous files (default false)",
-                                              option -> {
-                                                  _clientBuilder.isDelete(true);
-                                                  return ArgumentParser.Status.CONTINUE;
-                                              }));
+                        "delete extraneous files (default false)",
+                        option -> {
+                            _clientBuilder.isDelete(true);
+                            return ArgumentParser.Status.CONTINUE;
+                        }));
+        options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "whole-file", "W",
+                        "copy files whole (without delta-xfer algorithm)",
+                        option -> {
+                            _clientBuilder.isWholeFile(true);
+                            return ArgumentParser.Status.CONTINUE;
+                        }));
 
         options.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "numeric-ids", "",
                                               "don't map uid/gid values by user/group name " +

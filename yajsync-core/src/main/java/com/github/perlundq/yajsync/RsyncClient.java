@@ -164,6 +164,7 @@ public final class RsyncClient
                                 isPreserveLinks(_isPreserveLinks).
                                 isPreservePermissions(_isPreservePermissions).
                                 isPreserveTimes(_isPreserveTimes).
+                                isWholeFile(_isWholeFile).
                                 isPreserveUser(_isPreserveUser).
                                 isPreserveGroup(_isPreserveGroup).
                                 isNumericIds(_isNumericIds).
@@ -377,6 +378,7 @@ public final class RsyncClient
                     isPreserveLinks(_isPreserveLinks).
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
+                    isWholeFile(_isWholeFile).
                     isPreserveUser(_isPreserveUser).
                     isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
@@ -430,6 +432,7 @@ public final class RsyncClient
                     isPreserveLinks(_isPreserveLinks).
                     isPreservePermissions(_isPreservePermissions).
                     isPreserveTimes(_isPreserveTimes).
+                    isWholeFile(_isWholeFile).
                     isPreserveUser(_isPreserveUser).
                     isPreserveGroup(_isPreserveGroup).
                     isNumericIds(_isNumericIds).
@@ -763,6 +766,9 @@ public final class RsyncClient
             if (_isPreserveTimes) {
                 sb.append("t");
             }
+            if (_isWholeFile) {
+                sb.append("W");
+            }
             if (_isPreserveUser) {
                 sb.append("o");
             }
@@ -854,6 +860,7 @@ public final class RsyncClient
         private boolean _isNumericIds;
         private boolean _isPreservePermissions;
         private boolean _isPreserveTimes;
+        public boolean _isWholeFile;
         private ChecksumHash _checksumHash = ChecksumHash.xxhash;
         private Charset _charset = Charset.forName(Text.UTF8_NAME);
         private ExecutorService _executorService;
@@ -951,6 +958,12 @@ public final class RsyncClient
             _isPreserveTimes = isPreserveTimes;
             return this;
         }
+
+        public Builder isWholeFile(boolean isWholeFile)
+        {
+            _isWholeFile = isWholeFile;
+            return this;
+        }
         
         public Builder checksumHash( ChecksumHash hash ) {
             _checksumHash = hash;
@@ -1014,6 +1027,7 @@ public final class RsyncClient
     private final boolean _isNumericIds;
     private final boolean _isPreservePermissions;
     private final boolean _isPreserveTimes;
+    private final boolean _isWholeFile;
     private final Charset _charset;
     private final ChecksumHash _checksumHash;
     private final ExecutorService _executorService;
@@ -1039,6 +1053,7 @@ public final class RsyncClient
         _isNumericIds = builder._isNumericIds;
         _isPreservePermissions = builder._isPreservePermissions;
         _isPreserveTimes = builder._isPreserveTimes;
+        _isWholeFile = builder._isWholeFile;
         _charset = builder._charset;
         _checksumHash = builder._checksumHash;
         _blockSize = builder._blockSize;

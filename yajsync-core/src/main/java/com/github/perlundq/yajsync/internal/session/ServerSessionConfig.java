@@ -71,6 +71,7 @@ public class ServerSessionConfig extends SessionConfig
     private boolean _isPreserveGroup = false;
     private boolean _isNumericIds = false;
     private boolean _isIgnoreTimes = false;
+    private boolean _isWholeFile = false;
     private FileSelection _fileSelection = FileSelection.EXACT;
     private Module _module;
     private int _verbosity = 0;
@@ -339,10 +340,15 @@ public class ServerSessionConfig extends SessionConfig
                         }));
 
         argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "ignore-times", "I", "",
-                                                 option -> {
-                                                     _isIgnoreTimes = true;
-                                                     return ArgumentParser.Status.CONTINUE;
-                                                 }));
+                        option -> {
+                            _isIgnoreTimes = true;
+                            return ArgumentParser.Status.CONTINUE;
+                        }));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "whole-file", "W", "",
+                        option -> {
+                            _isWholeFile = true;
+                            return ArgumentParser.Status.CONTINUE;
+                        }));
 
         argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "verbose", "v", "",
                                                  option -> {

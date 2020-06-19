@@ -825,6 +825,44 @@ public class SystemTest
     }
 
     @Test
+    public void testCopyFileTwiceWholeFile() throws IOException
+    {
+        Path src = _tempDir.newFile().toPath();
+        Path dst = Paths.get(src.toString() + ".copy");
+        int fileSize = 557;
+        int numDirs = 0;
+        int numFiles = 1;
+        byte[] content = FileUtil.generateBytes(0x18, fileSize);
+        FileUtil.writeToFiles(content, src);
+        Files.setLastModifiedTime(src, FileTime.fromMillis(0));
+        ReturnStatus status = fileCopy(src, dst, "-t");
+        assertTrue(status.rc == 0);
+        assertTrue(FileUtil.isContentIdentical(src, dst));
+        assertTrue(status.stats.numFiles() == numDirs + numFiles);
+        assertTrue(status.stats.numTransferredFiles() == numFiles);
+        assertTrue(status.stats.totalLiteralSize() == fileSize);
+        assertTrue(status.stats.totalMatchedSize() == 0);
+
+        Files.setLastModifiedTime(src, FileTime.fromMillis(1000));
+        ReturnStatus status2 = fileCopy(src, dst, "-t");
+        assertTrue(status2.rc == 0);
+        assertTrue(FileUtil.isContentIdentical(src, dst));
+        assertTrue(status2.stats.numFiles() == numDirs + numFiles);
+        assertTrue(status2.stats.numTransferredFiles() == numFiles);
+        assertTrue(status2.stats.totalLiteralSize() == 0);
+        assertTrue(status2.stats.totalMatchedSize() == fileSize);
+        
+        Files.setLastModifiedTime(src, FileTime.fromMillis(2000));
+        ReturnStatus status3 = fileCopy(src, dst,"-Wt");
+        assertTrue(status3.rc == 0);
+        assertTrue(FileUtil.isContentIdentical(src, dst));
+        assertTrue(status3.stats.numFiles() == numDirs + numFiles);
+        assertTrue(status3.stats.numTransferredFiles() == numFiles);
+        assertTrue(status3.stats.totalLiteralSize() == fileSize);
+        assertTrue(status3.stats.totalMatchedSize() == 0);
+    }
+
+    @Test
     public void testCopyFileTwiceNotMultipleBlockSizeTimes()
         throws IOException
     {

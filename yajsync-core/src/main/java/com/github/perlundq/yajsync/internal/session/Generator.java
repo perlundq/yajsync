@@ -95,6 +95,7 @@ public class Generator implements RsyncTask
         private boolean _isNumericIds;
         private Charset _charset;
         private FileSelection _fileSelection = FileSelection.EXACT;
+        private boolean _isWholeFile;
 
         public Builder(WritableByteChannel out, int checksumSeed, ChecksumHash checksumHash)
         {
@@ -190,11 +191,18 @@ public class Generator implements RsyncTask
             return this;
         }
 
+        public Builder isWholeFile( boolean isWholeFile )
+        {
+            this._isWholeFile = isWholeFile;
+            return this;
+        }
+
         public Generator build()
         {
             assert !_isDelete || _fileSelection != FileSelection.EXACT;
             return new Generator(this);
         }
+
     }
 
     private interface Job {
@@ -217,6 +225,7 @@ public class Generator implements RsyncTask
     private final boolean _isPreservePermissions;
     private final boolean _isPreserveSpecials;
     private final boolean _isPreserveTimes;
+    private final boolean _isWholeFile;
     private final boolean _isPreserveUser;
     private final boolean _isPreserveGroup;
     private final boolean _isNumericIds;
@@ -269,6 +278,7 @@ public class Generator implements RsyncTask
         _isPreserveUser = builder._isPreserveUser;
         _isPreserveGroup = builder._isPreserveGroup;
         _isNumericIds = builder._isNumericIds;
+        _isWholeFile = builder._isWholeFile;
     }
 
     @Override
@@ -1095,12 +1105,16 @@ public class Generator implements RsyncTask
         // zero
         if (FileOps.isDataModified(curAttrsOrNull, fileInfo.attrs()) || _isIgnoreTimes)
         {
-            if (curAttrsOrNull == null) {
+            if (curAttrsOrNull == null || _isWholeFile) {
                 sendItemizeInfo(index,
                                 null /* curAttrsOrNull */,
                                 fileInfo.attrs(),
                                 Item.TRANSFER);
                 sendChecksumHeader(ZERO_SUM);
+                if ( curAttrsOrNull != null ) {
+                    // the file will be transferred in full. unlink it early to free up space
+                    FileOps.unlink( fileInfo.path() );
+                }
             } else {
                 sendItemizeAndChecksums(index, fileInfo, curAttrsOrNull,
                                         digestLength);
