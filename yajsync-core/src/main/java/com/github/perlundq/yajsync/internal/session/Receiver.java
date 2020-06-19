@@ -20,6 +20,7 @@
 package com.github.perlundq.yajsync.internal.session;
 
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -47,7 +48,9 @@ import com.github.perlundq.yajsync.RsyncSecurityException;
 import com.github.perlundq.yajsync.Statistics;
 import com.github.perlundq.yajsync.attr.FileInfo;
 import com.github.perlundq.yajsync.attr.Group;
+import com.github.perlundq.yajsync.attr.HardlinkInfo;
 import com.github.perlundq.yajsync.attr.LocatableFileInfo;
+import com.github.perlundq.yajsync.attr.LocatableHardlinkInfo;
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.User;
 import com.github.perlundq.yajsync.internal.channels.ChannelEOFException;
@@ -57,6 +60,8 @@ import com.github.perlundq.yajsync.internal.channels.MessageCode;
 import com.github.perlundq.yajsync.internal.channels.MessageHandler;
 import com.github.perlundq.yajsync.internal.channels.RsyncInChannel;
 import com.github.perlundq.yajsync.internal.io.AutoDeletable;
+import com.github.perlundq.yajsync.internal.session.Filelist.Segment;
+import com.github.perlundq.yajsync.internal.session.Filelist.SegmentBuilder;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.text.TextConversionException;
 import com.github.perlundq.yajsync.internal.text.TextDecoder;
@@ -194,6 +199,8 @@ public class Receiver implements RsyncTask, MessageHandler
     private static class FileInfoStub {
         private String _pathNameOrNull;
         private ByteBuffer _pathNameBytes;
+        private char _flags;
+        private int _firstHlinkIdx;
         private RsyncFileAttributes _attrs;
         private String _symlinkTargetOrNull;
         private int _major = -1;
@@ -220,7 +227,7 @@ public class Receiver implements RsyncTask, MessageHandler
         Path fullPathOf(Path relativePath) throws RsyncSecurityException;
     }
 
-    private static final int INPUT_CHANNEL_BUF_SIZE = 128 * 1024;
+    private static final int INPUT_CHANNEL_BUF_SIZE = 2 * 1024 * 1024;
     private static final Logger _log =
         Logger.getLogger(Receiver.class.getName());
 
@@ -290,6 +297,7 @@ public class Receiver implements RsyncTask, MessageHandler
                                                               _isPreserveGroup,
                                                               _isPreserveDevices,
                                                               _isPreserveSpecials,
+                                                              _isPreserveLinks,
                                                               _isNumericIds,
                                                               builder._defaultUser,
                                                               builder._defaultGroup,
@@ -747,16 +755,18 @@ public class Receiver implements RsyncTask, MessageHandler
             }
         }
 
-        Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
+        Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null, _fileList);
 
         for (FileInfoStub stub : stubs) {
             Path pathOrNull = resolvePathOrNull(stub._pathNameOrNull);
-            FileInfo f = createFileInfo(stub._pathNameOrNull,
+            FileInfo f = createFileInfo(stub._flags,
+                                        stub._pathNameOrNull,
                                         stub._pathNameBytes,
                                         stub._attrs,
                                         pathOrNull,
                                         stub._symlinkTargetOrNull,
-                                        stub._major, stub._minor);
+                                        stub._major, stub._minor,
+                                        stub._firstHlinkIdx);
             builder.add(f);
         }
 
@@ -976,20 +986,6 @@ public class Receiver implements RsyncTask, MessageHandler
                             Integer.toBinaryString(iFlags)));
                 }
 
-                if ((iFlags & Item.TRANSFER) == 0) {
-                    if (_log.isLoggable(Level.FINE)) {
-                        _log.fine(String.format(
-                                "index %d is not a transfer", index));
-                    }
-                    continue;
-                }
-
-                if (phase != TransferPhase.TRANSFER) {
-                    throw new RsyncProtocolException(
-                        String.format("Error: wrong phase (%s)",
-                                      phase));
-                }
-
                 segment = Util.defaultIfNull(segment, _fileList.firstSegment());
                 LocatableFileInfo fileInfo = (LocatableFileInfo) segment.getFileWithIndexOrNull(index);
                 if (fileInfo == null) {
@@ -1008,6 +1004,27 @@ public class Receiver implements RsyncTask, MessageHandler
                     assert fileInfo != null;
                 }
 
+                if ((iFlags & Item.TRANSFER) == 0) {
+                    if (fileInfo instanceof LocatableHardlinkInfo ) {
+                        LocatableHardlinkInfo hlinked = (LocatableHardlinkInfo) fileInfo;
+                        if ( !hlinked.isFirst() ) {
+                            ioError |= recreateHardlink(segment,index, hlinked);
+                            continue;
+                        }
+                    }
+                    if (_log.isLoggable(Level.FINE)) {
+                        _log.fine(String.format(
+                                "index %d is not a transfer", index));
+                    }
+                    continue;
+                }
+
+                if (phase != TransferPhase.TRANSFER) {
+                    throw new RsyncProtocolException(
+                        String.format("Error: wrong phase (%s)",
+                                      phase));
+                }
+
                 if (_log.isLoggable(Level.INFO)) {
                     _log.info(fileInfo.toString());
                 }
@@ -1022,6 +1039,41 @@ public class Receiver implements RsyncTask, MessageHandler
             }
         }
         return ioError;
+    }
+
+    private int recreateHardlink( Segment segment, int index, LocatableHardlinkInfo hlinked ) throws InterruptedException
+    {
+        RsyncFileAttributes statOrNull = _fileAttributeManager.statOrNull( hlinked.path() );
+        
+        Path targetPath = null;
+        try {
+            targetPath = resolvePathOrNull( hlinked.targetPathName() );
+            
+            if ( statOrNull == null ) {
+                if ( _log.isLoggable( Level.INFO ) ) {
+                    _log.info( hlinked.toString() );
+                }
+                
+                Files.createLink( hlinked.path(), targetPath );
+                _stats._numFiles++;
+            } else if ( statOrNull.inode() != _fileAttributeManager.stat( targetPath ).inode() ) {
+                if ( _log.isLoggable( Level.INFO ) ) {
+                    _log.info( hlinked.toString() );
+                }
+                
+                Files.delete( hlinked.path() );
+                Files.createLink( hlinked.path(), targetPath );
+                
+                _stats._numFiles++;
+            }
+
+            _generator.purgeFile( segment, index );
+
+            return 0;
+        } catch ( IOException | RsyncSecurityException e ) {
+            _log.severe( String.format( "cannot create hardlink %s -> %s", hlinked.path(), targetPath ) );
+            return IoError.GENERAL;
+        }
     }
 
     private boolean isRemoteAndLocalFileIdentical(Path localFile,
@@ -1214,8 +1266,6 @@ public class Receiver implements RsyncTask, MessageHandler
                                                 resultFile,
                                                 fileInfo.path()));
                     }
-                    // TODO the idea of writing to temp file first and than move it to place
-                    // lead to retransfer of a whole file on siggen net failure
                     ioError |= moveTempfileToTarget(resultFile,
                                                     fileInfo.path());
                 }
@@ -1389,7 +1439,12 @@ public class Receiver implements RsyncTask, MessageHandler
             throws InterruptedException, ChannelException,
                    RsyncProtocolException, RsyncSecurityException
     {
+        FileInfoStub stub = new FileInfoStub();
+        stub._flags = flags;
         ByteBuffer pathNameBytes = receivePathNameBytes(flags);
+        if ( (flags & TransmitFlags.HLINKED) !=0 && (flags & TransmitFlags.HLINK_FIRST) == 0  ) {
+            stub._firstHlinkIdx = receiveAndDecodeInt();
+        }
         RsyncFileAttributes attrs = receiveRsyncFileAttributes(flags);
         String pathNameOrNull = decodePathName(pathNameBytes);
         if (_log.isLoggable(Level.FINE)) {
@@ -1406,7 +1461,6 @@ public class Receiver implements RsyncTask, MessageHandler
             symlinkTargetOrNull = receiveSymlinkTarget();
         }
 
-        FileInfoStub stub = new FileInfoStub();
         stub._pathNameOrNull = pathNameOrNull;
         stub._pathNameBytes = pathNameBytes;
         stub._attrs = attrs;
@@ -1421,12 +1475,12 @@ public class Receiver implements RsyncTask, MessageHandler
         return stub;
     }
 
-    private static FileInfo createFileInfo(String pathNameOrNull,
+    private static FileInfo createFileInfo(char flags, String pathNameOrNull,
                                            ByteBuffer _pathNameBytes,
                                            RsyncFileAttributes attrs,
                                            Path pathOrNull,
                                            String symlinkTargetOrNull,
-                                           int major, int minor)
+                                           int major, int minor, int first_hlink_idx)
     {
         if (_log.isLoggable(Level.FINE)) {
             _log.fine(String.format(
@@ -1436,6 +1490,11 @@ public class Receiver implements RsyncTask, MessageHandler
         }
         if (pathNameOrNull == null) { /* untransferrable */
             return new FileInfoImpl(pathNameOrNull, _pathNameBytes, attrs);
+        } else if ( (flags & TransmitFlags.HLINKED) != 0 ) {
+            if (pathOrNull == null) {
+                return new HardlinkInfoImpl( pathNameOrNull, _pathNameBytes, attrs, first_hlink_idx, symlinkTargetOrNull );
+            }
+            return new LocatableHardlinkInfoImpl( pathNameOrNull, _pathNameBytes, attrs, first_hlink_idx, symlinkTargetOrNull, pathOrNull );
         } else if ((attrs.isBlockDevice() || attrs.isCharacterDevice() ||
                     attrs.isFifo() || attrs.isSocket()) &&
                    major >= 0 && minor >= 0) {
@@ -1463,15 +1522,25 @@ public class Receiver implements RsyncTask, MessageHandler
     }
 
 
-    private FileInfo receiveFileInfo(char flags) throws InterruptedException,
+    private FileInfo receiveFileInfo(char flags, SegmentBuilder builder) throws InterruptedException,
                                                         ChannelException,
                                                         RsyncSecurityException,
                                                         RsyncProtocolException
     {
         ByteBuffer pathNameBytes = receivePathNameBytes(flags);
-        RsyncFileAttributes attrs = receiveRsyncFileAttributes(flags);
         String pathNameOrNull = decodePathName(pathNameBytes);
         Path fullPathOrNull = resolvePathOrNull(pathNameOrNull);
+        int first_hlink_idx = -1;
+        if ( (flags & TransmitFlags.HLINKED) != 0 && (flags & TransmitFlags.HLINK_FIRST) == 0) {
+            first_hlink_idx = receiveAndDecodeInt();
+            FileInfo abbr = builder.file( first_hlink_idx );
+            if ( abbr != null ) {
+                return createFileInfo(flags, pathNameOrNull, pathNameBytes, abbr.attrs(),
+                            fullPathOrNull, abbr.pathName(),
+                            0, 0, first_hlink_idx);
+            }
+        }
+        RsyncFileAttributes attrs = receiveRsyncFileAttributes(flags);
 
         if (_log.isLoggable(Level.FINE)) {
             _log.fine(String.format("Receiving file information for %s: %s",
@@ -1483,18 +1552,18 @@ public class Receiver implements RsyncTask, MessageHandler
         int minor = deviceRes[1];
 
         String symlinkTargetOrNull = null;
-        if (_isPreserveLinks && attrs.isSymbolicLink()) {
+        if (_isPreserveLinks && attrs.isSymbolicLink() ) {
             symlinkTargetOrNull = receiveSymlinkTarget();
         }
 
-        FileInfo fileInfo = createFileInfo(pathNameOrNull, pathNameBytes, attrs,
+        FileInfo fileInfo = createFileInfo(flags, pathNameOrNull, pathNameBytes, attrs,
                                            fullPathOrNull, symlinkTargetOrNull,
-                                           major, minor);
+                                           major, minor, first_hlink_idx);
 
         if (!(fileInfo instanceof LocatableFileInfo)) {
             _generator.disableDelete();
         }
-
+        
         if (_log.isLoggable(Level.FINE)) {
             _log.fine("Finished receiving " + fileInfo);
         }
@@ -1543,7 +1612,7 @@ public class Receiver implements RsyncTask, MessageHandler
                    InterruptedException, RsyncSecurityException
     {
         long numBytesRead = _in.numBytesRead() - _in.numBytesPrefetched();
-        Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(dir);
+        Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(dir,_fileList);
 
         while (true) {
             char flags = readFlags();
@@ -1553,7 +1622,7 @@ public class Receiver implements RsyncTask, MessageHandler
             if (_log.isLoggable(Level.FINER)) {
                 _log.finer("got flags " + Integer.toBinaryString(flags));
             }
-            FileInfo fileInfo = receiveFileInfo(flags);
+            FileInfo fileInfo = receiveFileInfo(flags, builder);
             builder.add(fileInfo);
         }
 

@@ -39,8 +39,8 @@ final class TransmitFlags
     //final static int SAME_RDEV_pre28 = (1<<2);     /* protocols 20 - 27  */
 
     // static final int NO_CONTENT_DIR = (1<<8);      /* protocols 30 - now (dirs only) */
-    // static final int HLINKED = (1<<9);             /* protocols 28 - now */
+    static final int HLINKED = (1<<9);             /* protocols 28 - now */
     // static final int SAME_DEV_pre30 = (1<<10);     /* protocols 28 - 29  */
     //final  static int RDEV_MINOR_8_pre30 = (1<<11); /* protocols 28 - 29  */
-    //final  static int HLINK_FIRST = (1<<12);        /* protocols 30 - now (HLINKED files only) */
+    final  static int HLINK_FIRST = (1<<12);        /* protocols 30 - now (HLINKED files only) */
 }

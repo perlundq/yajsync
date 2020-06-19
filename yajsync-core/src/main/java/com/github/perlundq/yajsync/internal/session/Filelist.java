@@ -22,6 +22,7 @@ package com.github.perlundq.yajsync.internal.session;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -31,6 +32,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.github.perlundq.yajsync.attr.FileInfo;
+import com.github.perlundq.yajsync.attr.HardlinkInfo;
+import com.github.perlundq.yajsync.attr.LocatableHardlinkInfo;
 
 public class Filelist
 {
@@ -39,18 +42,12 @@ public class Filelist
         private FileInfo _directory;
         private List<FileInfo> _files = new ArrayList<>();
         private List<FileInfo> _directories = new ArrayList<>();
+        private int _dirIndex;
 
-        public SegmentBuilder(FileInfo directory)
+        public SegmentBuilder(FileInfo directory, Filelist fileList)
         {
             _directory = directory;
-        }
-
-        public SegmentBuilder(FileInfo directory, List<FileInfo> files,
-                              List<FileInfo> directories)
-        {
-            _directory = directory;
-            _files = files;
-            _directories = directories;
+            _dirIndex = fileList._nextDirIndex;
         }
 
         public FileInfo directory()
@@ -66,6 +63,17 @@ public class Filelist
         public List<FileInfo> directories()
         {
             return _directories;
+        }
+        
+        public FileInfo file( int index ) {
+            if ( index > startIndex() )
+                return _files.get( index - startIndex() - 1 );
+            return null;
+        }
+        
+        public int startIndex() {
+            assert _dirIndex >= 0;
+            return _dirIndex;
         }
 
         @Override
@@ -107,10 +115,11 @@ public class Filelist
             _directory = null;
             _files = null;
             _directories = null;
+            _dirIndex = -1;
         }
     }
 
-    public static class Segment implements Comparable<Integer>
+    public class Segment implements Comparable<Integer>
     {
         private final FileInfo _directory;
         private final int _dirIndex;
@@ -119,7 +128,7 @@ public class Filelist
         private long _totalFileSize;
 
         private Segment(FileInfo directory, int dirIndex, List<FileInfo> files,
-                        Map<Integer, FileInfo> map, boolean isPruneDuplicates)
+                        Map<Integer, FileInfo> map)
         {
             assert dirIndex >= -1;
             assert files != null;
@@ -137,7 +146,7 @@ public class Filelist
                 // Note: we may not remove any other files here (if
                 // Receiver) without also notifying Sender with a
                 // Filelist.DONE if the Segment ends up being empty
-                if (isPruneDuplicates && f.equals(prev)) {
+                if (_isPruneDuplicates && f.equals(prev)) {
                     if (_log.isLoggable(Level.WARNING)) {
                         _log.warning("skipping duplicate " + f);
                     }
@@ -147,6 +156,29 @@ public class Filelist
                         f.attrs().isSymbolicLink())
                     {
                         _totalFileSize += f.attrs().size();
+                    }
+                    if ( _isPreserveLinks && f instanceof LocatableHardlinkInfo ) {
+                        LocatableHardlinkInfo hlink = (LocatableHardlinkInfo) f;
+                        if ( hlink.isFirst() ) {
+                            // inodes are nonzero only on sender 
+                            long inode = hlink.attrs().inode();
+                            if ( inode > 0 ) {
+                                Integer firstIdx = _hlinkInodes.putIfAbsent( inode, index );
+                                if ( firstIdx != null ) {
+                                    hlink.setLinkedIndex( firstIdx );
+                                    hlink.setAbbrev( firstIdx > _dirIndex );
+                                    hlink.setTargetPathName( _hlinkPaths.get( firstIdx ) );
+                                } else {
+                                    _hlinkPaths.put( index, hlink.pathName() );
+                                }
+                            } else {
+                                _hlinkPaths.put( index, hlink.pathName() );
+                            }
+                        } else {
+                            // this works on receiver
+                            if ( hlink.getLinkedIndex() < _dirIndex )
+                                hlink.setTargetPathName( _hlinkPaths.get( hlink.getLinkedIndex() ) );
+                        }
                     }
                 }
                 index++;
@@ -272,15 +304,18 @@ public class Filelist
 
     protected final List<Segment> _segments;
     private final boolean _isRecursive;
+    private final boolean _isPreserveLinks;
     private final boolean _isPruneDuplicates;
     private final SortedMap<Integer, FileInfo> _stubDirectories;
     private int _nextDirIndex;
     private int _stubDirectoryIndex = 0;
     private long _totalFileSize;
     private int _numFiles;
+    private Map<Long, Integer> _hlinkInodes;
+    private Map<Integer, String> _hlinkPaths;
 
 
-    protected Filelist(boolean isRecursive, boolean isPruneDuplicates,
+    protected Filelist(boolean isRecursive, boolean isPruneDuplicates, boolean isPreserveLinks,
                        List<Segment> segments)
     {
         _segments = segments;
@@ -293,11 +328,16 @@ public class Filelist
             _stubDirectories = null;
             _nextDirIndex = -1;
         }
+        _isPreserveLinks = isPreserveLinks;
+        if ( _isPreserveLinks ) {
+            _hlinkPaths = new HashMap<>();
+            _hlinkInodes = new HashMap<>();
+        }
     }
 
-    public Filelist(boolean isRecursive, boolean isPruneDuplicates)
+    public Filelist(boolean isRecursive, boolean isPruneDuplicates, boolean isPreserveLinks)
     {
-        this(isRecursive, isPruneDuplicates, new ArrayList<Segment>());
+        this(isRecursive, isPruneDuplicates, isPreserveLinks, new ArrayList<Segment>());
     }
 
     protected Segment newSegment(SegmentBuilder builder,
@@ -318,8 +358,8 @@ public class Filelist
         if (_isRecursive) {
             extractStubDirectories(builder._directories);
         }
-        Segment segment = new Segment(builder._directory, _nextDirIndex,
-                                      builder._files, map, _isPruneDuplicates);
+        Segment segment = new Segment(builder._directory, builder._dirIndex,
+                                      builder._files, map );
         builder.clear();
         _nextDirIndex = segment._endIndex + 1;
         _segments.add(segment);
@@ -418,7 +458,7 @@ public class Filelist
         }
         return _stubDirectories.remove(directoryIndex);
     }
-
+    
     // sender receiver
     public boolean isExpandable()
     {

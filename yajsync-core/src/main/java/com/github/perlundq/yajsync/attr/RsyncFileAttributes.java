@@ -30,13 +30,15 @@ public class RsyncFileAttributes
     private final long _lastModified;
     private final User _user;
     private final Group _group;
+    private final long _inode;
+    private final int _nlink;
 
     /**
      * @throws IllegalArgumentException if fileSize and/or lastModified is
      *         negative
      */
     public RsyncFileAttributes(int mode, long fileSize, long lastModified,
-                               User user, Group group)
+                               User user, Group group, int nlink, long inode)
     {
         assert user != null;
         assert group != null;
@@ -53,16 +55,23 @@ public class RsyncFileAttributes
         _lastModified = lastModified;
         _user = user;
         _group = group;
+        _inode = inode;
+        _nlink = nlink;
     }
 
+    public RsyncFileAttributes(int mode, long fileSize, long lastModified,
+                    User user, Group group) {
+        this( mode, fileSize, lastModified, user, group, 1, 0l );
+    }
+    
     @Override
     public String toString()
     {
         return String.format("%s (type=%s, mode=%#o, size=%d, " +
-                             "lastModified=%d, user=%s, group=%s)",
+                             "lastModified=%d, user=%s, group=%s, nlinks=%s, inode=%s)",
                              getClass().getSimpleName(),
                              FileOps.fileTypeToString(_mode),
-                             _mode, _size, _lastModified, _user, _group);
+                             _mode, _size, _lastModified, _user, _group,_nlink,_inode);
     }
 
     @Override
@@ -74,7 +83,8 @@ public class RsyncFileAttributes
                    _size         == other._size &&
                    _mode         == other._mode &&
                    _user.equals(other._user) &&
-                   _group.equals(other._group);
+                   _group.equals(other._group) &&
+                   _nlink == other._nlink && _inode == other._inode;
 
         }
         return false;
@@ -83,7 +93,7 @@ public class RsyncFileAttributes
     @Override
     public int hashCode()
     {
-        return Objects.hash(_lastModified, _size, _mode, _user, _group);
+        return Objects.hash(_lastModified, _size, _mode, _user, _group,_nlink,_inode);
     }
 
     public int mode()
@@ -154,5 +164,13 @@ public class RsyncFileAttributes
     public int fileType()
     {
         return FileOps.fileType(_mode);
+    }
+    
+    public boolean isHardLink() {
+        return _nlink > 1 && !isDirectory();
+    }
+    
+    public long inode() {
+        return _inode;
     }
 }

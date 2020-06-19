@@ -48,6 +48,7 @@ import com.github.perlundq.yajsync.Statistics;
 import com.github.perlundq.yajsync.attr.DeviceInfo;
 import com.github.perlundq.yajsync.attr.FileInfo;
 import com.github.perlundq.yajsync.attr.Group;
+import com.github.perlundq.yajsync.attr.HardlinkInfo;
 import com.github.perlundq.yajsync.attr.LocatableFileInfo;
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.SymlinkInfo;
@@ -381,7 +382,7 @@ public final class Sender implements RsyncTask, MessageHandler
                                  RsyncProtocolException
     {
         Filelist fileList =
-                new Filelist(_fileSelection == FileSelection.RECURSE, false);
+                new Filelist(_fileSelection == FileSelection.RECURSE, false, _isPreserveLinks );
         try {
             if (_log.isLoggable(Level.FINE)) {
                 _log.fine(this.toString());
@@ -403,7 +404,7 @@ public final class Sender implements RsyncTask, MessageHandler
 
             StatusResult<List<FileInfo>> expandResult = initialExpand(_sourceFiles);
             boolean isInitialListOK = expandResult.isOK();
-            Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null);
+            Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(null, fileList);
             builder.addAll(expandResult.value());
             Filelist.Segment initialSegment = fileList.newSegment(builder);
             long numBytesWritten = _duplexChannel.numBytesWritten();
@@ -641,6 +642,16 @@ public final class Sender implements RsyncTask, MessageHandler
             throw new RsyncProtocolException(e);
         }
     }
+    
+    private String readVstring() throws ChannelException {
+        int len = _duplexChannel.getByte();
+        if ( (len & 0x80) != 0) {
+            len = ( len & ~0x80 ) * 0x100 + ( 0xFF & _duplexChannel.getByte() );
+        }
+        byte[] str = new byte[ len ];
+        _duplexChannel.get( str, 0, len );
+        return _characterDecoder.decodeOrNull( str );
+    }
 
     private int sendFiles(Filelist fileList) throws ChannelException,
                                                     RsyncProtocolException
@@ -738,6 +749,9 @@ public final class Sender implements RsyncTask, MessageHandler
                     throw new IllegalStateException(String.format(
                         "got flags %s - not supported",
                         Integer.toBinaryString(iFlags)));
+                }
+                if ( (iFlags & Item.XNAME_FOLLOWS) != 0) {
+                    readVstring();
                 }
                 if ((iFlags & Item.TRANSFER) == 0) {
                     if (segment == null ||
@@ -903,7 +917,9 @@ public final class Sender implements RsyncTask, MessageHandler
         // throws TextConversionException
         ByteBuffer nameBytes = _characterEncoder.encode(fileName);
 
-        if (attrs.isRegularFile() || attrs.isDirectory()) {
+        if ( _isPreserveLinks && attrs.isHardLink() ) {
+            return new LocatableHardlinkInfoImpl( fileName, nameBytes, attrs, -1, path );
+        } else if (attrs.isRegularFile() || attrs.isDirectory()) {
             return new LocatableFileInfoImpl(fileName, nameBytes, attrs, path);
         } else if (_isPreserveLinks && attrs.isSymbolicLink()) {
             String linkTarget = FileOps.readLinkTarget(path).toString();
@@ -953,7 +969,7 @@ public final class Sender implements RsyncTask, MessageHandler
                                                 fileInfo));
                     }
                     fileset.add(fileInfo);
-                    if (((LocatableFileInfoImpl)fileInfo).isDotDir()) {
+                    if ( fileInfo instanceof LocatableFileInfoImpl && ( (LocatableFileInfoImpl) fileInfo ).isDotDir() ) {
                         if (_log.isLoggable(Level.FINE)) {
                             _log.fine("expanding dot dir " + fileInfo);
                         }
@@ -997,6 +1013,7 @@ public final class Sender implements RsyncTask, MessageHandler
                                                                       _isPreserveGroup,
                                                                       _isPreserveDevices,
                                                                       _isPreserveSpecials,
+                                                                      _isPreserveLinks,
                                                                       _isNumericIds,
                                                                       _defaultUser,
                                                                       _defaultGroup,
@@ -1054,7 +1071,13 @@ public final class Sender implements RsyncTask, MessageHandler
                     _characterEncoder.encodeOrNull(relativePathName);
                 if (pathNameBytes != null) {
                     LocatableFileInfo f;
-                    if (_isPreserveLinks && attrs.isSymbolicLink()) {
+                    if (_isPreserveLinks && attrs.isHardLink()) {
+                        f = new LocatableHardlinkInfoImpl(relativePathName,
+                                                     pathNameBytes,
+                                                     attrs,
+                                                     -1,
+                                                     entry);
+                    } else if (_isPreserveLinks && attrs.isSymbolicLink()) {
                         Path symlinkTarget = FileOps.readLinkTarget(entry);
                         f = new LocatableSymlinkInfoImpl(relativePathName,
                                                      pathNameBytes,
@@ -1163,8 +1186,7 @@ public final class Sender implements RsyncTask, MessageHandler
                 _log.warning("initial file list expansion returned an error");
             }
 
-            Filelist.SegmentBuilder builder =
-                    new Filelist.SegmentBuilder(directory);
+            Filelist.SegmentBuilder builder = new Filelist.SegmentBuilder(directory, fileList);
             builder.addAll(expandResult.value());
             Filelist.Segment segment = fileList.newSegment(builder);
 
@@ -1218,6 +1240,7 @@ public final class Sender implements RsyncTask, MessageHandler
             xflags = 1;
         }
 
+        int hlink_idx = -1;
         if (_isPreserveDevices && fileInfo instanceof DeviceInfo &&
             (attrs.isBlockDevice() || attrs.isCharacterDevice()))
         {
@@ -1230,6 +1253,14 @@ public final class Sender implements RsyncTask, MessageHandler
         } else if (_isPreserveSpecials && fileInfo instanceof DeviceInfo &&
                    (attrs.isFifo() || attrs.isSocket())) {
             xflags |= TransmitFlags.SAME_RDEV_MAJOR;
+        } else if (_isPreserveLinks && fileInfo instanceof HardlinkInfo ) {
+            
+            HardlinkInfo hinfo = (HardlinkInfo) fileInfo;
+            xflags |= TransmitFlags.HLINKED;
+            if ( hinfo.isFirst() )
+                xflags |= TransmitFlags.HLINK_FIRST;
+            else
+                hlink_idx = hinfo.getLinkedIndex();
         }
 
         int mode = attrs.mode();
@@ -1324,6 +1355,14 @@ public final class Sender implements RsyncTask, MessageHandler
             _duplexChannel.putByte((byte) numSuffixBytes);
         }
         _duplexChannel.put(ByteBuffer.wrap(suffixBytes));
+        
+        if ( hlink_idx >=0 ) {
+            sendEncodedInt( hlink_idx );
+            HardlinkInfo hinfo = (HardlinkInfo) fileInfo;
+            // if hlink target is in the same segment resending of attributes are skipped ( abbrev in rsync terms )
+            if ( hinfo.isAbbrev() )
+                return;
+        }
 
         sendEncodedLong(attrs.size(), 3);
 

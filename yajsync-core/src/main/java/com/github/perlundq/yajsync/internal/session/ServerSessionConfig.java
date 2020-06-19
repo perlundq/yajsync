@@ -370,6 +370,11 @@ public class ServerSessionConfig extends SessionConfig
                                                      _isPreserveLinks = true;
                                                      return ArgumentParser.Status.CONTINUE;
                                                  }));
+        argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "hard-links ", "H", "",
+                        option -> {
+                            _isPreserveLinks = true;
+                            return ArgumentParser.Status.CONTINUE;
+                        }));
 
         argsParser.add(Option.newWithoutArgument(Option.Policy.OPTIONAL, "owner", "o", "",
                                                  option -> {

@@ -462,6 +462,15 @@ public class SystemTest
         return new ReturnStatus(rc, client.statistics());
     }
 
+    private ReturnStatus recursiveCopyPreserveLinks(Path src, Path dst)
+    {
+        YajsyncClient client = newClient();
+        int rc = client.start(new String[] { "--recursive", "-l",
+                                             src.toString() + "/",
+                                             dst.toString() });
+        return new ReturnStatus(rc, client.statistics());
+    }
+
     @Before
     public void setup()
     {
@@ -723,6 +732,30 @@ public class SystemTest
         assertTrue(status.stats.numFiles() == numDirs + numFiles);
         assertTrue(status.stats.numTransferredFiles() == numFiles);
         assertTrue(status.stats.totalLiteralSize() == fileSize);
+        assertTrue(status.stats.totalMatchedSize() == 0);
+    }
+    
+    @Test
+    public void testCopyHardlink() throws IOException
+    {
+        Path src = _tempDir.newFolder("src").toPath();
+        Path file = _tempDir.newFolder("src","file_dir").toPath();
+        Path link = _tempDir.newFolder("src","link_dir").toPath();
+        Path src_file = Files.createFile(file.resolve("file1"));
+
+        byte[] content = FileUtil.generateBytes(0xcd, 512);
+        FileUtil.writeToFiles(content, src_file);
+
+        Path linked_file = Files.createLink(link.resolve("unabbr1"), src_file);
+        Path linked_abbr = Files.createLink(file.resolve("abbr1"), src_file);
+
+        Path dst = _tempDir.newFolder("dst").toPath();
+        ReturnStatus status = recursiveCopyPreserveLinks(src, dst);
+        assertTrue(status.rc == 0);
+        assertTrue(FileUtil.isDirectoriesIdentical(src, dst));
+        assertTrue(status.stats.numFiles() == 6);
+        assertTrue(status.stats.numTransferredFiles() == 1);
+        assertTrue(status.stats.totalLiteralSize() == 512);
         assertTrue(status.stats.totalMatchedSize() == 0);
     }
 

@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.GroupPrincipal;
+import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
 import java.nio.file.attribute.UserPrincipalNotFoundException;
@@ -43,6 +44,7 @@ import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.attr.User;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.util.Environment;
+import com.github.perlundq.yajsync.internal.util.FileOps;
 import com.github.perlundq.yajsync.internal.util.Pair;
 
 public final class UnixFileAttributeManager extends FileAttributeManager
@@ -215,7 +217,19 @@ public final class UnixFileAttributeManager extends FileAttributeManager
         User user = new User(userName, uid);
         Group group = new Group(groupName, gid);
 
-        return new RsyncFileAttributes(mode, size, mtime, user, group);
+        int nlink = 1;
+        long inode = 0;
+        if ( !FileOps.isSymbolicLink( mode ) ) {
+            try {
+                attrs = Files.readAttributes( path, "unix:nlink,ino" );
+                nlink = (int) attrs.get( "nlink");
+                inode = (long) attrs.get( "ino" );
+            } catch ( UnsupportedOperationException e ) {
+                // hard links not supported
+            }
+        }
+
+        return new RsyncFileAttributes(mode, size, mtime, user, group,nlink, inode);
     }
 
     private RsyncFileAttributes fullStat(Path path) throws IOException
@@ -231,8 +245,20 @@ public final class UnixFileAttributeManager extends FileAttributeManager
         String groupName = ((GroupPrincipal) attrs.get("group")).getName();
         User user = new User(userName, uid);
         Group group = new Group(groupName, gid);
+        
+        int nlink = 1;
+        long inode = 0;
+        if ( !FileOps.isSymbolicLink( mode ) ) {
+            try {
+                attrs = Files.readAttributes( path, "unix:nlink,ino" );
+                nlink = (int) attrs.get( "nlink");
+                inode = (long) attrs.get( "ino" );
+            } catch ( UnsupportedOperationException e ) {
+                // hard links not supported
+            }
+        }
 
-        return new RsyncFileAttributes(mode, size, mtime, user, group);
+        return new RsyncFileAttributes(mode, size, mtime, user, group, nlink, inode);
     }
 
     @Override

@@ -48,7 +48,8 @@ final class Item
                                            REPORT_PERMS |
                                            REPORT_SIZE |
                                            REPORT_TIME |
-                                           TRANSFER;
+                                           TRANSFER | 
+                                           XNAME_FOLLOWS;
 
     public static boolean isValidItem(int flags)
     {

@@ -26,10 +26,11 @@ import com.github.perlundq.yajsync.attr.FileInfo;
 
 public class ConcurrentFilelist extends Filelist
 {
-    public ConcurrentFilelist(boolean isRecursive, boolean isPruneDuplicates)
+    public ConcurrentFilelist(boolean isRecursive, boolean isPruneDuplicates, boolean isPreserveLinks)
     {
         super(isRecursive,
               isPruneDuplicates,
+              isPreserveLinks,
               Collections.synchronizedList(new ArrayList<Segment>()));
     }
 

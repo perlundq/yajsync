@@ -29,7 +29,6 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
-import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -49,14 +48,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.junit.Assert;
-
 import com.github.perlundq.yajsync.FileSelection;
 import com.github.perlundq.yajsync.RsyncException;
 import com.github.perlundq.yajsync.RsyncProtocolException;
 import com.github.perlundq.yajsync.attr.FileInfo;
+import com.github.perlundq.yajsync.attr.HardlinkInfo;
 import com.github.perlundq.yajsync.attr.LocatableDeviceInfo;
 import com.github.perlundq.yajsync.attr.LocatableFileInfo;
+import com.github.perlundq.yajsync.attr.LocatableHardlinkInfo;
 import com.github.perlundq.yajsync.attr.LocatableSymlinkInfo;
 import com.github.perlundq.yajsync.attr.RsyncFileAttributes;
 import com.github.perlundq.yajsync.internal.channels.ChannelException;
@@ -64,9 +63,8 @@ import com.github.perlundq.yajsync.internal.channels.Message;
 import com.github.perlundq.yajsync.internal.channels.MessageCode;
 import com.github.perlundq.yajsync.internal.channels.RsyncOutChannel;
 import com.github.perlundq.yajsync.internal.io.FileView;
-import com.github.perlundq.yajsync.internal.io.FileViewOpenFailed;
 import com.github.perlundq.yajsync.internal.io.FileViewException;
-import com.github.perlundq.yajsync.internal.text.Text;
+import com.github.perlundq.yajsync.internal.io.FileViewOpenFailed;
 import com.github.perlundq.yajsync.internal.text.TextConversionException;
 import com.github.perlundq.yajsync.internal.text.TextEncoder;
 import com.github.perlundq.yajsync.internal.util.ChecksumDigest;
@@ -255,7 +253,7 @@ public class Generator implements RsyncTask
         _fileSelection = builder._fileSelection;
         _fileList =
                 new ConcurrentFilelist(_fileSelection == FileSelection.RECURSE,
-                                       true);
+                                       true, builder._isPreserveLinks);
         _out = new RsyncOutChannel(builder._out, OUTPUT_CHANNEL_BUF_SIZE);
         _characterEncoder = TextEncoder.newStrict(builder._charset);
         _isAlwaysItemize = builder._isAlwaysItemize;
@@ -694,7 +692,10 @@ public class Generator implements RsyncTask
                                 "(Generator) generating %s, index %d",
                                 lf.path(), index));
                     }
-                    if (f.attrs().isRegularFile()) {
+                    if ( f instanceof LocatableHardlinkInfo ) {
+                        isTransfer = itemizeHardlink(index, (LocatableHardlinkInfo) f );
+                        
+                    } else if (f.attrs().isRegularFile()) {
                         isTransfer = itemizeFile(index, lf,
                                                  Checksum.MIN_DIGEST_LENGTH);
                     } else if (f.attrs().isDirectory()) {
@@ -749,6 +750,7 @@ public class Generator implements RsyncTask
         segment.removeAll(toRemove);
         return numErrors;
     }
+
 
     private Collection<FileInfo> toInitialListing(Filelist.Segment segment)
     {
@@ -1365,6 +1367,19 @@ public class Generator implements RsyncTask
         }
     }
 
+    private boolean itemizeHardlink( int index, LocatableHardlinkInfo h ) throws ChannelException, IOException
+    {
+        if ( h.isFirst() ) {
+            return itemizeFile( index, h, index );
+        } else {
+            sendItemizeInfo(index,
+                            null /* curAttrsOrNull */,
+                            h.attrs(),
+                            (char) (Item.LOCAL_CHANGE | Item.REPORT_CHANGE));
+            return true;
+        }
+    }
+    
     private void unlinkFilesInDirNotAtSender(Path dir,
                                              Collection<FileInfo> files)
             throws IOException, ChannelException

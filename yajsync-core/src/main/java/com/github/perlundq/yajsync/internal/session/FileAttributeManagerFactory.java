@@ -31,13 +31,14 @@ public final class FileAttributeManagerFactory
                                                          boolean isPreserveGroup,
                                                          boolean isPreserveDevices,
                                                          boolean isPreserveSpecials,
+                                                         boolean isPreserveLinks,
                                                          boolean isNumericIds,
                                                          User defaultUser, Group defaultGroup,
                                                          int defaultFilePermissions,
                                                          int defaultDirectoryPermissions)
     {
         if (isUnixSupported(fs) &&
-            (isPreserveDevices || isPreserveSpecials || isPreserveUser || isPreserveGroup)) {
+            (isPreserveDevices || isPreserveSpecials || isPreserveUser || isPreserveGroup || isPreserveLinks)) {
             try {
                 return new UnixFileAttributeManager(defaultUser, defaultGroup, isPreserveUser,
                                                     isPreserveGroup);
