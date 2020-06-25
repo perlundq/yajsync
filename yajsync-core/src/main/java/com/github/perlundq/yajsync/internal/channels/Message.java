@@ -77,7 +77,7 @@ public class Message
     {
         return String.format("%s %s %s %s",
                              getClass().getSimpleName(), _header, _payload,
-                             Text.byteBufferToString(_payload));
+                             Text.bytesToString(_payload));
     }
 
     /**

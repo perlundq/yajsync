@@ -120,8 +120,8 @@ public class IntegerCoderTest
         ByteBuffer actual = IntegerCoder.encodeLong(_input, _minBytes);
         assertEquals(String.format("encode %d -> %s, expected %s (minBytes=%d)",
                                    _input,
-                                   Text.byteBufferToString(actual),
-                                   Text.byteBufferToString(_expected),
+                                   Text.bytesToString(actual),
+                                   Text.bytesToString(_expected),
                                    _minBytes),
                      _expected, actual);
     }

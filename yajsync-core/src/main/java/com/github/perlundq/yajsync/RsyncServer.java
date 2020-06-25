@@ -106,7 +106,7 @@ public class RsyncServer
         if (cfg.isSender()) {
             Sender sender = Sender.Builder.newServer(in, out,
                                                      cfg.sourceFiles(),
-                                                     cfg.checksumSeed()).
+                                                     cfg.checksumSeed(), cfg.checksumHash() ).
                     filterMode(FilterMode.RECEIVE).
                     charset(cfg.charset()).
                     fileSelection(cfg.fileSelection()).
@@ -121,7 +121,7 @@ public class RsyncServer
             return _rsyncTaskExecutor.exec(sender);
         } else {
             Generator generator = new Generator.Builder(out,
-                                                        cfg.checksumSeed()).
+                                                        cfg.checksumSeed(), cfg.checksumHash()).
                     charset(cfg.charset()).
                     fileSelection(cfg.fileSelection()).
                     isDelete(cfg.isDelete()).

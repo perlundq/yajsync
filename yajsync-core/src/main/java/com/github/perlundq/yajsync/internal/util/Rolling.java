@@ -19,6 +19,8 @@
  */
 package com.github.perlundq.yajsync.internal.util;
 
+import java.nio.ByteBuffer;
+
 public class Rolling
 {
     private final static int CHAR_OFFSET = 0; // currently unused
@@ -45,6 +47,30 @@ public class Rolling
         }
         for (; idx < length; idx++) {
             low16 += buf[offset + idx] + CHAR_OFFSET;
+            high16 += low16;
+        }
+
+        return toInt(low16, high16);
+    }
+
+    public static int compute(ByteBuffer buf)
+    {
+        int low16 = 0;
+        int high16 = 0;
+
+        int idx;
+        for (idx = buf.position(); idx < buf.limit() - 4; idx += 4) {
+            byte b0 = buf.get( idx + 0 );
+            byte b1 = buf.get( idx + 1 );
+            byte b2 = buf.get( idx + 2 );
+            byte b3 = buf.get( idx + 3 );
+
+            high16 += 4 * ( b0 + low16 ) + 3 * b1 + 2 * b2 + 1 * b3 + 10 * CHAR_OFFSET;
+            
+            low16 += b0 + b1 + b2 + b3 + 4 * CHAR_OFFSET;
+        }
+        for (; idx < buf.limit(); idx++) {
+            low16 += buf.get( idx ) + CHAR_OFFSET;
             high16 += low16;
         }
 

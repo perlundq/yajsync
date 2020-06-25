@@ -49,6 +49,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.junit.Assert;
+
 import com.github.perlundq.yajsync.FileSelection;
 import com.github.perlundq.yajsync.RsyncException;
 import com.github.perlundq.yajsync.RsyncProtocolException;
@@ -67,8 +69,8 @@ import com.github.perlundq.yajsync.internal.io.FileViewException;
 import com.github.perlundq.yajsync.internal.text.Text;
 import com.github.perlundq.yajsync.internal.text.TextConversionException;
 import com.github.perlundq.yajsync.internal.text.TextEncoder;
+import com.github.perlundq.yajsync.internal.util.ChecksumDigest;
 import com.github.perlundq.yajsync.internal.util.FileOps;
-import com.github.perlundq.yajsync.internal.util.MD5;
 import com.github.perlundq.yajsync.internal.util.Pair;
 import com.github.perlundq.yajsync.internal.util.Rolling;
 import com.github.perlundq.yajsync.internal.util.RuntimeInterruptException;
@@ -79,7 +81,8 @@ public class Generator implements RsyncTask
     public static class Builder
     {
         private final WritableByteChannel _out;
-        private final byte[] _checksumSeed;
+        private ChecksumHash _checksumHash;
+        private final int _checksumSeed;
         private boolean _isAlwaysItemize;
         private boolean _isIgnoreTimes;
         private boolean _isInterruptible = true;
@@ -95,12 +98,12 @@ public class Generator implements RsyncTask
         private Charset _charset;
         private FileSelection _fileSelection = FileSelection.EXACT;
 
-        public Builder(WritableByteChannel out, byte[] checksumSeed)
+        public Builder(WritableByteChannel out, int checksumSeed, ChecksumHash checksumHash)
         {
             assert out != null;
-            assert checksumSeed != null;
             _out = out;
             _checksumSeed = checksumSeed;
+            _checksumHash = checksumHash;
         }
 
         public Builder isAlwaysItemize(boolean isAlwaysItemize)
@@ -219,7 +222,8 @@ public class Generator implements RsyncTask
     private final boolean _isPreserveUser;
     private final boolean _isPreserveGroup;
     private final boolean _isNumericIds;
-    private final byte[] _checksumSeed;
+    private final ChecksumHash _checksumHash;
+    private final int _checksumSeed;
     private final Deque<Job> _deferredJobs = new ArrayDeque<>();
     private final Filelist _fileList;
     private final FileSelection _fileSelection;
@@ -246,6 +250,7 @@ public class Generator implements RsyncTask
 
     private Generator(Builder builder)
     {
+        _checksumHash = builder._checksumHash;
         _checksumSeed = builder._checksumSeed;
         _fileSelection = builder._fileSelection;
         _fileList =
@@ -301,7 +306,7 @@ public class Generator implements RsyncTask
                 _isPreserveTimes,
                 _isPreserveUser,
                 _isPreserveGroup,
-                Text.bytesToString(_checksumSeed),
+                _checksumSeed,
                 _fileSelection);
     }
 
@@ -350,6 +355,15 @@ public class Generator implements RsyncTask
     Charset charset()
     {
         return _characterEncoder.charset();
+    }
+    
+    ChecksumHash checksumHash() {
+        assert _checksumHash != null;
+        return _checksumHash;
+    }
+    
+    int checksumSeed() {
+        return _checksumSeed;
     }
 
     FileSelection fileSelection()
@@ -483,7 +497,7 @@ public class Generator implements RsyncTask
      */
     private Message toMessage(MessageCode code, String text)
     {
-        ByteBuffer payload = ByteBuffer.wrap(_characterEncoder.encode(text));
+        ByteBuffer payload = _characterEncoder.encode(text);
         return new Message(code, payload);
     }
 
@@ -594,7 +608,7 @@ public class Generator implements RsyncTask
                 try {
                     boolean isTransfer =
                             itemizeFile(fileIndex, fileInfo,
-                                        Checksum.MAX_DIGEST_LENGTH);
+                                        _checksumHash.maxlength());
                     if (!isTransfer) {
                         segment.remove(fileIndex);
                         removeAllFinishedSegmentsAndNotifySender();
@@ -849,11 +863,11 @@ public class Generator implements RsyncTask
         return Math.max(MIN_BLOCK_SIZE, blockLength);
     }
 
-    private static int getDigestLength(long fileSize, int block_length)
+    private static int getDigestLength(long fileSize, int block_length, int maxDigestLength)
     {
         int result = ((int) (10 + 2 * (long) Util.log2(fileSize) -
                             (long) Util.log2(block_length)) - 24) / 8;
-        result = Math.min(result, Checksum.MAX_DIGEST_LENGTH);
+        result = Math.min( result, maxDigestLength );
         return Math.max(result, Checksum.MIN_DIGEST_LENGTH);
     }
 
@@ -868,16 +882,14 @@ public class Generator implements RsyncTask
 
         long currentSize = curAttrs.size();
         int blockLength = getBlockLengthFor(currentSize);
-        int windowLength = blockLength;
         int digestLength = currentSize > 0
                            ? Math.max(minDigestLength,
-                                      getDigestLength(currentSize, blockLength))
+                                      getDigestLength(currentSize, blockLength, _checksumHash.maxlength()))
                            : 0;
         // new FileView() throws FileViewOpenFailed
         try (FileView fv = new FileView(fileInfo.path(),
                                         currentSize,
-                                        blockLength,
-                                        windowLength)) {
+                                        blockLength)) {
 
             // throws ChunkCountOverflow
             Checksum.Header header = new Checksum.Header(blockLength,
@@ -892,17 +904,18 @@ public class Generator implements RsyncTask
             sendItemizeInfo(index, curAttrs, fileInfo.attrs(), Item.TRANSFER);
             sendChecksumHeader(header);
 
-            MessageDigest md = MD5.newInstance();
+            ChecksumDigest checksum = _checksumHash.instance( _checksumSeed );
+            ByteBuffer digest = checksum.newDigest();
 
             while (fv.windowLength() > 0) {
-                int rolling = Rolling.compute(fv.array(),
-                                              fv.startOffset(),
-                                              fv.windowLength());
-                _out.putInt(rolling);
-                md.update(fv.array(), fv.startOffset(), fv.windowLength());
-                md.update(_checksumSeed);
-                _out.put(md.digest(), 0, digestLength);
-                fv.slide(fv.windowLength());
+                ByteBuffer window = fv.windowBuffer();
+                int rolling = Rolling.compute( window );
+                _out.putInt( rolling );
+                checksum.digest( window, digest );
+                digest.flip().limit( digestLength );
+                _out.put( digest );
+                digest.clear();
+                fv.slide( fv.windowLength() );
             }
         } catch (FileViewOpenFailed | Checksum.ChunkOverflow e) {
             if (_log.isLoggable(Level.WARNING)) {

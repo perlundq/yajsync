@@ -126,7 +126,7 @@ public class TextDecoder
                 throw new TextConversionException(String.format(
                     "failed to decode %d bytes after %s (using %s): %s -> %s",
                     result.length(), output.flip().toString(),
-                    _decoder.charset(), Text.byteBufferToString(input),
+                    _decoder.charset(), Text.bytesToString(input),
                     result));
             }
             return null;
